@@ -1,64 +1,46 @@
-import type { ReactNode } from "react"
-import { createContext, useContext, useEffect, useState } from "react"
+import { useEffect } from "react"
 
-const THEME_STORAGE_KEY = "dgprints_theme"
+import { useAppDispatch, useAppSelector } from "@/lib/hooks"
+import { getSystemTheme, systemThemeChanged, themeSet, type Theme } from "@/lib/theme-slice"
 
-type Theme = "light" | "dark" | "system"
-type ResolvedTheme = "light" | "dark"
+export function useTheme() {
+  const theme = useAppSelector((state) => state.theme.theme)
+  const resolvedTheme = useAppSelector((state) => state.theme.resolvedTheme)
+  const dispatch = useAppDispatch()
 
-type ThemeContextValue = {
-  theme: Theme
-  resolvedTheme: ResolvedTheme
-  setTheme: (theme: Theme) => void
+  function setTheme(next: Theme) {
+    dispatch(themeSet(next))
+  }
+
+  return { theme, resolvedTheme, setTheme }
 }
 
-const ThemeContext = createContext<ThemeContextValue | null>(null)
-
-function getSystemTheme(): ResolvedTheme {
-  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"
-}
-
-export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setTheme] = useState<Theme>(() => {
-    const stored = localStorage.getItem(THEME_STORAGE_KEY)
-    return stored === "light" || stored === "dark" || stored === "system" ? stored : "system"
-  })
-  const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>(() =>
-    document.documentElement.classList.contains("dark") ? "dark" : "light"
-  )
+/**
+ * Keeps the `dark` class on <html> and `resolvedTheme` in sync with the OS
+ * preference for as long as the app is mounted. Must be rendered once at the
+ * app root — `useTheme()` itself is only called from the theme toggle button,
+ * which isn't always mounted, so these effects can't live there.
+ */
+export function ThemeSync() {
+  const theme = useAppSelector((state) => state.theme.theme)
+  const resolvedTheme = useAppSelector((state) => state.theme.resolvedTheme)
+  const dispatch = useAppDispatch()
 
   useEffect(() => {
-    const resolved = theme === "system" ? getSystemTheme() : theme
-    document.documentElement.classList.toggle("dark", resolved === "dark")
-    setResolvedTheme(resolved)
-    localStorage.setItem(THEME_STORAGE_KEY, theme)
-  }, [theme])
+    document.documentElement.classList.toggle("dark", resolvedTheme === "dark")
+  }, [resolvedTheme])
 
   useEffect(() => {
     if (theme !== "system") return
 
     const media = window.matchMedia("(prefers-color-scheme: dark)")
     function handleChange() {
-      const resolved = getSystemTheme()
-      document.documentElement.classList.toggle("dark", resolved === "dark")
-      setResolvedTheme(resolved)
+      dispatch(systemThemeChanged(getSystemTheme()))
     }
 
     media.addEventListener("change", handleChange)
     return () => media.removeEventListener("change", handleChange)
-  }, [theme])
+  }, [theme, dispatch])
 
-  return (
-    <ThemeContext.Provider value={{ theme, resolvedTheme, setTheme }}>
-      {children}
-    </ThemeContext.Provider>
-  )
-}
-
-export function useTheme() {
-  const context = useContext(ThemeContext)
-  if (!context) {
-    throw new Error("useTheme must be used within a ThemeProvider")
-  }
-  return context
+  return null
 }
