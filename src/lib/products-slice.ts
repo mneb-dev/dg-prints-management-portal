@@ -1,14 +1,15 @@
-import { createSlice, type PayloadAction } from "@reduxjs/toolkit"
+import { createAsyncThunk, createSlice, type PayloadAction } from "@reduxjs/toolkit"
 
-import { generateId } from "@/lib/utils"
-
-const PRODUCTS_STORAGE_KEY = "dgprints_products"
+import { apiClient } from "@/lib/api-client"
+import { getErrorMessage } from "@/lib/api-error"
+import type { RootState } from "@/lib/store"
 
 export const PRODUCT_CATEGORIES = [
   "Sticker Label",
   "Tarpaulin",
   "Sintra Board",
   "General Merchandise",
+  "3D Print",
 ] as const
 export type ProductCategory = (typeof PRODUCT_CATEGORIES)[number]
 
@@ -54,131 +55,6 @@ export type Product = {
 
 export type ProductInput = Omit<Product, "id" | "createdAt" | "updatedAt">
 
-function seedProducts(): Product[] {
-  const now = new Date().toISOString()
-  return [
-    {
-      id: generateId(),
-      name: "Sticker Label",
-      category: "Sticker Label",
-      description: "Custom printed sticker labels",
-      status: "Active",
-      options: [
-        {
-          id: generateId(),
-          name: "Lamination",
-          required: true,
-          values: ["Non-Laminated", "Laminated"],
-        },
-        {
-          id: generateId(),
-          name: "Sticker Type",
-          required: true,
-          values: ["Glossy", "Matte", "Transparent"],
-        },
-      ],
-      pricing: [
-        {
-          id: generateId(),
-          appliesTo: ALL_VARIANTS,
-          pricingType: "Package",
-          packageName: "Package 1",
-          price: 300,
-          unit: "Package",
-        },
-        {
-          id: generateId(),
-          appliesTo: ALL_VARIANTS,
-          pricingType: "Package",
-          packageName: "Package 2",
-          price: 500,
-          unit: "Package",
-        },
-        {
-          id: generateId(),
-          appliesTo: ALL_VARIANTS,
-          pricingType: "Package",
-          packageName: "Package 3",
-          price: 1000,
-          unit: "Package",
-        },
-      ],
-      createdAt: now,
-      updatedAt: now,
-    },
-    {
-      id: generateId(),
-      name: "Tarpaulin",
-      category: "Tarpaulin",
-      description: "Large format tarpaulin printing",
-      status: "Active",
-      options: [
-        {
-          id: generateId(),
-          name: "Type of Tarp",
-          required: true,
-          values: ["Ordinary Glossy", "High Glossy"],
-        },
-      ],
-      pricing: [
-        {
-          id: generateId(),
-          appliesTo: "Ordinary Glossy",
-          pricingType: "Per Unit",
-          price: 30,
-          unit: "sq.ft.",
-        },
-        {
-          id: generateId(),
-          appliesTo: "High Glossy",
-          pricingType: "Per Unit",
-          price: 35,
-          unit: "sq.ft.",
-        },
-      ],
-      createdAt: now,
-      updatedAt: now,
-    },
-    {
-      id: generateId(),
-      name: "Sintra Board",
-      category: "Sintra Board",
-      description: "Rigid PVC board printing",
-      status: "Active",
-      options: [
-        {
-          id: generateId(),
-          name: "Thickness",
-          required: true,
-          values: ["3mm", "5mm"],
-        },
-      ],
-      pricing: [
-        {
-          id: generateId(),
-          appliesTo: ALL_VARIANTS,
-          pricingType: "Fixed",
-          price: 180,
-          unit: "A4",
-        },
-      ],
-      createdAt: now,
-      updatedAt: now,
-    },
-    {
-      id: generateId(),
-      name: "General Merchandise",
-      category: "General Merchandise",
-      description: "Other printed merchandise",
-      status: "Active",
-      options: [],
-      pricing: [],
-      createdAt: now,
-      updatedAt: now,
-    },
-  ]
-}
-
 export function summarizePricing(pricing: PricingEntry[]): string {
   if (pricing.length === 0) return "No pricing"
 
@@ -194,55 +70,108 @@ export function summarizePricing(pricing: PricingEntry[]): string {
   return type
 }
 
-type ProductsState = {
-  items: Product[]
+function toProductPayload(input: ProductInput) {
+  return {
+    ...input,
+    options: input.options.map(({ id: _id, ...rest }) => rest),
+    pricing: input.pricing.map(({ id: _id, ...rest }) => rest),
+  }
 }
 
-function getInitialItems(): Product[] {
-  const stored = localStorage.getItem(PRODUCTS_STORAGE_KEY)
-  if (stored) return JSON.parse(stored) as Product[]
+export const fetchProductsThunk = createAsyncThunk<
+  Product[],
+  void,
+  { rejectValue: string; state: RootState }
+>("products/fetchAll", async (_arg, { rejectWithValue }) => {
+  try {
+    const { data } = await apiClient.get<Product[]>("/products")
+    return data
+  } catch (err) {
+    return rejectWithValue(getErrorMessage(err))
+  }
+}, {
+  condition: (_arg, { getState }) => getState().products.status === "idle",
+})
 
-  const seeded = seedProducts()
-  localStorage.setItem(PRODUCTS_STORAGE_KEY, JSON.stringify(seeded))
-  return seeded
+export const createProductThunk = createAsyncThunk<Product, ProductInput, { rejectValue: string }>(
+  "products/create",
+  async (input, { rejectWithValue }) => {
+    try {
+      const { data } = await apiClient.post<Product>("/products", toProductPayload(input))
+      return data
+    } catch (err) {
+      return rejectWithValue(getErrorMessage(err))
+    }
+  }
+)
+
+export const updateProductThunk = createAsyncThunk<
+  Product,
+  { id: string; input: ProductInput },
+  { rejectValue: string }
+>("products/update", async ({ id, input }, { rejectWithValue }) => {
+  try {
+    const { data } = await apiClient.put<Product>(`/products/${id}`, toProductPayload(input))
+    return data
+  } catch (err) {
+    return rejectWithValue(getErrorMessage(err))
+  }
+})
+
+export const deleteProductThunk = createAsyncThunk<string, string, { rejectValue: string }>(
+  "products/delete",
+  async (id, { rejectWithValue }) => {
+    try {
+      await apiClient.delete(`/products/${id}`)
+      return id
+    } catch (err) {
+      return rejectWithValue(getErrorMessage(err))
+    }
+  }
+)
+
+type ProductsState = {
+  items: Product[]
+  status: "idle" | "loading" | "succeeded" | "failed"
+  error: string | null
 }
 
 const initialState: ProductsState = {
-  items: getInitialItems(),
+  items: [],
+  status: "idle",
+  error: null,
 }
 
 const productsSlice = createSlice({
   name: "products",
   initialState,
-  reducers: {
-    productAdded: {
-      reducer(state, action: PayloadAction<Product>) {
+  reducers: {},
+  extraReducers(builder) {
+    builder
+      .addCase(fetchProductsThunk.pending, (state) => {
+        state.status = "loading"
+        state.error = null
+      })
+      .addCase(fetchProductsThunk.fulfilled, (state, action: PayloadAction<Product[]>) => {
+        state.status = "succeeded"
+        state.items = action.payload
+      })
+      .addCase(fetchProductsThunk.rejected, (state, action) => {
+        state.status = "failed"
+        state.error = action.payload ?? "Failed to load products."
+      })
+      .addCase(createProductThunk.fulfilled, (state, action: PayloadAction<Product>) => {
         state.items.push(action.payload)
-      },
-      prepare(input: ProductInput) {
-        const now = new Date().toISOString()
-        return { payload: { ...input, id: generateId(), createdAt: now, updatedAt: now } }
-      },
-    },
-    productUpdated: {
-      reducer(state, action: PayloadAction<{ id: string; input: ProductInput; updatedAt: string }>) {
-        const { id, input, updatedAt } = action.payload
-        const product = state.items.find((item) => item.id === id)
-        if (product) {
-          Object.assign(product, input, { updatedAt })
-        }
-      },
-      prepare(id: string, input: ProductInput) {
-        return { payload: { id, input, updatedAt: new Date().toISOString() } }
-      },
-    },
-    productDeleted(state, action: PayloadAction<string>) {
-      state.items = state.items.filter((item) => item.id !== action.payload)
-    },
+      })
+      .addCase(updateProductThunk.fulfilled, (state, action: PayloadAction<Product>) => {
+        const index = state.items.findIndex((item) => item.id === action.payload.id)
+        if (index !== -1) state.items[index] = action.payload
+      })
+      .addCase(deleteProductThunk.fulfilled, (state, action: PayloadAction<string>) => {
+        state.items = state.items.filter((item) => item.id !== action.payload)
+      })
   },
 })
 
-export const { productAdded, productUpdated, productDeleted } = productsSlice.actions
 export default productsSlice.reducer
-export { PRODUCTS_STORAGE_KEY }
 export type { ProductsState }

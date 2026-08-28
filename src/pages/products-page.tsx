@@ -1,5 +1,6 @@
 import { useState } from "react"
 import { PlusIcon, SearchIcon } from "lucide-react"
+import { toast } from "sonner"
 
 import { DeleteProductDialog } from "@/components/products/delete-product-dialog"
 import { ProductFormDialog } from "@/components/products/product-form-dialog"
@@ -24,7 +25,7 @@ const ANY_CATEGORY = "All Categories"
 const ANY_STATUS = "All Statuses"
 
 export function ProductsPage() {
-  const { products, deleteProduct } = useProducts()
+  const { products, deleteProduct, isLoading, isError, error } = useProducts()
   const [search, setSearch] = useState("")
   const [categoryFilter, setCategoryFilter] = useState(ANY_CATEGORY)
   const [statusFilter, setStatusFilter] = useState(ANY_STATUS)
@@ -32,6 +33,7 @@ export function ProductsPage() {
   const [formOpen, setFormOpen] = useState(false)
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
   const [deletingProduct, setDeletingProduct] = useState<Product | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   const filteredProducts = products.filter((product) => {
     const matchesSearch = product.name
@@ -54,9 +56,17 @@ export function ProductsPage() {
     setFormOpen(true)
   }
 
-  function handleConfirmDelete(product: Product) {
-    deleteProduct(product.id)
-    setDeletingProduct(null)
+  async function handleConfirmDelete(product: Product) {
+    setIsDeleting(true)
+    try {
+      await deleteProduct(product.id)
+      toast.success("Product deleted.")
+      setDeletingProduct(null)
+    } catch (err) {
+      toast.error(typeof err === "string" ? err : "Failed to delete product.")
+    } finally {
+      setIsDeleting(false)
+    }
   }
 
   return (
@@ -117,6 +127,9 @@ export function ProductsPage() {
 
       <ProductTable
         products={filteredProducts}
+        isLoading={isLoading}
+        isError={isError}
+        error={error}
         onEdit={handleEdit}
         onDelete={setDeletingProduct}
       />
@@ -129,6 +142,7 @@ export function ProductsPage() {
 
       <DeleteProductDialog
         product={deletingProduct}
+        isDeleting={isDeleting}
         onOpenChange={(open) => !open && setDeletingProduct(null)}
         onConfirm={handleConfirmDelete}
       />

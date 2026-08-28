@@ -1,6 +1,7 @@
 import { configureStore } from "@reduxjs/toolkit"
 
 import authReducer from "@/lib/auth-slice"
+import ordersReducer from "@/lib/orders-slice"
 import { subscribeToLocalStorage } from "@/lib/persist-subscribe"
 import productsReducer from "@/lib/products-slice"
 import themeReducer from "@/lib/theme-slice"
@@ -10,6 +11,7 @@ export const store = configureStore({
     auth: authReducer,
     theme: themeReducer,
     products: productsReducer,
+    orders: ordersReducer,
   },
 })
 

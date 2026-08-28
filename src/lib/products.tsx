@@ -1,5 +1,12 @@
+import { useEffect } from "react"
+
 import { useAppDispatch, useAppSelector } from "@/lib/hooks"
-import { productAdded, productDeleted, productUpdated } from "@/lib/products-slice"
+import {
+  createProductThunk,
+  deleteProductThunk,
+  fetchProductsThunk,
+  updateProductThunk,
+} from "@/lib/products-slice"
 import type { ProductInput } from "@/lib/products-slice"
 
 export {
@@ -23,19 +30,33 @@ export type {
 
 export function useProducts() {
   const products = useAppSelector((state) => state.products.items)
+  const status = useAppSelector((state) => state.products.status)
+  const error = useAppSelector((state) => state.products.error)
   const dispatch = useAppDispatch()
 
-  function addProduct(input: ProductInput) {
-    dispatch(productAdded(input))
+  useEffect(() => {
+    dispatch(fetchProductsThunk())
+  }, [dispatch])
+
+  async function addProduct(input: ProductInput) {
+    await dispatch(createProductThunk(input)).unwrap()
   }
 
-  function updateProduct(id: string, input: ProductInput) {
-    dispatch(productUpdated(id, input))
+  async function updateProduct(id: string, input: ProductInput) {
+    await dispatch(updateProductThunk({ id, input })).unwrap()
   }
 
-  function deleteProduct(id: string) {
-    dispatch(productDeleted(id))
+  async function deleteProduct(id: string) {
+    await dispatch(deleteProductThunk(id)).unwrap()
   }
 
-  return { products, addProduct, updateProduct, deleteProduct }
+  return {
+    products,
+    isLoading: status === "loading" || status === "idle",
+    isError: status === "failed",
+    error,
+    addProduct,
+    updateProduct,
+    deleteProduct,
+  }
 }

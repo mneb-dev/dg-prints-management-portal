@@ -12,10 +12,12 @@ import type { Product } from "@/lib/products"
 
 export function DeleteProductDialog({
   product,
+  isDeleting,
   onOpenChange,
   onConfirm,
 }: {
   product: Product | null
+  isDeleting?: boolean
   onOpenChange: (open: boolean) => void
   onConfirm: (product: Product) => void
 }) {
@@ -31,12 +33,13 @@ export function DeleteProductDialog({
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
           <AlertDialogAction
             variant="destructive"
+            disabled={isDeleting}
             onClick={() => product && onConfirm(product)}
           >
-            Delete
+            {isDeleting ? "Deleting..." : "Delete"}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

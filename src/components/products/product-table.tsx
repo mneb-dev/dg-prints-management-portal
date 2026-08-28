@@ -1,4 +1,4 @@
-import { PackageSearchIcon, PencilIcon, Trash2Icon } from "lucide-react"
+import { Loader2Icon, PackageSearchIcon, PencilIcon, Trash2Icon, TriangleAlertIcon } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -21,13 +21,47 @@ import { summarizePricing, type Product } from "@/lib/products"
 
 export function ProductTable({
   products,
+  isLoading,
+  isError,
+  error,
   onEdit,
   onDelete,
 }: {
   products: Product[]
+  isLoading?: boolean
+  isError?: boolean
+  error?: string | null
   onEdit: (product: Product) => void
   onDelete: (product: Product) => void
 }) {
+  if (isLoading) {
+    return (
+      <Empty className="border">
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <Loader2Icon className="animate-spin" />
+          </EmptyMedia>
+          <EmptyTitle>Loading products…</EmptyTitle>
+          <EmptyDescription>Fetching your product catalog.</EmptyDescription>
+        </EmptyHeader>
+      </Empty>
+    )
+  }
+
+  if (isError) {
+    return (
+      <Empty className="border">
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <TriangleAlertIcon />
+          </EmptyMedia>
+          <EmptyTitle>Couldn't load products</EmptyTitle>
+          <EmptyDescription>{error ?? "Something went wrong."}</EmptyDescription>
+        </EmptyHeader>
+      </Empty>
+    )
+  }
+
   if (products.length === 0) {
     return (
       <Empty className="border">

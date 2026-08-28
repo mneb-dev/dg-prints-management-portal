@@ -58,7 +58,10 @@ export function AppSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
                     tooltip={item.title}
-                    isActive={location.pathname === item.url}
+                    isActive={
+                      location.pathname === item.url ||
+                      location.pathname.startsWith(`${item.url}/`)
+                    }
                     render={<NavLink to={item.url} />}
                   >
                     <item.icon />

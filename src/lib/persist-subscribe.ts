@@ -1,13 +1,13 @@
 import type { Store } from "@reduxjs/toolkit"
 
 import { AUTH_STORAGE_KEY, type AuthState } from "@/lib/auth-slice"
-import { PRODUCTS_STORAGE_KEY, type ProductsState } from "@/lib/products-slice"
+import { ORDERS_STORAGE_KEY, type OrdersState } from "@/lib/orders-slice"
 import { THEME_STORAGE_KEY, type ThemeState } from "@/lib/theme-slice"
 
 type PersistedState = {
   auth: AuthState
   theme: ThemeState
-  products: ProductsState
+  orders: OrdersState
 }
 
 function writeAuth(auth: AuthState) {
@@ -22,8 +22,8 @@ function writeTheme(theme: ThemeState) {
   localStorage.setItem(THEME_STORAGE_KEY, theme.theme)
 }
 
-function writeProducts(products: ProductsState) {
-  localStorage.setItem(PRODUCTS_STORAGE_KEY, JSON.stringify(products.items))
+function writeOrders(orders: OrdersState) {
+  localStorage.setItem(ORDERS_STORAGE_KEY, JSON.stringify(orders.items))
 }
 
 export function subscribeToLocalStorage(store: Store<PersistedState>) {
@@ -33,7 +33,7 @@ export function subscribeToLocalStorage(store: Store<PersistedState>) {
     const state = store.getState()
     if (state.auth !== prev.auth) writeAuth(state.auth)
     if (state.theme !== prev.theme) writeTheme(state.theme)
-    if (state.products !== prev.products) writeProducts(state.products)
+    if (state.orders !== prev.orders) writeOrders(state.orders)
     prev = state
   })
 }
