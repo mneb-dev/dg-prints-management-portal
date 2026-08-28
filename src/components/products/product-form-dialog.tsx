@@ -1,0 +1,464 @@
+import { useEffect, useState } from "react"
+import { PlusIcon, Trash2Icon, XIcon } from "lucide-react"
+
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
+import { Input } from "@/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Separator } from "@/components/ui/separator"
+import { Switch } from "@/components/ui/switch"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import { Textarea } from "@/components/ui/textarea"
+import {
+  ALL_VARIANTS,
+  PRODUCT_CATEGORIES,
+  PRODUCT_STATUSES,
+  useProducts,
+  type PricingEntry,
+  type Product,
+  type ProductCategory,
+  type ProductInput,
+  type ProductOption,
+  type ProductStatus,
+} from "@/lib/products"
+import { formatCurrency, generateId } from "@/lib/utils"
+
+import { PricingDialog } from "./pricing-dialog"
+
+function emptyDraft(): ProductInput {
+  return {
+    name: "",
+    category: PRODUCT_CATEGORIES[0],
+    description: "",
+    status: "Active",
+    options: [],
+    pricing: [],
+  }
+}
+
+function draftFromProduct(product: Product): ProductInput {
+  return {
+    name: product.name,
+    category: product.category,
+    description: product.description,
+    status: product.status,
+    options: product.options,
+    pricing: product.pricing,
+  }
+}
+
+function OptionRow({
+  option,
+  onChange,
+  onRemove,
+}: {
+  option: ProductOption
+  onChange: (option: ProductOption) => void
+  onRemove: () => void
+}) {
+  const [isAddingValue, setIsAddingValue] = useState(false)
+  const [valueDraft, setValueDraft] = useState("")
+
+  function commitValue() {
+    const trimmed = valueDraft.trim()
+    if (trimmed) {
+      onChange({ ...option, values: [...option.values, trimmed] })
+    }
+    setValueDraft("")
+    setIsAddingValue(false)
+  }
+
+  function removeValue(index: number) {
+    onChange({
+      ...option,
+      values: option.values.filter((_, i) => i !== index),
+    })
+  }
+
+  return (
+    <div className="rounded-lg border p-3">
+      <div className="flex items-center gap-2">
+        <Input
+          value={option.name}
+          onChange={(event) => onChange({ ...option, name: event.target.value })}
+          placeholder="Option name (e.g. Lamination)"
+          className="flex-1"
+        />
+        <label className="flex items-center gap-2 text-sm whitespace-nowrap text-muted-foreground">
+          Required
+          <Switch
+            checked={option.required}
+            onCheckedChange={(checked) =>
+              onChange({ ...option, required: !!checked })
+            }
+          />
+        </label>
+        <Button variant="ghost" size="icon-sm" onClick={onRemove}>
+          <Trash2Icon />
+          <span className="sr-only">Remove option</span>
+        </Button>
+      </div>
+
+      <div className="mt-3 flex flex-col gap-1.5">
+        <span className="text-xs text-muted-foreground">Values</span>
+        <div className="flex flex-wrap items-center gap-1.5">
+          {option.values.map((value, index) => (
+            <Badge key={`${value}-${index}`} variant="secondary" className="gap-1 pr-1">
+              {value}
+              <button
+                type="button"
+                onClick={() => removeValue(index)}
+                className="rounded-full p-0.5 hover:bg-foreground/10"
+              >
+                <XIcon className="size-3" />
+                <span className="sr-only">Remove {value}</span>
+              </button>
+            </Badge>
+          ))}
+          {isAddingValue ? (
+            <Input
+              autoFocus
+              value={valueDraft}
+              onChange={(event) => setValueDraft(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault()
+                  commitValue()
+                }
+                if (event.key === "Escape") {
+                  setValueDraft("")
+                  setIsAddingValue(false)
+                }
+              }}
+              onBlur={commitValue}
+              className="h-6 w-32 px-2 text-xs"
+            />
+          ) : (
+            <Button
+              variant="outline"
+              size="xs"
+              onClick={() => setIsAddingValue(true)}
+            >
+              <PlusIcon data-icon="inline-start" />
+              Add Value
+            </Button>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export function ProductFormDialog({
+  open,
+  onOpenChange,
+  product,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  product: Product | null
+}) {
+  const { addProduct, updateProduct } = useProducts()
+  const [draft, setDraft] = useState<ProductInput>(emptyDraft)
+  const [nameError, setNameError] = useState<string | null>(null)
+  const [pricingDialogOpen, setPricingDialogOpen] = useState(false)
+
+  useEffect(() => {
+    if (!open) return
+    setDraft(product ? draftFromProduct(product) : emptyDraft())
+    setNameError(null)
+  }, [open, product])
+
+  const appliesToOptions = [
+    ALL_VARIANTS,
+    ...new Set(draft.options.flatMap((option) => option.values)),
+  ]
+
+  function addOption() {
+    setDraft((prev) => ({
+      ...prev,
+      options: [
+        ...prev.options,
+        { id: generateId(), name: "", required: true, values: [] },
+      ],
+    }))
+  }
+
+  function updateOption(id: string, next: ProductOption) {
+    setDraft((prev) => ({
+      ...prev,
+      options: prev.options.map((option) => (option.id === id ? next : option)),
+    }))
+  }
+
+  function removeOption(id: string) {
+    setDraft((prev) => ({
+      ...prev,
+      options: prev.options.filter((option) => option.id !== id),
+    }))
+  }
+
+  function addPricingEntry(entry: PricingEntry) {
+    setDraft((prev) => ({ ...prev, pricing: [...prev.pricing, entry] }))
+  }
+
+  function removePricingEntry(id: string) {
+    setDraft((prev) => ({
+      ...prev,
+      pricing: prev.pricing.filter((entry) => entry.id !== id),
+    }))
+  }
+
+  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!draft.name.trim()) {
+      setNameError("Product name is required.")
+      return
+    }
+
+    if (product) {
+      updateProduct(product.id, draft)
+    } else {
+      addProduct(draft)
+    }
+    onOpenChange(false)
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>
+            {product ? "Edit Product" : "Create Product"}
+          </DialogTitle>
+          <DialogDescription>
+            {product
+              ? "Update this product's details, options, and pricing."
+              : "Add a new product and configure its options and pricing."}
+          </DialogDescription>
+        </DialogHeader>
+
+        <form id="product-form" onSubmit={handleSubmit} className="flex flex-col gap-6">
+          <div className="flex flex-col gap-3">
+            <h3 className="text-sm font-medium">Basic Information</h3>
+            <FieldGroup>
+              <Field data-invalid={!!nameError}>
+                <FieldLabel htmlFor="product-name">Product Name</FieldLabel>
+                <Input
+                  id="product-name"
+                  value={draft.name}
+                  onChange={(event) => {
+                    setDraft((prev) => ({ ...prev, name: event.target.value }))
+                    setNameError(null)
+                  }}
+                  aria-invalid={!!nameError}
+                  placeholder="Sticker Label"
+                />
+                {nameError && (
+                  <p className="text-sm text-destructive">{nameError}</p>
+                )}
+              </Field>
+
+              <div className="grid grid-cols-2 gap-4">
+                <Field>
+                  <FieldLabel htmlFor="product-category">Category</FieldLabel>
+                  <Select
+                    value={draft.category}
+                    onValueChange={(value) =>
+                      setDraft((prev) => ({
+                        ...prev,
+                        category: value as ProductCategory,
+                      }))
+                    }
+                  >
+                    <SelectTrigger id="product-category" className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PRODUCT_CATEGORIES.map((category) => (
+                        <SelectItem key={category} value={category}>
+                          {category}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+
+                <Field>
+                  <FieldLabel htmlFor="product-status">Status</FieldLabel>
+                  <Select
+                    value={draft.status}
+                    onValueChange={(value) =>
+                      setDraft((prev) => ({
+                        ...prev,
+                        status: value as ProductStatus,
+                      }))
+                    }
+                  >
+                    <SelectTrigger id="product-status" className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PRODUCT_STATUSES.map((status) => (
+                        <SelectItem key={status} value={status}>
+                          {status}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+              </div>
+
+              <Field>
+                <FieldLabel htmlFor="product-description">
+                  Description
+                </FieldLabel>
+                <Textarea
+                  id="product-description"
+                  value={draft.description}
+                  onChange={(event) =>
+                    setDraft((prev) => ({
+                      ...prev,
+                      description: event.target.value,
+                    }))
+                  }
+                  placeholder="Custom printed sticker labels"
+                />
+              </Field>
+            </FieldGroup>
+          </div>
+
+          <Separator />
+
+          <div className="flex flex-col gap-3">
+            <div>
+              <h3 className="text-sm font-medium">Product Options</h3>
+              <p className="text-sm text-muted-foreground">
+                Configure the options customers can select for this product.
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-3">
+              {draft.options.map((option) => (
+                <OptionRow
+                  key={option.id}
+                  option={option}
+                  onChange={(next) => updateOption(option.id, next)}
+                  onRemove={() => removeOption(option.id)}
+                />
+              ))}
+            </div>
+
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="self-start"
+              onClick={addOption}
+            >
+              <PlusIcon data-icon="inline-start" />
+              Add Option
+            </Button>
+          </div>
+
+          <Separator />
+
+          <div className="flex flex-col gap-3">
+            <h3 className="text-sm font-medium">Pricing</h3>
+
+            {draft.pricing.length > 0 && (
+              <div className="rounded-lg border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Condition</TableHead>
+                      <TableHead>Pricing Type</TableHead>
+                      <TableHead>Package</TableHead>
+                      <TableHead>Price</TableHead>
+                      <TableHead className="text-right">
+                        <span className="sr-only">Remove</span>
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {draft.pricing.map((entry) => (
+                      <TableRow key={entry.id}>
+                        <TableCell>{entry.appliesTo}</TableCell>
+                        <TableCell>{entry.pricingType}</TableCell>
+                        <TableCell>{entry.packageName ?? "—"}</TableCell>
+                        <TableCell>
+                          {formatCurrency(entry.price)}
+                          {entry.pricingType === "Per Unit" && ` / ${entry.unit}`}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-sm"
+                            onClick={() => removePricingEntry(entry.id)}
+                          >
+                            <Trash2Icon />
+                            <span className="sr-only">Remove pricing row</span>
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="self-start"
+              onClick={() => setPricingDialogOpen(true)}
+            >
+              <PlusIcon data-icon="inline-start" />
+              Add Pricing
+            </Button>
+          </div>
+        </form>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button type="submit" form="product-form">
+            Save Product
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+
+      <PricingDialog
+        open={pricingDialogOpen}
+        onOpenChange={setPricingDialogOpen}
+        appliesToOptions={appliesToOptions}
+        onAdd={addPricingEntry}
+      />
+    </Dialog>
+  )
+}
