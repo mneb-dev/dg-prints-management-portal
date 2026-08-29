@@ -1,9 +1,12 @@
+import { useState } from "react"
 import { ArrowLeftIcon, FileWarningIcon } from "lucide-react"
 import { Link, useParams } from "react-router-dom"
 import { toast } from "sonner"
 
+import { CancelOrderDialog } from "@/components/orders/cancel-order-dialog"
 import { ORDER_STATUS_LABELS, OrderStatusBadge } from "@/components/orders/order-status-badge"
 import { PaymentStatusBadge } from "@/components/orders/payment-status-badge"
+import { RefundOrderDialog } from "@/components/orders/refund-order-dialog"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
@@ -21,14 +24,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { ORDER_STATUSES, useOrders } from "@/lib/orders"
-import type { OrderStatus } from "@/lib/orders"
+import {
+  ORDER_STATUSES,
+  canRefundOrder,
+  getStatusFlowForCategory,
+  isTerminalStatus,
+  useOrders,
+} from "@/lib/orders"
+import type { Order, OrderStatus } from "@/lib/orders"
 import { formatCurrency } from "@/lib/utils"
 
 export function OrderDetailsPage() {
   const { id } = useParams<{ id: string }>()
   const { getOrder, setOrderStatus } = useOrders()
   const order = id ? getOrder(id) : undefined
+  const [cancelling, setCancelling] = useState(false)
+  const [refunding, setRefunding] = useState(false)
 
   if (!order) {
     return (
@@ -45,11 +56,26 @@ export function OrderDetailsPage() {
   }
 
   const item = order.items[0]
+  const statusOptions = item ? getStatusFlowForCategory(item.productCategory) : ORDER_STATUSES
+  const canCancel = !isTerminalStatus(order.status)
+  const canRefund = canRefundOrder(order.status, order.payment.status)
 
   function handleStatusChange(value: string | null) {
     if (!order || !value) return
     setOrderStatus(order.id, value as OrderStatus)
     toast.success("Status updated.")
+  }
+
+  function handleConfirmCancel(target: Order) {
+    setOrderStatus(target.id, "cancelled")
+    toast.success("Order cancelled.")
+    setCancelling(false)
+  }
+
+  function handleConfirmRefund(target: Order) {
+    setOrderStatus(target.id, "refunded")
+    toast.success("Order refunded.")
+    setRefunding(false)
   }
 
   return (
@@ -63,8 +89,28 @@ export function OrderDetailsPage() {
           <h1 className="text-2xl font-semibold">Order {order.orderNumber}</h1>
           <OrderStatusBadge status={order.status} />
         </div>
-        <Button render={<Link to={`/orders/${order.id}/edit`} />}>Edit Order</Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" disabled={!canCancel} onClick={() => setCancelling(true)}>
+            Cancel
+          </Button>
+          <Button variant="outline" disabled={!canRefund} onClick={() => setRefunding(true)}>
+            Refund
+          </Button>
+          <Button render={<Link to={`/orders/${order.id}/edit`} />}>Edit Order</Button>
+        </div>
       </div>
+
+      <CancelOrderDialog
+        order={cancelling ? order : null}
+        onOpenChange={(open) => !open && setCancelling(false)}
+        onConfirm={handleConfirmCancel}
+      />
+
+      <RefundOrderDialog
+        order={refunding ? order : null}
+        onOpenChange={(open) => !open && setRefunding(false)}
+        onConfirm={handleConfirmRefund}
+      />
 
       <Card>
         <CardHeader>
@@ -93,6 +139,13 @@ export function OrderDetailsPage() {
               </div>
             ))}
 
+            {item.pricing.pricingType === "Package" && (
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Package</span>
+                <span>{item.pricing.packageName}</span>
+              </div>
+            )}
+
             {item.pricing.pricingType === "Package" && item.pricing.size && (
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">Size</span>
@@ -114,6 +167,15 @@ export function OrderDetailsPage() {
               <span className="text-muted-foreground">Quantity</span>
               <span>{item.quantity}</span>
             </div>
+
+            {item.stickerQuotation && (
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Sticker Quotation</span>
+                <span>
+                  {item.stickerQuotation.quantity} pcs + {item.stickerQuotation.free} pcs free
+                </span>
+              </div>
+            )}
 
             {item.notes && (
               <div className="flex items-center justify-between text-sm">
@@ -143,6 +205,12 @@ export function OrderDetailsPage() {
               <span className="text-muted-foreground">Address</span>
               <span className="text-right">{order.shippingAddress.address}</span>
             </div>
+            {order.shippingAddress.fee > 0 && (
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Shipping Fee</span>
+                <span>{formatCurrency(order.shippingAddress.fee)}</span>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
@@ -160,6 +228,12 @@ export function OrderDetailsPage() {
             <span className="text-muted-foreground">Additional Fees</span>
             <span>{formatCurrency(order.additionalFees)}</span>
           </div>
+          {!!order.shippingAddress?.fee && (
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">Shipping Fee</span>
+              <span>{formatCurrency(order.shippingAddress.fee)}</span>
+            </div>
+          )}
           <div className="flex items-center justify-between text-sm">
             <span className="text-muted-foreground">Discount</span>
             <span>{formatCurrency(order.discount)}</span>
@@ -216,7 +290,7 @@ export function OrderDetailsPage() {
               </SelectValue>
             </SelectTrigger>
             <SelectContent>
-              {ORDER_STATUSES.map((status) => (
+              {statusOptions.map((status) => (
                 <SelectItem key={status} value={status}>
                   {ORDER_STATUS_LABELS[status]}
                 </SelectItem>

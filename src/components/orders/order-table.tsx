@@ -22,6 +22,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { canRefundOrder, isTerminalStatus } from "@/lib/orders"
 import type { Order } from "@/lib/orders"
 import { formatCurrency, formatDate } from "@/lib/utils"
 
@@ -33,12 +34,14 @@ export function OrderTable({
   onView,
   onEdit,
   onCancel,
+  onRefund,
   onDelete,
 }: {
   orders: Order[]
   onView: (order: Order) => void
   onEdit: (order: Order) => void
   onCancel: (order: Order) => void
+  onRefund: (order: Order) => void
   onDelete: (order: Order) => void
 }) {
   if (orders.length === 0) {
@@ -76,7 +79,8 @@ export function OrderTable({
         </TableHeader>
         <TableBody>
           {orders.map((order) => {
-            const canCancel = order.status !== "cancelled" && order.status !== "completed"
+            const canCancel = !isTerminalStatus(order.status)
+            const canRefund = canRefundOrder(order.status, order.payment.status)
             return (
               <TableRow key={order.id}>
                 <TableCell className="font-medium">{order.orderNumber}</TableCell>
@@ -105,6 +109,9 @@ export function OrderTable({
                       <DropdownMenuItem onClick={() => onEdit(order)}>Edit</DropdownMenuItem>
                       <DropdownMenuItem disabled={!canCancel} onClick={() => onCancel(order)}>
                         Cancel
+                      </DropdownMenuItem>
+                      <DropdownMenuItem disabled={!canRefund} onClick={() => onRefund(order)}>
+                        Refund
                       </DropdownMenuItem>
                       {/* Delete is available to all authenticated staff for this MVP —
                           useAuth() has no roles yet, so a real admin-only gate isn't possible. */}

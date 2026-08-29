@@ -3,20 +3,28 @@ import type { OrderStatus } from "@/lib/orders"
 
 const STATUS_LABELS: Record<OrderStatus, string> = {
   pending: "Pending",
-  confirmed: "Confirmed",
-  in_progress: "In Progress",
-  ready: "Ready",
-  completed: "Completed",
+  layout: "To Layout",
+  trace: "To Trace",
+  print: "To Print",
+  cut: "To Cut",
+  pack: "To Pack",
+  pickup: "To Pick-up",
+  released: "Released",
   cancelled: "Cancelled",
+  refunded: "Refunded",
 }
 
 const STATUS_VARIANTS: Record<OrderStatus, "default" | "secondary" | "outline" | "destructive"> = {
   pending: "secondary",
-  confirmed: "secondary",
-  in_progress: "default",
-  ready: "default",
-  completed: "outline",
+  layout: "secondary",
+  trace: "secondary",
+  print: "default",
+  cut: "default",
+  pack: "default",
+  pickup: "default",
+  released: "outline",
   cancelled: "destructive",
+  refunded: "destructive",
 }
 
 export function OrderStatusBadge({ status }: { status: OrderStatus }) {

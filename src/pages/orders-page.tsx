@@ -8,6 +8,7 @@ import { DeleteOrderDialog } from "@/components/orders/delete-order-dialog"
 import { ORDER_STATUS_LABELS } from "@/components/orders/order-status-badge"
 import { OrderTable } from "@/components/orders/order-table"
 import { PAYMENT_STATUS_LABELS } from "@/components/orders/payment-status-badge"
+import { RefundOrderDialog } from "@/components/orders/refund-order-dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -38,6 +39,7 @@ export function OrdersPage() {
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
   const [cancellingOrder, setCancellingOrder] = useState<Order | null>(null)
+  const [refundingOrder, setRefundingOrder] = useState<Order | null>(null)
   const [deletingOrder, setDeletingOrder] = useState<Order | null>(null)
 
   const filteredOrders = orders.filter((order) => {
@@ -55,6 +57,12 @@ export function OrdersPage() {
     setOrderStatus(order.id, "cancelled")
     toast.success("Order cancelled.")
     setCancellingOrder(null)
+  }
+
+  function handleConfirmRefund(order: Order) {
+    setOrderStatus(order.id, "refunded")
+    toast.success("Order refunded.")
+    setRefundingOrder(null)
   }
 
   function handleConfirmDelete(order: Order) {
@@ -145,6 +153,7 @@ export function OrdersPage() {
         onView={(order) => navigate(`/orders/${order.id}`)}
         onEdit={(order) => navigate(`/orders/${order.id}/edit`)}
         onCancel={setCancellingOrder}
+        onRefund={setRefundingOrder}
         onDelete={setDeletingOrder}
       />
 
@@ -152,6 +161,12 @@ export function OrdersPage() {
         order={cancellingOrder}
         onOpenChange={(open) => !open && setCancellingOrder(null)}
         onConfirm={handleConfirmCancel}
+      />
+
+      <RefundOrderDialog
+        order={refundingOrder}
+        onOpenChange={(open) => !open && setRefundingOrder(null)}
+        onConfirm={handleConfirmRefund}
       />
 
       <DeleteOrderDialog

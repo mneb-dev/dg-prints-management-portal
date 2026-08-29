@@ -18,6 +18,8 @@ export function ShippingAddressFields({
   onPhoneChange,
   address,
   onAddressChange,
+  fee,
+  onFeeChange,
 }: {
   enabled: boolean
   onEnabledChange: (value: boolean) => void
@@ -33,6 +35,8 @@ export function ShippingAddressFields({
   onPhoneChange: (value: string) => void
   address: string
   onAddressChange: (value: string) => void
+  fee: string
+  onFeeChange: (value: string) => void
 }) {
   return (
     <div className="flex flex-col gap-3">
@@ -92,6 +96,18 @@ export function ShippingAddressFields({
               value={address}
               onChange={(event) => onAddressChange(event.target.value)}
               placeholder="House/unit no., street, barangay, city, province"
+            />
+          </Field>
+
+          <Field>
+            <FieldLabel htmlFor="shipping-fee">Shipping Fee</FieldLabel>
+            <Input
+              id="shipping-fee"
+              type="number"
+              min={0}
+              step="0.01"
+              value={fee}
+              onChange={(event) => onFeeChange(event.target.value)}
             />
           </Field>
         </div>

@@ -1,18 +1,30 @@
 import { createSlice, type PayloadAction } from "@reduxjs/toolkit"
 
 import type { PricingUnit, ProductCategory } from "@/lib/products"
+import type { StickerQuotation, StickerUnit } from "@/lib/sticker-quotation"
 
 export const ORDERS_STORAGE_KEY = "dgprints_orders"
 
 export const ORDER_STATUSES = [
   "pending",
-  "confirmed",
-  "in_progress",
-  "ready",
-  "completed",
+  "layout",
+  "trace",
+  "print",
+  "cut",
+  "pack",
+  "pickup",
+  "released",
   "cancelled",
+  "refunded",
 ] as const
 export type OrderStatus = (typeof ORDER_STATUSES)[number]
+
+const LEGACY_STATUS_MAP: Partial<Record<string, OrderStatus>> = {
+  confirmed: "layout",
+  in_progress: "print",
+  ready: "pickup",
+  completed: "released",
+}
 
 export type SelectedOption = {
   optionId: string
@@ -61,12 +73,21 @@ export type OrderItem = {
   notes: string
   pricing: OrderItemPricing
   lineTotal: number
+  stickerQuotation: {
+    package: keyof StickerQuotation
+    width: number
+    height: number
+    unit: StickerUnit
+    quantity: number
+    free: number
+  } | null
 }
 
 export type ShippingAddress = {
   name: string
   phone: string
   address: string
+  fee: number
 }
 
 export const ORDER_CHANNELS = ["Facebook", "Shopee", "Walk-in"] as const
@@ -113,6 +134,7 @@ type OrdersState = {
 function normalizeOrder(order: Order): Order {
   return {
     ...order,
+    status: LEGACY_STATUS_MAP[order.status] ?? order.status,
     channel: order.channel ?? "Walk-in",
     additionalFees: order.additionalFees ?? 0,
     payment: order.payment ?? {
@@ -121,6 +143,13 @@ function normalizeOrder(order: Order): Order {
       downPayment: 0,
       balance: order.total,
     },
+    shippingAddress: order.shippingAddress
+      ? { ...order.shippingAddress, fee: order.shippingAddress.fee ?? 0 }
+      : null,
+    items: order.items.map((item) => ({
+      ...item,
+      stickerQuotation: item.stickerQuotation ?? null,
+    })),
   }
 }
 

@@ -14,6 +14,12 @@ export {
   PAYMENT_METHODS,
   PAYMENT_STATUSES,
 } from "@/lib/orders-slice"
+export {
+  ORDER_TERMINAL_STATUSES,
+  canRefundOrder,
+  getStatusFlowForCategory,
+  isTerminalStatus,
+} from "@/lib/order-status"
 export type {
   Order,
   OrderChannel,

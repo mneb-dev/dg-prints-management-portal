@@ -7,6 +7,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { LENGTH_UNITS, type LengthUnit } from "@/lib/length-units"
 import type { PricingResolution } from "@/lib/pricing-resolver"
 import { formatCurrency } from "@/lib/utils"
 
@@ -21,8 +22,8 @@ export function PricingFields({
   onWidthChange,
   height,
   onHeightChange,
-  sizeUnit,
-  onSizeUnitChange,
+  dimensionUnit,
+  onDimensionUnitChange,
   quantity,
   onQuantityChange,
 }: {
@@ -33,8 +34,8 @@ export function PricingFields({
   onWidthChange: (value: string) => void
   height: string
   onHeightChange: (value: string) => void
-  sizeUnit: SizeUnit
-  onSizeUnitChange: (value: SizeUnit) => void
+  dimensionUnit: LengthUnit
+  onDimensionUnitChange: (value: LengthUnit) => void
   quantity: string
   onQuantityChange: (value: string) => void
 }) {
@@ -47,9 +48,6 @@ export function PricingFields({
   }
 
   const showsDimensions = resolution.kind === "auto" && resolution.entry.unit === "sq.ft."
-  const isPackageType =
-    resolution.kind === "package" ||
-    (resolution.kind === "auto" && resolution.entry.pricingType === "Package")
 
   return (
     <>
@@ -82,50 +80,10 @@ export function PricingFields({
         </p>
       )}
 
-      {isPackageType && (
-        <Field>
-          <FieldLabel>Size (reference only)</FieldLabel>
-          <div className="flex items-center gap-2">
-            <Input
-              type="number"
-              min={0}
-              value={width}
-              onChange={(event) => onWidthChange(event.target.value)}
-              placeholder="Width"
-              className="w-20"
-            />
-            <span className="text-sm text-muted-foreground">×</span>
-            <Input
-              type="number"
-              min={0}
-              value={height}
-              onChange={(event) => onHeightChange(event.target.value)}
-              placeholder="Height"
-              className="w-20"
-            />
-            <Select value={sizeUnit} onValueChange={(value) => onSizeUnitChange(value as SizeUnit)}>
-              <SelectTrigger className="w-24">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {SIZE_UNITS.map((unit) => (
-                  <SelectItem key={unit} value={unit}>
-                    {unit}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            For production reference only — doesn't affect the price.
-          </p>
-        </Field>
-      )}
-
       {showsDimensions && (
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-3 gap-4">
           <Field>
-            <FieldLabel htmlFor="order-width">Width (ft)</FieldLabel>
+            <FieldLabel htmlFor="order-width">Width</FieldLabel>
             <Input
               id="order-width"
               type="number"
@@ -136,7 +94,7 @@ export function PricingFields({
             />
           </Field>
           <Field>
-            <FieldLabel htmlFor="order-height">Height (ft)</FieldLabel>
+            <FieldLabel htmlFor="order-height">Height</FieldLabel>
             <Input
               id="order-height"
               type="number"
@@ -145,6 +103,24 @@ export function PricingFields({
               value={height}
               onChange={(event) => onHeightChange(event.target.value)}
             />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="order-dimension-unit">Unit</FieldLabel>
+            <Select
+              value={dimensionUnit}
+              onValueChange={(value) => onDimensionUnitChange(value as LengthUnit)}
+            >
+              <SelectTrigger id="order-dimension-unit">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {LENGTH_UNITS.map((unit) => (
+                  <SelectItem key={unit} value={unit}>
+                    {unit}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </Field>
         </div>
       )}

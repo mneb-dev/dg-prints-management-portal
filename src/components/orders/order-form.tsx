@@ -14,7 +14,8 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { useOrders } from "@/lib/orders"
+import { convertToFeet, type LengthUnit } from "@/lib/length-units"
+import { getStatusFlowForCategory, useOrders } from "@/lib/orders"
 import type {
   Order,
   OrderChannel,
@@ -30,6 +31,7 @@ import {
   resolvePricing,
 } from "@/lib/pricing-resolver"
 import { useProducts } from "@/lib/products"
+import { calculateStickerQuotation, nearestPackageTier, type StickerUnit } from "@/lib/sticker-quotation"
 import { generateId } from "@/lib/utils"
 
 import { OrderSummaryPanel } from "./order-summary-panel"
@@ -37,6 +39,7 @@ import { PaymentFields } from "./payment-fields"
 import { PricingFields, type SizeUnit } from "./pricing-fields"
 import { ProductOptionsFields } from "./product-options-fields"
 import { ShippingAddressFields } from "./shipping-address-fields"
+import { StickerQuotationFields } from "./sticker-quotation-fields"
 
 export function OrderForm({ order }: { order: Order | null }) {
   const navigate = useNavigate()
@@ -51,7 +54,11 @@ export function OrderForm({ order }: { order: Order | null }) {
   const [width, setWidth] = useState("")
   const [height, setHeight] = useState("")
   const [sizeUnit, setSizeUnit] = useState<SizeUnit>("in")
+  const [dimensionUnit, setDimensionUnit] = useState<LengthUnit>("ft")
   const [quantity, setQuantity] = useState("1")
+  const [stickerWidth, setStickerWidth] = useState("")
+  const [stickerHeight, setStickerHeight] = useState("")
+  const [stickerUnit, setStickerUnit] = useState<StickerUnit>("cm")
   const [notes, setNotes] = useState("")
   const [manualProductName, setManualProductName] = useState("")
   const [manualUnitPrice, setManualUnitPrice] = useState("")
@@ -63,6 +70,7 @@ export function OrderForm({ order }: { order: Order | null }) {
   const [shippingName, setShippingName] = useState("")
   const [shippingPhone, setShippingPhone] = useState("")
   const [shippingAddress, setShippingAddress] = useState("")
+  const [shippingFee, setShippingFee] = useState("0")
   const [channel, setChannel] = useState<OrderChannel | "">("")
   const [markPaid, setMarkPaid] = useState(false)
   const [paymentStatus, setPaymentStatus] = useState<"paid" | "partially_paid">("paid")
@@ -107,6 +115,12 @@ export function OrderForm({ order }: { order: Order | null }) {
       setManualUnitPrice(String(item.pricing.unitPrice))
     }
 
+    if (item.stickerQuotation) {
+      setStickerWidth(String(item.stickerQuotation.width))
+      setStickerHeight(String(item.stickerQuotation.height))
+      setStickerUnit(item.stickerQuotation.unit)
+    }
+
     if (order.shippingAddress) {
       setShippingEnabled(true)
       setSameName(order.shippingAddress.name === order.customerName)
@@ -114,6 +128,7 @@ export function OrderForm({ order }: { order: Order | null }) {
       setShippingName(order.shippingAddress.name)
       setShippingPhone(order.shippingAddress.phone)
       setShippingAddress(order.shippingAddress.address)
+      setShippingFee(String(order.shippingAddress.fee ?? 0))
     }
 
     setChannel(order.channel)
@@ -132,14 +147,26 @@ export function OrderForm({ order }: { order: Order | null }) {
     setWidth("")
     setHeight("")
     setSizeUnit("in")
+    setDimensionUnit("ft")
     setQuantity("1")
     setManualProductName("")
     setManualUnitPrice("")
+    setStickerWidth("")
+    setStickerHeight("")
+    setStickerUnit("cm")
   }
 
   const isManual = selectedProduct ? isManualPricingProduct(selectedProduct) : false
   const resolution =
     selectedProduct && !isManual ? resolvePricing(selectedProduct, optionValues) : { kind: "none" as const }
+
+  const selectedPackagePricingEntry =
+    resolution.kind === "package"
+      ? resolution.candidates.find((candidate) => candidate.id === packageEntryId) ?? null
+      : null
+  const selectedStickerPackage = selectedPackagePricingEntry
+    ? nearestPackageTier(selectedPackagePricingEntry.price)
+    : null
 
   function buildPricing(): OrderItemPricing | null {
     if (!selectedProduct) return null
@@ -183,8 +210,8 @@ export function OrderForm({ order }: { order: Order | null }) {
       }
       if (entry.pricingType === "Per Unit") {
         if (entry.unit === "sq.ft.") {
-          const w = Number(width)
-          const h = Number(height)
+          const w = convertToFeet(Number(width), dimensionUnit)
+          const h = convertToFeet(Number(height), dimensionUnit)
           if (!(w > 0) || !(h > 0)) return null
           return {
             pricingType: "Per Unit",
@@ -210,9 +237,32 @@ export function OrderForm({ order }: { order: Order | null }) {
     : 0
   const discountNum = Math.max(0, Number(discount) || 0)
   const additionalFeesNum = Math.max(0, Number(additionalFees) || 0)
+  const shippingFeeNum = shippingEnabled ? Math.max(0, Number(shippingFee) || 0) : 0
   const previewTotal = isEditingMissingProduct
-    ? Math.max((existingItem?.lineTotal ?? 0) + additionalFeesNum - discountNum, 0)
-    : Math.max(previewLineTotal + additionalFeesNum - discountNum, 0)
+    ? Math.max((existingItem?.lineTotal ?? 0) + additionalFeesNum + shippingFeeNum - discountNum, 0)
+    : Math.max(previewLineTotal + additionalFeesNum + shippingFeeNum - discountNum, 0)
+
+  const stickerQuotationPackage =
+    selectedProduct?.category === "Sticker Label" ? selectedStickerPackage : null
+
+  const stickerWidthNum = Number(stickerWidth)
+  const stickerHeightNum = Number(stickerHeight)
+  const hasValidStickerSize = stickerWidthNum > 0 && stickerHeightNum > 0
+  const stickerQuotation = hasValidStickerSize
+    ? calculateStickerQuotation(stickerWidthNum, stickerHeightNum, stickerUnit)
+    : null
+  const stickerQuotationResult =
+    stickerQuotationPackage && stickerQuotation ? stickerQuotation[stickerQuotationPackage] : null
+  const stickerQuotationSnapshot =
+    stickerQuotationPackage && stickerQuotationResult
+      ? {
+          package: stickerQuotationPackage,
+          width: stickerWidthNum,
+          height: stickerHeightNum,
+          unit: stickerUnit,
+          ...stickerQuotationResult,
+        }
+      : null
 
   function resolveShippingAddress() {
     if (!shippingEnabled) return null
@@ -220,6 +270,7 @@ export function OrderForm({ order }: { order: Order | null }) {
       name: (sameName ? customerName : shippingName).trim(),
       phone: (samePhone ? customerPhone : shippingPhone).trim(),
       address: shippingAddress.trim(),
+      fee: shippingFeeNum,
     }
   }
 
@@ -273,7 +324,10 @@ export function OrderForm({ order }: { order: Order | null }) {
     setIsSubmitting(true)
     try {
       if (order && isEditingMissingProduct && existingItem) {
-        const total = Math.max(existingItem.lineTotal + additionalFeesNum - discountNum, 0)
+        const total = Math.max(
+          existingItem.lineTotal + additionalFeesNum + shippingFeeNum - discountNum,
+          0
+        )
         updateOrder(order.id, {
           customerName: customerName.trim(),
           customerPhone: customerPhone.trim(),
@@ -327,15 +381,19 @@ export function OrderForm({ order }: { order: Order | null }) {
         notes: notes.trim(),
         pricing,
         lineTotal: computeLineTotal({ pricing, quantity: quantityNum }),
+        stickerQuotation: stickerQuotationSnapshot,
       }
 
       const subtotal = item.lineTotal
-      const total = Math.max(subtotal + additionalFeesNum - discountNum, 0)
+      const total = Math.max(subtotal + additionalFeesNum + shippingFeeNum - discountNum, 0)
 
       if (order) {
+        const validStatuses = getStatusFlowForCategory(item.productCategory)
+        const status = validStatuses.includes(order.status) ? order.status : "pending"
         updateOrder(order.id, {
           customerName: customerName.trim(),
           customerPhone: customerPhone.trim(),
+          status,
           items: [item],
           subtotal,
           discount: discountNum,
@@ -491,12 +549,24 @@ export function OrderForm({ order }: { order: Order | null }) {
                     onWidthChange={setWidth}
                     height={height}
                     onHeightChange={setHeight}
-                    sizeUnit={sizeUnit}
-                    onSizeUnitChange={setSizeUnit}
+                    dimensionUnit={dimensionUnit}
+                    onDimensionUnitChange={setDimensionUnit}
                     quantity={quantity}
                     onQuantityChange={setQuantity}
                   />
                 </>
+              )}
+
+              {selectedProduct && !isEditingMissingProduct && selectedProduct.category === "Sticker Label" && (
+                <StickerQuotationFields
+                  width={stickerWidth}
+                  onWidthChange={setStickerWidth}
+                  height={stickerHeight}
+                  onHeightChange={setStickerHeight}
+                  unit={stickerUnit}
+                  onUnitChange={setStickerUnit}
+                  selectedPackage={selectedStickerPackage}
+                />
               )}
 
               {selectedProduct && !isEditingMissingProduct && (
@@ -534,6 +604,8 @@ export function OrderForm({ order }: { order: Order | null }) {
               onPhoneChange={setShippingPhone}
               address={shippingAddress}
               onAddressChange={setShippingAddress}
+              fee={shippingFee}
+              onFeeChange={setShippingFee}
             />
           </CardContent>
         </Card>
@@ -610,6 +682,8 @@ export function OrderForm({ order }: { order: Order | null }) {
         lineTotal={isEditingMissingProduct ? (existingItem?.lineTotal ?? 0) : previewLineTotal}
         discount={discountNum}
         additionalFees={additionalFeesNum}
+        shippingFee={shippingFeeNum}
+        stickerQuotationResult={isEditingMissingProduct ? null : stickerQuotationResult}
       />
     </form>
   )

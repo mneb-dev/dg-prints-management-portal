@@ -12,6 +12,8 @@ export function OrderSummaryPanel({
   lineTotal,
   discount,
   additionalFees,
+  shippingFee,
+  stickerQuotationResult,
 }: {
   product: Product | null
   optionValues: Record<string, string>
@@ -20,8 +22,10 @@ export function OrderSummaryPanel({
   lineTotal: number
   discount: number
   additionalFees: number
+  shippingFee: number
+  stickerQuotationResult: { quantity: number; free: number } | null
 }) {
-  const total = Math.max(lineTotal + additionalFees - discount, 0)
+  const total = Math.max(lineTotal + additionalFees + shippingFee - discount, 0)
 
   return (
     <Card>
@@ -63,6 +67,12 @@ export function OrderSummaryPanel({
               <p className="text-sm text-muted-foreground">{pricing.productName}</p>
             )}
 
+            {stickerQuotationResult && (
+              <p className="text-sm text-muted-foreground">
+                Sticker Quotation: {stickerQuotationResult.quantity} pcs + {stickerQuotationResult.free} pcs free
+              </p>
+            )}
+
             {pricing && pricing.pricingType !== "Package" && (
               <p className="text-sm text-muted-foreground">Quantity: {quantity}</p>
             )}
@@ -78,6 +88,12 @@ export function OrderSummaryPanel({
                   <span className="text-muted-foreground">Additional Fees</span>
                   <span>{formatCurrency(additionalFees)}</span>
                 </div>
+                {shippingFee > 0 && (
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Shipping Fee</span>
+                    <span>{formatCurrency(shippingFee)}</span>
+                  </div>
+                )}
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">Discount</span>
                   <span>{formatCurrency(discount)}</span>
