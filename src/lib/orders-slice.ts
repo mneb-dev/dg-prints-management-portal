@@ -63,6 +63,28 @@ export type OrderItem = {
   lineTotal: number
 }
 
+export type ShippingAddress = {
+  name: string
+  phone: string
+  address: string
+}
+
+export const ORDER_CHANNELS = ["Facebook", "Shopee", "Walk-in"] as const
+export type OrderChannel = (typeof ORDER_CHANNELS)[number]
+
+export const PAYMENT_STATUSES = ["unpaid", "partially_paid", "paid"] as const
+export type PaymentStatus = (typeof PAYMENT_STATUSES)[number]
+
+export const PAYMENT_METHODS = ["GCash", "Maya", "Bank Transfer", "Cash"] as const
+export type PaymentMethod = (typeof PAYMENT_METHODS)[number]
+
+export type Payment = {
+  status: PaymentStatus
+  method: PaymentMethod | null
+  downPayment: number
+  balance: number
+}
+
 export type Order = {
   id: string
   orderNumber: string
@@ -72,8 +94,12 @@ export type Order = {
   items: OrderItem[]
   subtotal: number
   discount: number
+  additionalFees: number
   total: number
   notes: string
+  shippingAddress: ShippingAddress | null
+  channel: OrderChannel
+  payment: Payment
   createdAt: string
   updatedAt: string
 }
@@ -84,11 +110,25 @@ type OrdersState = {
   items: Order[]
 }
 
+function normalizeOrder(order: Order): Order {
+  return {
+    ...order,
+    channel: order.channel ?? "Walk-in",
+    additionalFees: order.additionalFees ?? 0,
+    payment: order.payment ?? {
+      status: "unpaid",
+      method: null,
+      downPayment: 0,
+      balance: order.total,
+    },
+  }
+}
+
 function getInitialOrders(): Order[] {
   try {
     const stored = localStorage.getItem(ORDERS_STORAGE_KEY)
     const parsed = stored ? JSON.parse(stored) : []
-    return Array.isArray(parsed) ? parsed : []
+    return Array.isArray(parsed) ? parsed.map(normalizeOrder) : []
   } catch {
     return []
   }

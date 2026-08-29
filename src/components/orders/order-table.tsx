@@ -23,9 +23,10 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import type { Order } from "@/lib/orders"
-import { formatCurrency } from "@/lib/utils"
+import { formatCurrency, formatDate } from "@/lib/utils"
 
 import { OrderStatusBadge } from "./order-status-badge"
+import { PaymentStatusBadge } from "./payment-status-badge"
 
 export function OrderTable({
   orders,
@@ -65,7 +66,9 @@ export function OrderTable({
             <TableHead>Customer</TableHead>
             <TableHead>Product</TableHead>
             <TableHead>Total</TableHead>
+            <TableHead>Created</TableHead>
             <TableHead>Status</TableHead>
+            <TableHead>Payment</TableHead>
             <TableHead className="text-right">
               <span className="sr-only">Actions</span>
             </TableHead>
@@ -82,8 +85,14 @@ export function OrderTable({
                   {order.items[0]?.productName ?? "—"}
                 </TableCell>
                 <TableCell>{formatCurrency(order.total)}</TableCell>
+                <TableCell className="text-muted-foreground">
+                  {formatDate(order.createdAt)}
+                </TableCell>
                 <TableCell>
                   <OrderStatusBadge status={order.status} />
+                </TableCell>
+                <TableCell>
+                  <PaymentStatusBadge status={order.payment.status} />
                 </TableCell>
                 <TableCell className="text-right">
                   <DropdownMenu>

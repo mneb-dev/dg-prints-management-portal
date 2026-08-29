@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import {
@@ -14,7 +15,15 @@ import {
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { useOrders } from "@/lib/orders"
-import type { Order, OrderItem, OrderItemPricing, SelectedOption } from "@/lib/orders"
+import type {
+  Order,
+  OrderChannel,
+  OrderItem,
+  OrderItemPricing,
+  Payment,
+  PaymentMethod,
+  SelectedOption,
+} from "@/lib/orders"
 import {
   computeLineTotal,
   isManualPricingProduct,
@@ -24,8 +33,10 @@ import { useProducts } from "@/lib/products"
 import { generateId } from "@/lib/utils"
 
 import { OrderSummaryPanel } from "./order-summary-panel"
+import { PaymentFields } from "./payment-fields"
 import { PricingFields, type SizeUnit } from "./pricing-fields"
 import { ProductOptionsFields } from "./product-options-fields"
+import { ShippingAddressFields } from "./shipping-address-fields"
 
 export function OrderForm({ order }: { order: Order | null }) {
   const navigate = useNavigate()
@@ -45,6 +56,18 @@ export function OrderForm({ order }: { order: Order | null }) {
   const [manualProductName, setManualProductName] = useState("")
   const [manualUnitPrice, setManualUnitPrice] = useState("")
   const [discount, setDiscount] = useState("0")
+  const [additionalFees, setAdditionalFees] = useState("0")
+  const [shippingEnabled, setShippingEnabled] = useState(false)
+  const [sameName, setSameName] = useState(true)
+  const [samePhone, setSamePhone] = useState(true)
+  const [shippingName, setShippingName] = useState("")
+  const [shippingPhone, setShippingPhone] = useState("")
+  const [shippingAddress, setShippingAddress] = useState("")
+  const [channel, setChannel] = useState<OrderChannel | "">("")
+  const [markPaid, setMarkPaid] = useState(false)
+  const [paymentStatus, setPaymentStatus] = useState<"paid" | "partially_paid">("paid")
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | "">("")
+  const [downPayment, setDownPayment] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const existingItem = order?.items[0] ?? null
@@ -65,6 +88,7 @@ export function OrderForm({ order }: { order: Order | null }) {
     setQuantity(String(item.quantity))
     setNotes(item.notes)
     setDiscount(String(order.discount))
+    setAdditionalFees(String(order.additionalFees))
 
     if (item.pricing.pricingType === "Package") {
       setPackageEntryId(item.pricing.pricingEntryId)
@@ -81,6 +105,23 @@ export function OrderForm({ order }: { order: Order | null }) {
     } else if (item.pricing.pricingType === "Manual") {
       setManualProductName(item.pricing.productName)
       setManualUnitPrice(String(item.pricing.unitPrice))
+    }
+
+    if (order.shippingAddress) {
+      setShippingEnabled(true)
+      setSameName(order.shippingAddress.name === order.customerName)
+      setSamePhone(order.shippingAddress.phone === order.customerPhone)
+      setShippingName(order.shippingAddress.name)
+      setShippingPhone(order.shippingAddress.phone)
+      setShippingAddress(order.shippingAddress.address)
+    }
+
+    setChannel(order.channel)
+    if (order.payment.status !== "unpaid") {
+      setMarkPaid(true)
+      setPaymentStatus(order.payment.status === "paid" ? "paid" : "partially_paid")
+      setPaymentMethod(order.payment.method ?? "")
+      setDownPayment(String(order.payment.downPayment))
     }
   }, [order])
 
@@ -168,6 +209,29 @@ export function OrderForm({ order }: { order: Order | null }) {
     ? computeLineTotal({ pricing: previewPricing, quantity: quantityNum })
     : 0
   const discountNum = Math.max(0, Number(discount) || 0)
+  const additionalFeesNum = Math.max(0, Number(additionalFees) || 0)
+  const previewTotal = isEditingMissingProduct
+    ? Math.max((existingItem?.lineTotal ?? 0) + additionalFeesNum - discountNum, 0)
+    : Math.max(previewLineTotal + additionalFeesNum - discountNum, 0)
+
+  function resolveShippingAddress() {
+    if (!shippingEnabled) return null
+    return {
+      name: (sameName ? customerName : shippingName).trim(),
+      phone: (samePhone ? customerPhone : shippingPhone).trim(),
+      address: shippingAddress.trim(),
+    }
+  }
+
+  function resolvePayment(total: number): Payment {
+    if (!markPaid) return { status: "unpaid", method: null, downPayment: 0, balance: total }
+    const method = channel === "Shopee" ? "Bank Transfer" : (paymentMethod as PaymentMethod)
+    if (paymentStatus === "paid") {
+      return { status: "paid", method, downPayment: total, balance: 0 }
+    }
+    const dp = Number(downPayment) || 0
+    return { status: "partially_paid", method, downPayment: dp, balance: Math.max(total - dp, 0) }
+  }
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -177,15 +241,48 @@ export function OrderForm({ order }: { order: Order | null }) {
       return
     }
 
+    if (!channel) {
+      toast.error("Order channel is required.")
+      return
+    }
+
+    if (shippingEnabled) {
+      const resolvedName = sameName ? customerName : shippingName
+      const resolvedPhone = samePhone ? customerPhone : shippingPhone
+      if (!resolvedName.trim() || !resolvedPhone.trim() || !shippingAddress.trim()) {
+        toast.error("Shipping address fields are required.")
+        return
+      }
+    }
+
+    if (markPaid) {
+      const effectiveMethod = channel === "Shopee" ? "Bank Transfer" : paymentMethod
+      if (!effectiveMethod) {
+        toast.error("Select a payment method.")
+        return
+      }
+      if (paymentStatus === "partially_paid") {
+        const dp = Number(downPayment)
+        if (!Number.isFinite(dp) || dp <= 0 || dp >= previewTotal) {
+          toast.error("Down payment must be greater than 0 and less than the total.")
+          return
+        }
+      }
+    }
+
     setIsSubmitting(true)
     try {
       if (order && isEditingMissingProduct && existingItem) {
-        const total = Math.max(existingItem.lineTotal - discountNum, 0)
+        const total = Math.max(existingItem.lineTotal + additionalFeesNum - discountNum, 0)
         updateOrder(order.id, {
           customerName: customerName.trim(),
           customerPhone: customerPhone.trim(),
           discount: discountNum,
+          additionalFees: additionalFeesNum,
           total,
+          shippingAddress: resolveShippingAddress(),
+          channel: channel as OrderChannel,
+          payment: resolvePayment(total),
         })
         toast.success("Order updated.")
         navigate(`/orders/${order.id}`)
@@ -233,7 +330,7 @@ export function OrderForm({ order }: { order: Order | null }) {
       }
 
       const subtotal = item.lineTotal
-      const total = Math.max(subtotal - discountNum, 0)
+      const total = Math.max(subtotal + additionalFeesNum - discountNum, 0)
 
       if (order) {
         updateOrder(order.id, {
@@ -242,7 +339,11 @@ export function OrderForm({ order }: { order: Order | null }) {
           items: [item],
           subtotal,
           discount: discountNum,
+          additionalFees: additionalFeesNum,
           total,
+          shippingAddress: resolveShippingAddress(),
+          channel: channel as OrderChannel,
+          payment: resolvePayment(total),
         })
         toast.success("Order updated.")
         navigate(`/orders/${order.id}`)
@@ -254,8 +355,12 @@ export function OrderForm({ order }: { order: Order | null }) {
           items: [item],
           subtotal,
           discount: discountNum,
+          additionalFees: additionalFeesNum,
           total,
           notes: "",
+          shippingAddress: resolveShippingAddress(),
+          channel: channel as OrderChannel,
+          payment: resolvePayment(total),
         })
         toast.success("Order created.")
         navigate(`/orders/${id}`)
@@ -267,144 +372,225 @@ export function OrderForm({ order }: { order: Order | null }) {
 
   return (
     <form onSubmit={handleSubmit} className="grid gap-6 lg:grid-cols-[1fr_360px]">
-      <div className="flex flex-col gap-4 rounded-xl border p-4">
-        <h3 className="text-sm font-medium">Order Information</h3>
-        <FieldGroup>
-          <div className="grid grid-cols-2 gap-4">
-            <Field>
-              <FieldLabel htmlFor="order-customer-name">Customer Name</FieldLabel>
-              <Input
-                id="order-customer-name"
-                value={customerName}
-                onChange={(event) => setCustomerName(event.target.value)}
-                placeholder="Juan Dela Cruz"
-              />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="order-customer-phone">Phone</FieldLabel>
-              <Input
-                id="order-customer-phone"
-                value={customerPhone}
-                onChange={(event) => setCustomerPhone(event.target.value)}
-                placeholder="0917 000 0000"
-              />
-            </Field>
-          </div>
-
-          <Field>
-            <FieldLabel htmlFor="order-product">Product</FieldLabel>
-            <Select value={productId} onValueChange={(value) => handleProductChange(value as string)}>
-              <SelectTrigger id="order-product" className="w-full">
-                <SelectValue placeholder="Select a product">
-                  {(value: string | null) =>
-                    products.find((product) => product.id === value)?.name ?? "Select a product"
-                  }
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {products.map((product) => (
-                  <SelectItem key={product.id} value={product.id}>
-                    {product.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-
-          {isEditingMissingProduct && (
-            <p className="text-sm text-muted-foreground">
-              This order's product is no longer in the catalog, so pricing can't be recalculated.
-              You can still update the customer info, discount, and status.
-            </p>
-          )}
-
-          {selectedProduct && !isEditingMissingProduct && isManual && (
-            <>
-              <Field>
-                <FieldLabel htmlFor="order-manual-name">Product Name</FieldLabel>
-                <Input
-                  id="order-manual-name"
-                  value={manualProductName}
-                  onChange={(event) => setManualProductName(event.target.value)}
-                  placeholder="Customized Mug"
-                />
-              </Field>
+      <div className="flex flex-col gap-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>Customer</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <FieldGroup>
               <div className="grid grid-cols-2 gap-4">
                 <Field>
-                  <FieldLabel htmlFor="order-quantity">Quantity</FieldLabel>
+                  <FieldLabel htmlFor="order-customer-name">Customer Name</FieldLabel>
                   <Input
-                    id="order-quantity"
-                    type="number"
-                    min={1}
-                    step="1"
-                    value={quantity}
-                    onChange={(event) => setQuantity(event.target.value)}
+                    id="order-customer-name"
+                    value={customerName}
+                    onChange={(event) => setCustomerName(event.target.value)}
+                    placeholder="Juan Dela Cruz"
                   />
                 </Field>
                 <Field>
-                  <FieldLabel htmlFor="order-manual-price">Price</FieldLabel>
+                  <FieldLabel htmlFor="order-customer-phone">Phone</FieldLabel>
                   <Input
-                    id="order-manual-price"
-                    type="number"
-                    min={0}
-                    step="0.01"
-                    value={manualUnitPrice}
-                    onChange={(event) => setManualUnitPrice(event.target.value)}
+                    id="order-customer-phone"
+                    value={customerPhone}
+                    onChange={(event) => setCustomerPhone(event.target.value)}
+                    placeholder="0917 000 0000"
                   />
                 </Field>
               </div>
-            </>
-          )}
+            </FieldGroup>
+          </CardContent>
+        </Card>
 
-          {selectedProduct && !isEditingMissingProduct && !isManual && (
-            <>
-              <ProductOptionsFields
-                product={selectedProduct}
-                values={optionValues}
-                onChange={(optionId, value) =>
-                  setOptionValues((prev) => ({ ...prev, [optionId]: value }))
-                }
-              />
-              <PricingFields
-                resolution={resolution}
-                packageEntryId={packageEntryId}
-                onPackageEntryIdChange={setPackageEntryId}
-                width={width}
-                onWidthChange={setWidth}
-                height={height}
-                onHeightChange={setHeight}
-                sizeUnit={sizeUnit}
-                onSizeUnitChange={setSizeUnit}
-                quantity={quantity}
-                onQuantityChange={setQuantity}
-              />
-            </>
-          )}
+        <Card>
+          <CardHeader>
+            <CardTitle>Product</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <FieldGroup>
+              <Field>
+                <FieldLabel htmlFor="order-product">Product</FieldLabel>
+                <Select value={productId} onValueChange={(value) => handleProductChange(value as string)}>
+                  <SelectTrigger id="order-product" className="w-full">
+                    <SelectValue placeholder="Select a product">
+                      {(value: string | null) =>
+                        products.find((product) => product.id === value)?.name ?? "Select a product"
+                      }
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {products.map((product) => (
+                      <SelectItem key={product.id} value={product.id}>
+                        {product.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
 
-          {selectedProduct && !isEditingMissingProduct && (
-            <Field>
-              <FieldLabel htmlFor="order-notes">Notes</FieldLabel>
-              <Textarea
-                id="order-notes"
-                value={notes}
-                onChange={(event) => setNotes(event.target.value)}
-                placeholder="Please use the uploaded design."
-              />
-            </Field>
-          )}
+              {isEditingMissingProduct && (
+                <p className="text-sm text-muted-foreground">
+                  This order's product is no longer in the catalog, so pricing can't be recalculated.
+                  You can still update the customer info, discount, and status.
+                </p>
+              )}
 
-          <Field>
-            <FieldLabel htmlFor="order-discount">Discount</FieldLabel>
-            <Input
-              id="order-discount"
-              type="number"
-              min={0}
-              step="0.01"
-              value={discount}
-              onChange={(event) => setDiscount(event.target.value)}
+              {selectedProduct && !isEditingMissingProduct && isManual && (
+                <>
+                  <Field>
+                    <FieldLabel htmlFor="order-manual-name">Product Name</FieldLabel>
+                    <Input
+                      id="order-manual-name"
+                      value={manualProductName}
+                      onChange={(event) => setManualProductName(event.target.value)}
+                      placeholder="Customized Mug"
+                    />
+                  </Field>
+                  <div className="grid grid-cols-2 gap-4">
+                    <Field>
+                      <FieldLabel htmlFor="order-quantity">Quantity</FieldLabel>
+                      <Input
+                        id="order-quantity"
+                        type="number"
+                        min={1}
+                        step="1"
+                        value={quantity}
+                        onChange={(event) => setQuantity(event.target.value)}
+                      />
+                    </Field>
+                    <Field>
+                      <FieldLabel htmlFor="order-manual-price">Price</FieldLabel>
+                      <Input
+                        id="order-manual-price"
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        value={manualUnitPrice}
+                        onChange={(event) => setManualUnitPrice(event.target.value)}
+                      />
+                    </Field>
+                  </div>
+                </>
+              )}
+
+              {selectedProduct && !isEditingMissingProduct && !isManual && (
+                <>
+                  <ProductOptionsFields
+                    product={selectedProduct}
+                    values={optionValues}
+                    onChange={(optionId, value) =>
+                      setOptionValues((prev) => ({ ...prev, [optionId]: value }))
+                    }
+                  />
+                  <PricingFields
+                    resolution={resolution}
+                    packageEntryId={packageEntryId}
+                    onPackageEntryIdChange={setPackageEntryId}
+                    width={width}
+                    onWidthChange={setWidth}
+                    height={height}
+                    onHeightChange={setHeight}
+                    sizeUnit={sizeUnit}
+                    onSizeUnitChange={setSizeUnit}
+                    quantity={quantity}
+                    onQuantityChange={setQuantity}
+                  />
+                </>
+              )}
+
+              {selectedProduct && !isEditingMissingProduct && (
+                <Field>
+                  <FieldLabel htmlFor="order-notes">Notes</FieldLabel>
+                  <Textarea
+                    id="order-notes"
+                    value={notes}
+                    onChange={(event) => setNotes(event.target.value)}
+                    placeholder="Please use the uploaded design."
+                  />
+                </Field>
+              )}
+            </FieldGroup>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Shipping</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ShippingAddressFields
+              enabled={shippingEnabled}
+              onEnabledChange={setShippingEnabled}
+              customerName={customerName}
+              customerPhone={customerPhone}
+              sameName={sameName}
+              onSameNameChange={setSameName}
+              samePhone={samePhone}
+              onSamePhoneChange={setSamePhone}
+              name={shippingName}
+              onNameChange={setShippingName}
+              phone={shippingPhone}
+              onPhoneChange={setShippingPhone}
+              address={shippingAddress}
+              onAddressChange={setShippingAddress}
             />
-          </Field>
-        </FieldGroup>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Pricing</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <FieldGroup>
+              <Field>
+                <FieldLabel htmlFor="order-discount">Discount</FieldLabel>
+                <Input
+                  id="order-discount"
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={discount}
+                  onChange={(event) => setDiscount(event.target.value)}
+                />
+              </Field>
+
+              <Field>
+                <FieldLabel htmlFor="order-additional-fees">Additional Fees</FieldLabel>
+                <Input
+                  id="order-additional-fees"
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={additionalFees}
+                  onChange={(event) => setAdditionalFees(event.target.value)}
+                />
+              </Field>
+            </FieldGroup>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Payment</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <PaymentFields
+              channel={channel}
+              onChannelChange={setChannel}
+              markPaid={markPaid}
+              onMarkPaidChange={setMarkPaid}
+              paymentStatus={paymentStatus}
+              onPaymentStatusChange={setPaymentStatus}
+              paymentMethod={paymentMethod}
+              onPaymentMethodChange={setPaymentMethod}
+              downPayment={downPayment}
+              onDownPaymentChange={setDownPayment}
+              total={previewTotal}
+            />
+          </CardContent>
+        </Card>
 
         <div className="flex justify-end gap-2">
           <Button type="button" variant="outline" onClick={() => navigate(-1)}>
@@ -423,6 +609,7 @@ export function OrderForm({ order }: { order: Order | null }) {
         quantity={quantityNum}
         lineTotal={isEditingMissingProduct ? (existingItem?.lineTotal ?? 0) : previewLineTotal}
         discount={discountNum}
+        additionalFees={additionalFeesNum}
       />
     </form>
   )

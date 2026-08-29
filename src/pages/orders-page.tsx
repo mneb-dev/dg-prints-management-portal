@@ -7,6 +7,7 @@ import { CancelOrderDialog } from "@/components/orders/cancel-order-dialog"
 import { DeleteOrderDialog } from "@/components/orders/delete-order-dialog"
 import { ORDER_STATUS_LABELS } from "@/components/orders/order-status-badge"
 import { OrderTable } from "@/components/orders/order-table"
+import { PAYMENT_STATUS_LABELS } from "@/components/orders/payment-status-badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -16,15 +17,24 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { ORDER_STATUSES, useOrders, type Order, type OrderStatus } from "@/lib/orders"
+import {
+  ORDER_STATUSES,
+  PAYMENT_STATUSES,
+  useOrders,
+  type Order,
+  type OrderStatus,
+  type PaymentStatus,
+} from "@/lib/orders"
 
 const ANY_STATUS = "All Statuses"
+const ANY_PAYMENT_STATUS = "All Payment Statuses"
 
 export function OrdersPage() {
   const navigate = useNavigate()
   const { orders, setOrderStatus, deleteOrder } = useOrders()
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState(ANY_STATUS)
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState(ANY_PAYMENT_STATUS)
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
   const [cancellingOrder, setCancellingOrder] = useState<Order | null>(null)
@@ -34,9 +44,11 @@ export function OrdersPage() {
     const haystack = `${order.orderNumber} ${order.customerName}`.toLowerCase()
     const matchesSearch = haystack.includes(search.trim().toLowerCase())
     const matchesStatus = statusFilter === ANY_STATUS || order.status === statusFilter
+    const matchesPaymentStatus =
+      paymentStatusFilter === ANY_PAYMENT_STATUS || order.payment.status === paymentStatusFilter
     const matchesFrom = !dateFrom || order.createdAt >= dateFrom
     const matchesTo = !dateTo || order.createdAt <= `${dateTo}T23:59:59`
-    return matchesSearch && matchesStatus && matchesFrom && matchesTo
+    return matchesSearch && matchesStatus && matchesPaymentStatus && matchesFrom && matchesTo
   })
 
   function handleConfirmCancel(order: Order) {
@@ -88,6 +100,27 @@ export function OrdersPage() {
             {ORDER_STATUSES.map((status) => (
               <SelectItem key={status} value={status}>
                 {ORDER_STATUS_LABELS[status]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select
+          value={paymentStatusFilter}
+          onValueChange={(value) => setPaymentStatusFilter(value ?? ANY_PAYMENT_STATUS)}
+        >
+          <SelectTrigger>
+            <SelectValue>
+              {(value: string | null) =>
+                (value && PAYMENT_STATUS_LABELS[value as PaymentStatus]) || ANY_PAYMENT_STATUS
+              }
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ANY_PAYMENT_STATUS}>{ANY_PAYMENT_STATUS}</SelectItem>
+            {PAYMENT_STATUSES.map((status) => (
+              <SelectItem key={status} value={status}>
+                {PAYMENT_STATUS_LABELS[status]}
               </SelectItem>
             ))}
           </SelectContent>

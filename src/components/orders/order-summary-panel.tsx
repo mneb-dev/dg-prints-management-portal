@@ -11,6 +11,7 @@ export function OrderSummaryPanel({
   quantity,
   lineTotal,
   discount,
+  additionalFees,
 }: {
   product: Product | null
   optionValues: Record<string, string>
@@ -18,8 +19,9 @@ export function OrderSummaryPanel({
   quantity: number
   lineTotal: number
   discount: number
+  additionalFees: number
 }) {
-  const total = Math.max(lineTotal - discount, 0)
+  const total = Math.max(lineTotal + additionalFees - discount, 0)
 
   return (
     <Card>
@@ -71,6 +73,10 @@ export function OrderSummaryPanel({
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">Subtotal</span>
                   <span>{formatCurrency(lineTotal)}</span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Additional Fees</span>
+                  <span>{formatCurrency(additionalFees)}</span>
                 </div>
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">Discount</span>

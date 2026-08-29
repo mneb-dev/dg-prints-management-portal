@@ -1,8 +1,9 @@
-import { FileWarningIcon } from "lucide-react"
+import { ArrowLeftIcon, FileWarningIcon } from "lucide-react"
 import { Link, useParams } from "react-router-dom"
 import { toast } from "sonner"
 
 import { ORDER_STATUS_LABELS, OrderStatusBadge } from "@/components/orders/order-status-badge"
+import { PaymentStatusBadge } from "@/components/orders/payment-status-badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
@@ -55,6 +56,10 @@ export function OrderDetailsPage() {
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
+          <Button variant="ghost" size="icon-sm" render={<Link to="/orders" />}>
+            <ArrowLeftIcon />
+            <span className="sr-only">Back to Orders</span>
+          </Button>
           <h1 className="text-2xl font-semibold">Order {order.orderNumber}</h1>
           <OrderStatusBadge status={order.status} />
         </div>
@@ -120,6 +125,28 @@ export function OrderDetailsPage() {
         </Card>
       )}
 
+      {order.shippingAddress && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Shipping Address</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-2">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">Name</span>
+              <span>{order.shippingAddress.name}</span>
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">Phone</span>
+              <span>{order.shippingAddress.phone}</span>
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">Address</span>
+              <span className="text-right">{order.shippingAddress.address}</span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle>Pricing</CardTitle>
@@ -130,6 +157,10 @@ export function OrderDetailsPage() {
             <span>{formatCurrency(order.subtotal)}</span>
           </div>
           <div className="flex items-center justify-between text-sm">
+            <span className="text-muted-foreground">Additional Fees</span>
+            <span>{formatCurrency(order.additionalFees)}</span>
+          </div>
+          <div className="flex items-center justify-between text-sm">
             <span className="text-muted-foreground">Discount</span>
             <span>{formatCurrency(order.discount)}</span>
           </div>
@@ -138,6 +169,38 @@ export function OrderDetailsPage() {
             <span>Total</span>
             <span>{formatCurrency(order.total)}</span>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Payment</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-2">
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-muted-foreground">Channel</span>
+            <span>{order.channel}</span>
+          </div>
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-muted-foreground">Status</span>
+            <PaymentStatusBadge status={order.payment.status} />
+          </div>
+          {order.payment.status !== "unpaid" && (
+            <>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Method</span>
+                <span>{order.payment.method}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Down Payment</span>
+                <span>{formatCurrency(order.payment.downPayment)}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Balance</span>
+                <span>{formatCurrency(order.payment.balance)}</span>
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
 

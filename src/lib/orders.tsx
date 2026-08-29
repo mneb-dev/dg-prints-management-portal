@@ -8,14 +8,24 @@ import {
 import type { Order, OrderInput, OrderStatus } from "@/lib/orders-slice"
 import { generateId } from "@/lib/utils"
 
-export { ORDER_STATUSES } from "@/lib/orders-slice"
+export {
+  ORDER_CHANNELS,
+  ORDER_STATUSES,
+  PAYMENT_METHODS,
+  PAYMENT_STATUSES,
+} from "@/lib/orders-slice"
 export type {
   Order,
+  OrderChannel,
   OrderInput,
   OrderItem,
   OrderItemPricing,
   OrderStatus,
+  Payment,
+  PaymentMethod,
+  PaymentStatus,
   SelectedOption,
+  ShippingAddress,
 } from "@/lib/orders-slice"
 
 function nextOrderNumber(existing: Order[]): string {
