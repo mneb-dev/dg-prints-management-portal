@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { PlusIcon, SearchIcon } from "lucide-react"
+import { PlusIcon, SearchIcon, XIcon } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 import { toast } from "sonner"
 
@@ -9,6 +9,7 @@ import { ORDER_STATUS_LABELS } from "@/components/orders/order-status-badge"
 import { OrderTable } from "@/components/orders/order-table"
 import { PAYMENT_STATUS_LABELS } from "@/components/orders/payment-status-badge"
 import { RefundOrderDialog } from "@/components/orders/refund-order-dialog"
+import { PageHeader } from "@/components/page-header"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -32,7 +33,7 @@ const ANY_PAYMENT_STATUS = "All Payment Statuses"
 
 export function OrdersPage() {
   const navigate = useNavigate()
-  const { orders, setOrderStatus, deleteOrder } = useOrders()
+  const { orders, setOrderStatus, deleteOrder, isLoading, isError, error } = useOrders()
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState(ANY_STATUS)
   const [paymentStatusFilter, setPaymentStatusFilter] = useState(ANY_PAYMENT_STATUS)
@@ -41,6 +42,9 @@ export function OrdersPage() {
   const [cancellingOrder, setCancellingOrder] = useState<Order | null>(null)
   const [refundingOrder, setRefundingOrder] = useState<Order | null>(null)
   const [deletingOrder, setDeletingOrder] = useState<Order | null>(null)
+  const [isCancelling, setIsCancelling] = useState(false)
+  const [isRefunding, setIsRefunding] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   const filteredOrders = orders.filter((order) => {
     const haystack = `${order.orderNumber} ${order.customerName}`.toLowerCase()
@@ -53,36 +57,72 @@ export function OrdersPage() {
     return matchesSearch && matchesStatus && matchesPaymentStatus && matchesFrom && matchesTo
   })
 
-  function handleConfirmCancel(order: Order) {
-    setOrderStatus(order.id, "cancelled")
-    toast.success("Order cancelled.")
-    setCancellingOrder(null)
+  async function handleConfirmCancel(order: Order) {
+    setIsCancelling(true)
+    try {
+      await setOrderStatus(order.id, "cancelled")
+      toast.success("Order cancelled.")
+      setCancellingOrder(null)
+    } catch (err) {
+      toast.error(typeof err === "string" ? err : "Failed to cancel order.")
+    } finally {
+      setIsCancelling(false)
+    }
   }
 
-  function handleConfirmRefund(order: Order) {
-    setOrderStatus(order.id, "refunded")
-    toast.success("Order refunded.")
-    setRefundingOrder(null)
+  async function handleConfirmRefund(order: Order) {
+    setIsRefunding(true)
+    try {
+      await setOrderStatus(order.id, "refunded")
+      toast.success("Order refunded.")
+      setRefundingOrder(null)
+    } catch (err) {
+      toast.error(typeof err === "string" ? err : "Failed to refund order.")
+    } finally {
+      setIsRefunding(false)
+    }
   }
 
-  function handleConfirmDelete(order: Order) {
-    deleteOrder(order.id)
-    toast.success("Order deleted.")
-    setDeletingOrder(null)
+  async function handleConfirmDelete(order: Order) {
+    setIsDeleting(true)
+    try {
+      await deleteOrder(order.id)
+      toast.success("Order deleted.")
+      setDeletingOrder(null)
+    } catch (err) {
+      toast.error(typeof err === "string" ? err : "Failed to delete order.")
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
+  const hasActiveFilters =
+    search !== "" ||
+    statusFilter !== ANY_STATUS ||
+    paymentStatusFilter !== ANY_PAYMENT_STATUS ||
+    dateFrom !== "" ||
+    dateTo !== ""
+
+  function clearFilters() {
+    setSearch("")
+    setStatusFilter(ANY_STATUS)
+    setPaymentStatusFilter(ANY_PAYMENT_STATUS)
+    setDateFrom("")
+    setDateTo("")
   }
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold">Orders</h1>
-          <p className="text-muted-foreground">Manage customer orders</p>
-        </div>
-        <Button onClick={() => navigate("/orders/new")}>
-          <PlusIcon data-icon="inline-start" />
-          Create Order
-        </Button>
-      </div>
+      <PageHeader
+        title="Orders"
+        description="Manage customer orders"
+        actions={
+          <Button onClick={() => navigate("/orders/new")}>
+            <PlusIcon data-icon="inline-start" />
+            Create Order
+          </Button>
+        }
+      />
 
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative flex-1 min-w-48">
@@ -92,10 +132,15 @@ export function OrdersPage() {
             onChange={(event) => setSearch(event.target.value)}
             placeholder="Search orders..."
             className="pl-8"
+            disabled={isLoading || isError}
           />
         </div>
 
-        <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value ?? ANY_STATUS)}>
+        <Select
+          value={statusFilter}
+          onValueChange={(value) => setStatusFilter(value ?? ANY_STATUS)}
+          disabled={isLoading || isError}
+        >
           <SelectTrigger>
             <SelectValue>
               {(value: string | null) =>
@@ -116,6 +161,7 @@ export function OrdersPage() {
         <Select
           value={paymentStatusFilter}
           onValueChange={(value) => setPaymentStatusFilter(value ?? ANY_PAYMENT_STATUS)}
+          disabled={isLoading || isError}
         >
           <SelectTrigger>
             <SelectValue>
@@ -136,20 +182,42 @@ export function OrdersPage() {
 
         <Input
           type="date"
+          aria-label="Filter orders from date"
           value={dateFrom}
           onChange={(event) => setDateFrom(event.target.value)}
           className="w-40"
+          disabled={isLoading || isError}
         />
         <Input
           type="date"
+          aria-label="Filter orders to date"
           value={dateTo}
           onChange={(event) => setDateTo(event.target.value)}
           className="w-40"
+          disabled={isLoading || isError}
         />
+
+        {hasActiveFilters && (
+          <Button variant="ghost" size="sm" onClick={clearFilters}>
+            <XIcon data-icon="inline-start" />
+            Clear filters
+          </Button>
+        )}
       </div>
+
+      {!isLoading && !isError && (
+        <p className="text-sm text-muted-foreground">
+          {hasActiveFilters
+            ? `Showing ${filteredOrders.length} of ${orders.length} orders`
+            : `${orders.length} orders`}
+        </p>
+      )}
 
       <OrderTable
         orders={filteredOrders}
+        isLoading={isLoading}
+        isError={isError}
+        error={error}
         onView={(order) => navigate(`/orders/${order.id}`)}
         onEdit={(order) => navigate(`/orders/${order.id}/edit`)}
         onCancel={setCancellingOrder}
@@ -159,18 +227,21 @@ export function OrdersPage() {
 
       <CancelOrderDialog
         order={cancellingOrder}
+        isPending={isCancelling}
         onOpenChange={(open) => !open && setCancellingOrder(null)}
         onConfirm={handleConfirmCancel}
       />
 
       <RefundOrderDialog
         order={refundingOrder}
+        isPending={isRefunding}
         onOpenChange={(open) => !open && setRefundingOrder(null)}
         onConfirm={handleConfirmRefund}
       />
 
       <DeleteOrderDialog
         order={deletingOrder}
+        isDeleting={isDeleting}
         onOpenChange={(open) => !open && setDeletingOrder(null)}
         onConfirm={handleConfirmDelete}
       />

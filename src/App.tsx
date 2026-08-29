@@ -6,6 +6,7 @@ import { CreateOrderPage } from "@/pages/create-order-page"
 import { DashboardPage } from "@/pages/dashboard-page"
 import { EditOrderPage } from "@/pages/edit-order-page"
 import { LoginPage } from "@/pages/login-page"
+import { NotFoundPage } from "@/pages/not-found-page"
 import { OrderDetailsPage } from "@/pages/order-details-page"
 import { OrdersPage } from "@/pages/orders-page"
 import { ProductsPage } from "@/pages/products-page"
@@ -37,10 +38,10 @@ function App() {
         <Route path="/orders/:id/edit" element={<EditOrderPage />} />
         <Route path="/products" element={<ProductsPage />} />
         <Route path="/users" element={<UsersPage />} />
+        <Route path="*" element={<NotFoundPage />} />
       </Route>
 
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
-      <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
   )
 }

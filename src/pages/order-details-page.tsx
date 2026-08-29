@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { ArrowLeftIcon, FileWarningIcon } from "lucide-react"
+import { ArrowLeftIcon, FileWarningIcon, Loader2Icon, TriangleAlertIcon } from "lucide-react"
 import { Link, useParams } from "react-router-dom"
 import { toast } from "sonner"
 
@@ -36,10 +36,39 @@ import { formatCurrency } from "@/lib/utils"
 
 export function OrderDetailsPage() {
   const { id } = useParams<{ id: string }>()
-  const { getOrder, setOrderStatus } = useOrders()
+  const { getOrder, setOrderStatus, isLoading, isError, error } = useOrders()
   const order = id ? getOrder(id) : undefined
   const [cancelling, setCancelling] = useState(false)
   const [refunding, setRefunding] = useState(false)
+  const [isCancelling, setIsCancelling] = useState(false)
+  const [isRefunding, setIsRefunding] = useState(false)
+
+  if (isLoading) {
+    return (
+      <Empty className="border">
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <Loader2Icon className="animate-spin" />
+          </EmptyMedia>
+          <EmptyTitle>Loading order…</EmptyTitle>
+        </EmptyHeader>
+      </Empty>
+    )
+  }
+
+  if (isError) {
+    return (
+      <Empty className="border">
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <TriangleAlertIcon />
+          </EmptyMedia>
+          <EmptyTitle>Couldn't load order</EmptyTitle>
+          <EmptyDescription>{error ?? "Something went wrong."}</EmptyDescription>
+        </EmptyHeader>
+      </Empty>
+    )
+  }
 
   if (!order) {
     return (
@@ -60,22 +89,40 @@ export function OrderDetailsPage() {
   const canCancel = !isTerminalStatus(order.status)
   const canRefund = canRefundOrder(order.status, order.payment.status)
 
-  function handleStatusChange(value: string | null) {
+  async function handleStatusChange(value: string | null) {
     if (!order || !value) return
-    setOrderStatus(order.id, value as OrderStatus)
-    toast.success("Status updated.")
+    try {
+      await setOrderStatus(order.id, value as OrderStatus)
+      toast.success("Status updated.")
+    } catch (err) {
+      toast.error(typeof err === "string" ? err : "Failed to update status.")
+    }
   }
 
-  function handleConfirmCancel(target: Order) {
-    setOrderStatus(target.id, "cancelled")
-    toast.success("Order cancelled.")
-    setCancelling(false)
+  async function handleConfirmCancel(target: Order) {
+    setIsCancelling(true)
+    try {
+      await setOrderStatus(target.id, "cancelled")
+      toast.success("Order cancelled.")
+      setCancelling(false)
+    } catch (err) {
+      toast.error(typeof err === "string" ? err : "Failed to cancel order.")
+    } finally {
+      setIsCancelling(false)
+    }
   }
 
-  function handleConfirmRefund(target: Order) {
-    setOrderStatus(target.id, "refunded")
-    toast.success("Order refunded.")
-    setRefunding(false)
+  async function handleConfirmRefund(target: Order) {
+    setIsRefunding(true)
+    try {
+      await setOrderStatus(target.id, "refunded")
+      toast.success("Order refunded.")
+      setRefunding(false)
+    } catch (err) {
+      toast.error(typeof err === "string" ? err : "Failed to refund order.")
+    } finally {
+      setIsRefunding(false)
+    }
   }
 
   return (
@@ -102,12 +149,14 @@ export function OrderDetailsPage() {
 
       <CancelOrderDialog
         order={cancelling ? order : null}
+        isPending={isCancelling}
         onOpenChange={(open) => !open && setCancelling(false)}
         onConfirm={handleConfirmCancel}
       />
 
       <RefundOrderDialog
         order={refunding ? order : null}
+        isPending={isRefunding}
         onOpenChange={(open) => !open && setRefunding(false)}
         onConfirm={handleConfirmRefund}
       />

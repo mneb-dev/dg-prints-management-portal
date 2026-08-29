@@ -8,7 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
+import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import {
   Select,
@@ -43,6 +43,8 @@ export function PricingDialog({
   const [packageName, setPackageName] = useState("")
   const [price, setPrice] = useState("")
   const [unit, setUnit] = useState<PricingUnit>("Package")
+  const [priceError, setPriceError] = useState<string | null>(null)
+  const [packageNameError, setPackageNameError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!open) return
@@ -51,12 +53,23 @@ export function PricingDialog({
     setPackageName("")
     setPrice("")
     setUnit("Package")
+    setPriceError(null)
+    setPackageNameError(null)
   }, [open, appliesToOptions])
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
+
+    if (pricingType === "Package" && !packageName.trim()) {
+      setPackageNameError("Package name is required.")
+      return
+    }
+
     const numericPrice = Number(price)
-    if (!Number.isFinite(numericPrice) || numericPrice < 0) return
+    if (!Number.isFinite(numericPrice) || numericPrice < 0) {
+      setPriceError("Enter a valid price.")
+      return
+    }
 
     onAdd({
       id: generateId(),
@@ -116,21 +129,25 @@ export function PricingDialog({
             </Field>
 
             {pricingType === "Package" && (
-              <Field>
+              <Field data-invalid={!!packageNameError}>
                 <FieldLabel htmlFor="pricing-package-name">
                   Package Name
                 </FieldLabel>
                 <Input
                   id="pricing-package-name"
                   value={packageName}
-                  onChange={(event) => setPackageName(event.target.value)}
+                  onChange={(event) => {
+                    setPackageName(event.target.value)
+                    setPackageNameError(null)
+                  }}
                   placeholder="Package 1"
-                  required
+                  aria-invalid={!!packageNameError}
                 />
+                <FieldError>{packageNameError ?? undefined}</FieldError>
               </Field>
             )}
 
-            <Field>
+            <Field data-invalid={!!priceError}>
               <FieldLabel htmlFor="pricing-price">Price</FieldLabel>
               <div className="relative">
                 <span className="pointer-events-none absolute inset-y-0 left-2.5 flex items-center text-sm text-muted-foreground">
@@ -143,10 +160,14 @@ export function PricingDialog({
                   min={0}
                   step="0.01"
                   value={price}
-                  onChange={(event) => setPrice(event.target.value)}
-                  required
+                  onChange={(event) => {
+                    setPrice(event.target.value)
+                    setPriceError(null)
+                  }}
+                  aria-invalid={!!priceError}
                 />
               </div>
+              <FieldError>{priceError ?? undefined}</FieldError>
             </Field>
 
             <Field>

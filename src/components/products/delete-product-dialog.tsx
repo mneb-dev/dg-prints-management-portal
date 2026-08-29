@@ -1,3 +1,5 @@
+import { Trash2Icon } from "lucide-react"
+
 import {
   AlertDialog,
   AlertDialogAction,
@@ -6,6 +8,7 @@ import {
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
+  AlertDialogMedia,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import type { Product } from "@/lib/products"
@@ -25,6 +28,9 @@ export function DeleteProductDialog({
     <AlertDialog open={!!product} onOpenChange={onOpenChange}>
       <AlertDialogContent>
         <AlertDialogHeader>
+          <AlertDialogMedia className="bg-destructive/10 text-destructive">
+            <Trash2Icon />
+          </AlertDialogMedia>
           <AlertDialogTitle>Delete product</AlertDialogTitle>
           <AlertDialogDescription>
             Are you sure you want to delete{" "}
@@ -35,7 +41,7 @@ export function DeleteProductDialog({
         <AlertDialogFooter>
           <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
           <AlertDialogAction
-            variant="destructive"
+            variant="destructive-solid"
             disabled={isDeleting}
             onClick={() => product && onConfirm(product)}
           >

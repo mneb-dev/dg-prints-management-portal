@@ -4,7 +4,7 @@ import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
+import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import {
   Select,
@@ -77,10 +77,21 @@ export function OrderForm({ order }: { order: Order | null }) {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | "">("")
   const [downPayment, setDownPayment] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [errors, setErrors] = useState<Record<string, string>>({})
+
+  function clearError(key: string) {
+    setErrors((prev) => {
+      if (!prev[key]) return prev
+      const next = { ...prev }
+      delete next[key]
+      return next
+    })
+  }
 
   const existingItem = order?.items[0] ?? null
   const selectedProduct = products.find((product) => product.id === productId) ?? null
   const isEditingMissingProduct = !!order && !!existingItem && !selectedProduct
+  const activeProducts = products.filter((product) => product.status === "Active")
 
   useEffect(() => {
     if (!order) return
@@ -154,6 +165,34 @@ export function OrderForm({ order }: { order: Order | null }) {
     setStickerWidth("")
     setStickerHeight("")
     setStickerUnit("cm")
+    clearError("product")
+    clearError("options")
+    clearError("pricing")
+  }
+
+  function handleWidthChange(value: string) {
+    setWidth(value)
+    clearError("pricing")
+  }
+
+  function handleHeightChange(value: string) {
+    setHeight(value)
+    clearError("pricing")
+  }
+
+  function handlePackageEntryIdChange(value: string) {
+    setPackageEntryId(value)
+    clearError("pricing")
+  }
+
+  function handleQuantityChange(value: string) {
+    setQuantity(value)
+    clearError("pricing")
+  }
+
+  function handleDimensionUnitChange(value: LengthUnit) {
+    setDimensionUnit(value)
+    clearError("pricing")
   }
 
   const isManual = selectedProduct ? isManualPricingProduct(selectedProduct) : false
@@ -284,42 +323,66 @@ export function OrderForm({ order }: { order: Order | null }) {
     return { status: "partially_paid", method, downPayment: dp, balance: Math.max(total - dp, 0) }
   }
 
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
+    const nextErrors: Record<string, string> = {}
+
     if (!customerName.trim()) {
-      toast.error("Customer name is required.")
-      return
+      nextErrors.customerName = "Customer name is required."
     }
 
     if (!channel) {
-      toast.error("Order channel is required.")
-      return
+      nextErrors.channel = "Order channel is required."
     }
 
     if (shippingEnabled) {
       const resolvedName = sameName ? customerName : shippingName
       const resolvedPhone = samePhone ? customerPhone : shippingPhone
       if (!resolvedName.trim() || !resolvedPhone.trim() || !shippingAddress.trim()) {
-        toast.error("Shipping address fields are required.")
-        return
+        nextErrors.shipping = "Name, phone, and address are required."
       }
     }
 
     if (markPaid) {
       const effectiveMethod = channel === "Shopee" ? "Bank Transfer" : paymentMethod
       if (!effectiveMethod) {
-        toast.error("Select a payment method.")
-        return
+        nextErrors.paymentMethod = "Select a payment method."
       }
       if (paymentStatus === "partially_paid") {
         const dp = Number(downPayment)
         if (!Number.isFinite(dp) || dp <= 0 || dp >= previewTotal) {
-          toast.error("Down payment must be greater than 0 and less than the total.")
-          return
+          nextErrors.downPayment = "Must be greater than 0 and less than the total."
         }
       }
     }
+
+    const isMissingProductEdit = !!order && isEditingMissingProduct
+
+    if (!isMissingProductEdit) {
+      if (!selectedProduct) {
+        nextErrors.product = "Select a product."
+      } else if (selectedProduct.status !== "Active") {
+        nextErrors.product = "This product is inactive and can't be used for new or updated orders."
+      } else if (!isManual) {
+        const missingRequired = selectedProduct.options.some(
+          (option) => option.required && !optionValues[option.id]
+        )
+        if (missingRequired) {
+          nextErrors.options = "Select all required options."
+        }
+      }
+
+      if (selectedProduct && !buildPricing()) {
+        nextErrors.pricing = "Complete the pricing fields for this product."
+      }
+    }
+
+    if (Object.keys(nextErrors).length > 0) {
+      setErrors(nextErrors)
+      return
+    }
+    setErrors({})
 
     setIsSubmitting(true)
     try {
@@ -328,7 +391,7 @@ export function OrderForm({ order }: { order: Order | null }) {
           existingItem.lineTotal + additionalFeesNum + shippingFeeNum - discountNum,
           0
         )
-        updateOrder(order.id, {
+        await updateOrder(order.id, {
           customerName: customerName.trim(),
           customerPhone: customerPhone.trim(),
           discount: discountNum,
@@ -344,23 +407,11 @@ export function OrderForm({ order }: { order: Order | null }) {
       }
 
       if (!selectedProduct) {
-        toast.error("Select a product.")
         return
-      }
-
-      if (!isManual) {
-        const missingRequired = selectedProduct.options.some(
-          (option) => option.required && !optionValues[option.id]
-        )
-        if (missingRequired) {
-          toast.error("Select all required options.")
-          return
-        }
       }
 
       const pricing = buildPricing()
       if (!pricing) {
-        toast.error("Complete the pricing fields for this product.")
         return
       }
 
@@ -390,7 +441,7 @@ export function OrderForm({ order }: { order: Order | null }) {
       if (order) {
         const validStatuses = getStatusFlowForCategory(item.productCategory)
         const status = validStatuses.includes(order.status) ? order.status : "pending"
-        updateOrder(order.id, {
+        await updateOrder(order.id, {
           customerName: customerName.trim(),
           customerPhone: customerPhone.trim(),
           status,
@@ -406,7 +457,7 @@ export function OrderForm({ order }: { order: Order | null }) {
         toast.success("Order updated.")
         navigate(`/orders/${order.id}`)
       } else {
-        const id = addOrder({
+        const created = await addOrder({
           customerName: customerName.trim(),
           customerPhone: customerPhone.trim(),
           status: "pending",
@@ -421,8 +472,10 @@ export function OrderForm({ order }: { order: Order | null }) {
           payment: resolvePayment(total),
         })
         toast.success("Order created.")
-        navigate(`/orders/${id}`)
+        navigate(`/orders/${created.id}`)
       }
+    } catch (err) {
+      toast.error(typeof err === "string" ? err : "Failed to save order.")
     } finally {
       setIsSubmitting(false)
     }
@@ -438,14 +491,19 @@ export function OrderForm({ order }: { order: Order | null }) {
           <CardContent>
             <FieldGroup>
               <div className="grid grid-cols-2 gap-4">
-                <Field>
+                <Field data-invalid={!!errors.customerName}>
                   <FieldLabel htmlFor="order-customer-name">Customer Name</FieldLabel>
                   <Input
                     id="order-customer-name"
                     value={customerName}
-                    onChange={(event) => setCustomerName(event.target.value)}
+                    onChange={(event) => {
+                      setCustomerName(event.target.value)
+                      clearError("customerName")
+                    }}
                     placeholder="Juan Dela Cruz"
+                    aria-invalid={!!errors.customerName}
                   />
+                  <FieldError>{errors.customerName}</FieldError>
                 </Field>
                 <Field>
                   <FieldLabel htmlFor="order-customer-phone">Phone</FieldLabel>
@@ -467,10 +525,10 @@ export function OrderForm({ order }: { order: Order | null }) {
           </CardHeader>
           <CardContent>
             <FieldGroup>
-              <Field>
+              <Field data-invalid={!!errors.product}>
                 <FieldLabel htmlFor="order-product">Product</FieldLabel>
                 <Select value={productId} onValueChange={(value) => handleProductChange(value as string)}>
-                  <SelectTrigger id="order-product" className="w-full">
+                  <SelectTrigger id="order-product" className="w-full" aria-invalid={!!errors.product}>
                     <SelectValue placeholder="Select a product">
                       {(value: string | null) =>
                         products.find((product) => product.id === value)?.name ?? "Select a product"
@@ -478,13 +536,14 @@ export function OrderForm({ order }: { order: Order | null }) {
                     </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
-                    {products.map((product) => (
+                    {activeProducts.map((product) => (
                       <SelectItem key={product.id} value={product.id}>
                         {product.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+                <FieldError>{errors.product}</FieldError>
               </Field>
 
               {isEditingMissingProduct && (
@@ -496,13 +555,17 @@ export function OrderForm({ order }: { order: Order | null }) {
 
               {selectedProduct && !isEditingMissingProduct && isManual && (
                 <>
-                  <Field>
+                  <Field data-invalid={!!errors.pricing}>
                     <FieldLabel htmlFor="order-manual-name">Product Name</FieldLabel>
                     <Input
                       id="order-manual-name"
                       value={manualProductName}
-                      onChange={(event) => setManualProductName(event.target.value)}
+                      onChange={(event) => {
+                        setManualProductName(event.target.value)
+                        clearError("pricing")
+                      }}
                       placeholder="Customized Mug"
+                      aria-invalid={!!errors.pricing}
                     />
                   </Field>
                   <div className="grid grid-cols-2 gap-4">
@@ -514,10 +577,10 @@ export function OrderForm({ order }: { order: Order | null }) {
                         min={1}
                         step="1"
                         value={quantity}
-                        onChange={(event) => setQuantity(event.target.value)}
+                        onChange={(event) => handleQuantityChange(event.target.value)}
                       />
                     </Field>
-                    <Field>
+                    <Field data-invalid={!!errors.pricing}>
                       <FieldLabel htmlFor="order-manual-price">Price</FieldLabel>
                       <Input
                         id="order-manual-price"
@@ -525,10 +588,15 @@ export function OrderForm({ order }: { order: Order | null }) {
                         min={0}
                         step="0.01"
                         value={manualUnitPrice}
-                        onChange={(event) => setManualUnitPrice(event.target.value)}
+                        onChange={(event) => {
+                          setManualUnitPrice(event.target.value)
+                          clearError("pricing")
+                        }}
+                        aria-invalid={!!errors.pricing}
                       />
                     </Field>
                   </div>
+                  <FieldError>{errors.pricing}</FieldError>
                 </>
               )}
 
@@ -537,23 +605,26 @@ export function OrderForm({ order }: { order: Order | null }) {
                   <ProductOptionsFields
                     product={selectedProduct}
                     values={optionValues}
-                    onChange={(optionId, value) =>
+                    onChange={(optionId, value) => {
                       setOptionValues((prev) => ({ ...prev, [optionId]: value }))
-                    }
+                      clearError("options")
+                    }}
                   />
+                  <FieldError>{errors.options}</FieldError>
                   <PricingFields
                     resolution={resolution}
                     packageEntryId={packageEntryId}
-                    onPackageEntryIdChange={setPackageEntryId}
+                    onPackageEntryIdChange={handlePackageEntryIdChange}
                     width={width}
-                    onWidthChange={setWidth}
+                    onWidthChange={handleWidthChange}
                     height={height}
-                    onHeightChange={setHeight}
+                    onHeightChange={handleHeightChange}
                     dimensionUnit={dimensionUnit}
-                    onDimensionUnitChange={setDimensionUnit}
+                    onDimensionUnitChange={handleDimensionUnitChange}
                     quantity={quantity}
-                    onQuantityChange={setQuantity}
+                    onQuantityChange={handleQuantityChange}
                   />
+                  <FieldError>{errors.pricing}</FieldError>
                 </>
               )}
 
@@ -591,7 +662,10 @@ export function OrderForm({ order }: { order: Order | null }) {
           <CardContent>
             <ShippingAddressFields
               enabled={shippingEnabled}
-              onEnabledChange={setShippingEnabled}
+              onEnabledChange={(value) => {
+                setShippingEnabled(value)
+                clearError("shipping")
+              }}
               customerName={customerName}
               customerPhone={customerPhone}
               sameName={sameName}
@@ -599,13 +673,23 @@ export function OrderForm({ order }: { order: Order | null }) {
               samePhone={samePhone}
               onSamePhoneChange={setSamePhone}
               name={shippingName}
-              onNameChange={setShippingName}
+              onNameChange={(value) => {
+                setShippingName(value)
+                clearError("shipping")
+              }}
               phone={shippingPhone}
-              onPhoneChange={setShippingPhone}
+              onPhoneChange={(value) => {
+                setShippingPhone(value)
+                clearError("shipping")
+              }}
               address={shippingAddress}
-              onAddressChange={setShippingAddress}
+              onAddressChange={(value) => {
+                setShippingAddress(value)
+                clearError("shipping")
+              }}
               fee={shippingFee}
               onFeeChange={setShippingFee}
+              error={errors.shipping}
             />
           </CardContent>
         </Card>
@@ -650,16 +734,30 @@ export function OrderForm({ order }: { order: Order | null }) {
           <CardContent>
             <PaymentFields
               channel={channel}
-              onChannelChange={setChannel}
+              onChannelChange={(value) => {
+                setChannel(value)
+                clearError("channel")
+              }}
               markPaid={markPaid}
               onMarkPaidChange={setMarkPaid}
               paymentStatus={paymentStatus}
               onPaymentStatusChange={setPaymentStatus}
               paymentMethod={paymentMethod}
-              onPaymentMethodChange={setPaymentMethod}
+              onPaymentMethodChange={(value) => {
+                setPaymentMethod(value)
+                clearError("paymentMethod")
+              }}
               downPayment={downPayment}
-              onDownPaymentChange={setDownPayment}
+              onDownPaymentChange={(value) => {
+                setDownPayment(value)
+                clearError("downPayment")
+              }}
               total={previewTotal}
+              errors={{
+                channel: errors.channel,
+                paymentMethod: errors.paymentMethod,
+                downPayment: errors.downPayment,
+              }}
             />
           </CardContent>
         </Card>
@@ -674,17 +772,19 @@ export function OrderForm({ order }: { order: Order | null }) {
         </div>
       </div>
 
-      <OrderSummaryPanel
-        product={isEditingMissingProduct ? null : selectedProduct}
-        optionValues={optionValues}
-        pricing={isEditingMissingProduct ? null : previewPricing}
-        quantity={quantityNum}
-        lineTotal={isEditingMissingProduct ? (existingItem?.lineTotal ?? 0) : previewLineTotal}
-        discount={discountNum}
-        additionalFees={additionalFeesNum}
-        shippingFee={shippingFeeNum}
-        stickerQuotationResult={isEditingMissingProduct ? null : stickerQuotationResult}
-      />
+      <div className="lg:sticky lg:top-20 lg:self-start">
+        <OrderSummaryPanel
+          product={isEditingMissingProduct ? null : selectedProduct}
+          optionValues={optionValues}
+          pricing={isEditingMissingProduct ? null : previewPricing}
+          quantity={quantityNum}
+          lineTotal={isEditingMissingProduct ? (existingItem?.lineTotal ?? 0) : previewLineTotal}
+          discount={discountNum}
+          additionalFees={additionalFeesNum}
+          shippingFee={shippingFeeNum}
+          stickerQuotationResult={isEditingMissingProduct ? null : stickerQuotationResult}
+        />
+      </div>
     </form>
   )
 }

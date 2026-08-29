@@ -5,6 +5,7 @@ import { toast } from "sonner"
 import { DeleteProductDialog } from "@/components/products/delete-product-dialog"
 import { ProductFormDialog } from "@/components/products/product-form-dialog"
 import { ProductTable } from "@/components/products/product-table"
+import { PageHeader } from "@/components/page-header"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -71,13 +72,15 @@ export function ProductsPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Products</h1>
-        <Button onClick={handleAdd}>
-          <PlusIcon data-icon="inline-start" />
-          Add Product
-        </Button>
-      </div>
+      <PageHeader
+        title="Products"
+        actions={
+          <Button onClick={handleAdd}>
+            <PlusIcon data-icon="inline-start" />
+            Add Product
+          </Button>
+        }
+      />
 
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative flex-1 min-w-48">

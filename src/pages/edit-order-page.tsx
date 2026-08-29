@@ -1,4 +1,4 @@
-import { FileWarningIcon } from "lucide-react"
+import { FileWarningIcon, Loader2Icon, TriangleAlertIcon } from "lucide-react"
 import { useParams } from "react-router-dom"
 
 import { OrderForm } from "@/components/orders/order-form"
@@ -13,8 +13,35 @@ import { useOrders } from "@/lib/orders"
 
 export function EditOrderPage() {
   const { id } = useParams<{ id: string }>()
-  const { getOrder } = useOrders()
+  const { getOrder, isLoading, isError, error } = useOrders()
   const order = id ? getOrder(id) : undefined
+
+  if (isLoading) {
+    return (
+      <Empty className="border">
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <Loader2Icon className="animate-spin" />
+          </EmptyMedia>
+          <EmptyTitle>Loading order…</EmptyTitle>
+        </EmptyHeader>
+      </Empty>
+    )
+  }
+
+  if (isError) {
+    return (
+      <Empty className="border">
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <TriangleAlertIcon />
+          </EmptyMedia>
+          <EmptyTitle>Couldn't load order</EmptyTitle>
+          <EmptyDescription>{error ?? "Something went wrong."}</EmptyDescription>
+        </EmptyHeader>
+      </Empty>
+    )
+  }
 
   if (!order) {
     return (

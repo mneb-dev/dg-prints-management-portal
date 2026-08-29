@@ -1,3 +1,5 @@
+import { TriangleAlertIcon } from "lucide-react"
+
 import {
   AlertDialog,
   AlertDialogAction,
@@ -6,16 +8,19 @@ import {
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
+  AlertDialogMedia,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import type { Order } from "@/lib/orders"
 
 export function RefundOrderDialog({
   order,
+  isPending,
   onOpenChange,
   onConfirm,
 }: {
   order: Order | null
+  isPending?: boolean
   onOpenChange: (open: boolean) => void
   onConfirm: (order: Order) => void
 }) {
@@ -23,6 +28,9 @@ export function RefundOrderDialog({
     <AlertDialog open={!!order} onOpenChange={onOpenChange}>
       <AlertDialogContent>
         <AlertDialogHeader>
+          <AlertDialogMedia className="bg-status-warning/10 text-status-warning">
+            <TriangleAlertIcon />
+          </AlertDialogMedia>
           <AlertDialogTitle>Refund order</AlertDialogTitle>
           <AlertDialogDescription>
             Are you sure you want to refund order{" "}
@@ -31,9 +39,13 @@ export function RefundOrderDialog({
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>Back</AlertDialogCancel>
-          <AlertDialogAction variant="destructive" onClick={() => order && onConfirm(order)}>
-            Refund Order
+          <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            variant="destructive"
+            disabled={isPending}
+            onClick={() => order && onConfirm(order)}
+          >
+            {isPending ? "Refunding..." : "Refund Order"}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

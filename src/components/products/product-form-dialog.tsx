@@ -12,7 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
+import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import {
   Select,
@@ -287,9 +287,7 @@ export function ProductFormDialog({
                   aria-invalid={!!nameError}
                   placeholder="Sticker Label"
                 />
-                {nameError && (
-                  <p className="text-sm text-destructive">{nameError}</p>
-                )}
+                <FieldError>{nameError ?? undefined}</FieldError>
               </Field>
 
               <div className="grid grid-cols-2 gap-4">

@@ -1,8 +1,9 @@
+import { PageHeader } from "@/components/page-header"
+
 export function UsersPage() {
   return (
-    <div>
-      <h1 className="text-2xl font-semibold">Users</h1>
-      <p className="text-muted-foreground">Users content coming soon.</p>
+    <div className="flex flex-col gap-4">
+      <PageHeader title="Users" description="Users content coming soon." />
     </div>
   )
 }

@@ -1,5 +1,6 @@
 import { Loader2Icon, PackageSearchIcon, PencilIcon, Trash2Icon, TriangleAlertIcon } from "lucide-react"
 
+import { ProductCategoryIcon } from "@/components/products/product-category-icon"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -93,7 +94,12 @@ export function ProductTable({
         <TableBody>
           {products.map((product) => (
             <TableRow key={product.id}>
-              <TableCell className="font-medium">{product.name}</TableCell>
+              <TableCell className="font-medium">
+                <div className="flex items-center gap-3">
+                  <ProductCategoryIcon category={product.category} />
+                  {product.name}
+                </div>
+              </TableCell>
               <TableCell className="text-muted-foreground">
                 {product.category}
               </TableCell>
@@ -101,7 +107,7 @@ export function ProductTable({
                 {summarizePricing(product.pricing)}
               </TableCell>
               <TableCell>
-                <Badge variant={product.status === "Active" ? "default" : "secondary"}>
+                <Badge variant={product.status === "Active" ? "success" : "secondary"}>
                   {product.status}
                 </Badge>
               </TableCell>

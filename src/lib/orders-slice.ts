@@ -1,9 +1,10 @@
-import { createSlice, type PayloadAction } from "@reduxjs/toolkit"
+import { createAsyncThunk, createSlice, type PayloadAction } from "@reduxjs/toolkit"
 
+import { apiClient } from "@/lib/api-client"
+import { getErrorMessage } from "@/lib/api-error"
 import type { PricingUnit, ProductCategory } from "@/lib/products"
+import type { RootState } from "@/lib/store"
 import type { StickerQuotation, StickerUnit } from "@/lib/sticker-quotation"
-
-export const ORDERS_STORAGE_KEY = "dgprints_orders"
 
 export const ORDER_STATUSES = [
   "pending",
@@ -127,10 +128,6 @@ export type Order = {
 
 export type OrderInput = Omit<Order, "id" | "orderNumber" | "createdAt" | "updatedAt">
 
-type OrdersState = {
-  items: Order[]
-}
-
 function normalizeOrder(order: Order): Order {
   return {
     ...order,
@@ -153,66 +150,104 @@ function normalizeOrder(order: Order): Order {
   }
 }
 
-function getInitialOrders(): Order[] {
+export const fetchOrdersThunk = createAsyncThunk<
+  Order[],
+  void,
+  { rejectValue: string; state: RootState }
+>("orders/fetchAll", async (_arg, { rejectWithValue }) => {
   try {
-    const stored = localStorage.getItem(ORDERS_STORAGE_KEY)
-    const parsed = stored ? JSON.parse(stored) : []
-    return Array.isArray(parsed) ? parsed.map(normalizeOrder) : []
-  } catch {
-    return []
+    const { data } = await apiClient.get<Order[]>("/orders")
+    return data
+  } catch (err) {
+    return rejectWithValue(getErrorMessage(err))
   }
+}, {
+  condition: (_arg, { getState }) => getState().orders.status === "idle",
+})
+
+// Unlike products, order items don't need their ids stripped before POSTing: the
+// server always force-regenerates item ids on create, and reuses client-supplied
+// item ids on update — which is exactly what's wanted so an edited item is upserted
+// in place rather than deleted and recreated.
+export const createOrderThunk = createAsyncThunk<Order, OrderInput, { rejectValue: string }>(
+  "orders/create",
+  async (input, { rejectWithValue }) => {
+    try {
+      const { data } = await apiClient.post<Order>("/orders", input)
+      return data
+    } catch (err) {
+      return rejectWithValue(getErrorMessage(err))
+    }
+  }
+)
+
+export const updateOrderThunk = createAsyncThunk<
+  Order,
+  { id: string; changes: Partial<OrderInput> },
+  { rejectValue: string }
+>("orders/update", async ({ id, changes }, { rejectWithValue }) => {
+  try {
+    const { data } = await apiClient.put<Order>(`/orders/${id}`, changes)
+    return data
+  } catch (err) {
+    return rejectWithValue(getErrorMessage(err))
+  }
+})
+
+export const deleteOrderThunk = createAsyncThunk<string, string, { rejectValue: string }>(
+  "orders/delete",
+  async (id, { rejectWithValue }) => {
+    try {
+      await apiClient.delete(`/orders/${id}`)
+      return id
+    } catch (err) {
+      return rejectWithValue(getErrorMessage(err))
+    }
+  }
+)
+
+type OrdersState = {
+  items: Order[]
+  status: "idle" | "loading" | "succeeded" | "failed"
+  error: string | null
 }
 
 const initialState: OrdersState = {
-  items: getInitialOrders(),
+  items: [],
+  status: "idle",
+  error: null,
 }
 
 const ordersSlice = createSlice({
   name: "orders",
   initialState,
-  reducers: {
-    orderAdded: {
-      reducer(state, action: PayloadAction<Order>) {
-        state.items.push(action.payload)
-      },
-      prepare(order: Omit<Order, "createdAt" | "updatedAt">) {
-        const now = new Date().toISOString()
-        return { payload: { ...order, createdAt: now, updatedAt: now } }
-      },
-    },
-    orderUpdated: {
-      reducer(state, action: PayloadAction<{ id: string; changes: Partial<Order> }>) {
-        const index = state.items.findIndex((order) => order.id === action.payload.id)
-        if (index !== -1) {
-          state.items[index] = {
-            ...state.items[index],
-            ...action.payload.changes,
-            updatedAt: new Date().toISOString(),
-          }
-        }
-      },
-      prepare(id: string, changes: Partial<Order>) {
-        return { payload: { id, changes } }
-      },
-    },
-    orderStatusChanged: {
-      reducer(state, action: PayloadAction<{ id: string; status: OrderStatus }>) {
-        const index = state.items.findIndex((order) => order.id === action.payload.id)
-        if (index !== -1) {
-          state.items[index].status = action.payload.status
-          state.items[index].updatedAt = new Date().toISOString()
-        }
-      },
-      prepare(id: string, status: OrderStatus) {
-        return { payload: { id, status } }
-      },
-    },
-    orderDeleted(state, action: PayloadAction<string>) {
-      state.items = state.items.filter((order) => order.id !== action.payload)
-    },
+  reducers: {},
+  extraReducers(builder) {
+    builder
+      .addCase(fetchOrdersThunk.pending, (state) => {
+        state.status = "loading"
+        state.error = null
+      })
+      .addCase(fetchOrdersThunk.fulfilled, (state, action: PayloadAction<Order[]>) => {
+        state.status = "succeeded"
+        state.items = action.payload.map(normalizeOrder)
+      })
+      .addCase(fetchOrdersThunk.rejected, (state, action) => {
+        state.status = "failed"
+        state.error = action.payload ?? "Failed to load orders."
+      })
+      .addCase(createOrderThunk.fulfilled, (state, action: PayloadAction<Order>) => {
+        state.items.push(normalizeOrder(action.payload))
+      })
+      .addCase(updateOrderThunk.fulfilled, (state, action: PayloadAction<Order>) => {
+        const index = state.items.findIndex((item) => item.id === action.payload.id)
+        if (index !== -1) state.items[index] = normalizeOrder(action.payload)
+      })
+      .addCase(deleteOrderThunk.fulfilled, (state, action: PayloadAction<string>) => {
+        state.items = state.items.filter((item) => item.id !== action.payload)
+      })
   },
 })
 
-export const { orderAdded, orderUpdated, orderStatusChanged, orderDeleted } = ordersSlice.actions
 export default ordersSlice.reducer
 export type { OrdersState }

@@ -2,12 +2,12 @@ import type { ComponentProps } from "react"
 import {
   LayoutDashboardIcon,
   PackageIcon,
-  PrinterIcon,
   ShoppingCartIcon,
   UsersIcon,
 } from "lucide-react"
 import { NavLink, useLocation } from "react-router-dom"
 
+import dgPrintsLogo from "@/assets/images/dg_prints_logo.jpg"
 import { NavUser } from "@/components/nav-user"
 import {
   Sidebar,
@@ -39,8 +39,12 @@ export function AppSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" render={<NavLink to="/dashboard" />}>
-              <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-                <PrinterIcon />
+              <div className="flex aspect-square size-8 items-center justify-center overflow-hidden rounded-lg bg-black">
+                <img
+                  src={dgPrintsLogo}
+                  alt="DG Prints"
+                  className="size-full object-cover object-top"
+                />
               </div>
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-medium">DG Prints</span>

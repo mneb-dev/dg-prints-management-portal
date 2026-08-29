@@ -1,4 +1,4 @@
-import { Field, FieldLabel } from "@/components/ui/field"
+import { Field, FieldError, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
@@ -20,6 +20,7 @@ export function ShippingAddressFields({
   onAddressChange,
   fee,
   onFeeChange,
+  error,
 }: {
   enabled: boolean
   onEnabledChange: (value: boolean) => void
@@ -37,6 +38,7 @@ export function ShippingAddressFields({
   onAddressChange: (value: string) => void
   fee: string
   onFeeChange: (value: string) => void
+  error?: string
 }) {
   return (
     <div className="flex flex-col gap-3">
@@ -110,6 +112,8 @@ export function ShippingAddressFields({
               onChange={(event) => onFeeChange(event.target.value)}
             />
           </Field>
+
+          <FieldError>{error}</FieldError>
         </div>
       )}
     </div>

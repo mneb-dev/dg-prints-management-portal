@@ -14,15 +14,18 @@ const STATUS_LABELS: Record<OrderStatus, string> = {
   refunded: "Refunded",
 }
 
-const STATUS_VARIANTS: Record<OrderStatus, "default" | "secondary" | "outline" | "destructive"> = {
+const STATUS_VARIANTS: Record<
+  OrderStatus,
+  "secondary" | "info" | "progress" | "ready" | "success" | "destructive"
+> = {
   pending: "secondary",
-  layout: "secondary",
-  trace: "secondary",
-  print: "default",
-  cut: "default",
-  pack: "default",
-  pickup: "default",
-  released: "outline",
+  layout: "info",
+  trace: "info",
+  print: "progress",
+  cut: "progress",
+  pack: "progress",
+  pickup: "ready",
+  released: "success",
   cancelled: "destructive",
   refunded: "destructive",
 }

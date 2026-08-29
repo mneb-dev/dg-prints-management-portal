@@ -1,3 +1,5 @@
+import { CheckIcon } from "lucide-react"
+
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import {
@@ -89,10 +91,16 @@ export function StickerQuotationFields({
                 <div
                   key={tier.key}
                   className={cn(
-                    "flex flex-col items-start gap-1 rounded-lg border p-2.5 text-left",
+                    "relative flex flex-col items-start gap-1 rounded-lg border p-2.5 text-left",
                     isSelected && "border-primary/30 bg-primary/5 dark:border-primary/20 dark:bg-primary/10"
                   )}
                 >
+                  {isSelected && (
+                    <span className="absolute top-2 right-2 flex size-4 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                      <CheckIcon className="size-3" />
+                      <span className="sr-only">Selected</span>
+                    </span>
+                  )}
                   <span className="text-sm font-medium">{formatCurrency(tier.price)} package</span>
                   <span className="text-sm text-muted-foreground">
                     {result.quantity} pcs + {result.free} pcs free

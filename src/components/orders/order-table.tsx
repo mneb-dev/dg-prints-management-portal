@@ -1,4 +1,9 @@
-import { EllipsisVerticalIcon, PackageSearchIcon } from "lucide-react"
+import {
+  EllipsisVerticalIcon,
+  Loader2Icon,
+  PackageSearchIcon,
+  TriangleAlertIcon,
+} from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -31,6 +36,9 @@ import { PaymentStatusBadge } from "./payment-status-badge"
 
 export function OrderTable({
   orders,
+  isLoading,
+  isError,
+  error,
   onView,
   onEdit,
   onCancel,
@@ -38,12 +46,43 @@ export function OrderTable({
   onDelete,
 }: {
   orders: Order[]
+  isLoading?: boolean
+  isError?: boolean
+  error?: string | null
   onView: (order: Order) => void
   onEdit: (order: Order) => void
   onCancel: (order: Order) => void
   onRefund: (order: Order) => void
   onDelete: (order: Order) => void
 }) {
+  if (isLoading) {
+    return (
+      <Empty className="border">
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <Loader2Icon className="animate-spin" />
+          </EmptyMedia>
+          <EmptyTitle>Loading orders…</EmptyTitle>
+          <EmptyDescription>Fetching your orders.</EmptyDescription>
+        </EmptyHeader>
+      </Empty>
+    )
+  }
+
+  if (isError) {
+    return (
+      <Empty className="border">
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <TriangleAlertIcon />
+          </EmptyMedia>
+          <EmptyTitle>Couldn't load orders</EmptyTitle>
+          <EmptyDescription>{error ?? "Something went wrong."}</EmptyDescription>
+        </EmptyHeader>
+      </Empty>
+    )
+  }
+
   if (orders.length === 0) {
     return (
       <Empty className="border">

@@ -1,12 +1,13 @@
+import { useEffect } from "react"
+
 import { useAppDispatch, useAppSelector } from "@/lib/hooks"
 import {
-  orderAdded,
-  orderDeleted,
-  orderStatusChanged,
-  orderUpdated,
+  createOrderThunk,
+  deleteOrderThunk,
+  fetchOrdersThunk,
+  updateOrderThunk,
 } from "@/lib/orders-slice"
 import type { Order, OrderInput, OrderStatus } from "@/lib/orders-slice"
-import { generateId } from "@/lib/utils"
 
 export {
   ORDER_CHANNELS,
@@ -34,40 +35,45 @@ export type {
   ShippingAddress,
 } from "@/lib/orders-slice"
 
-function nextOrderNumber(existing: Order[]): string {
-  const max = existing.reduce((acc, order) => {
-    const n = Number(order.orderNumber.replace(/^ORD-/, ""))
-    return Number.isFinite(n) ? Math.max(acc, n) : acc
-  }, 0)
-  return `ORD-${String(max + 1).padStart(3, "0")}`
-}
-
 export function useOrders() {
   const orders = useAppSelector((state) => state.orders.items)
+  const status = useAppSelector((state) => state.orders.status)
+  const error = useAppSelector((state) => state.orders.error)
   const dispatch = useAppDispatch()
 
-  function addOrder(input: OrderInput): string {
-    const id = generateId()
-    const orderNumber = nextOrderNumber(orders)
-    dispatch(orderAdded({ ...input, id, orderNumber }))
-    return id
+  useEffect(() => {
+    dispatch(fetchOrdersThunk())
+  }, [dispatch])
+
+  async function addOrder(input: OrderInput): Promise<Order> {
+    return await dispatch(createOrderThunk(input)).unwrap()
   }
 
-  function updateOrder(id: string, changes: Partial<Order>) {
-    dispatch(orderUpdated(id, changes))
+  async function updateOrder(id: string, changes: Partial<OrderInput>): Promise<Order> {
+    return await dispatch(updateOrderThunk({ id, changes })).unwrap()
   }
 
-  function setOrderStatus(id: string, status: OrderStatus) {
-    dispatch(orderStatusChanged(id, status))
+  async function setOrderStatus(id: string, status: OrderStatus): Promise<Order> {
+    return updateOrder(id, { status })
   }
 
-  function deleteOrder(id: string) {
-    dispatch(orderDeleted(id))
+  async function deleteOrder(id: string): Promise<void> {
+    await dispatch(deleteOrderThunk(id)).unwrap()
   }
 
   function getOrder(id: string) {
     return orders.find((order) => order.id === id)
   }
 
-  return { orders, addOrder, updateOrder, setOrderStatus, deleteOrder, getOrder }
+  return {
+    orders,
+    isLoading: status === "loading" || status === "idle",
+    isError: status === "failed",
+    error,
+    addOrder,
+    updateOrder,
+    setOrderStatus,
+    deleteOrder,
+    getOrder,
+  }
 }
