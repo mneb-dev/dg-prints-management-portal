@@ -36,7 +36,7 @@ import {
   ALL_VARIANTS,
   PRODUCT_CATEGORIES,
   PRODUCT_STATUSES,
-  useProducts,
+  useProductActions,
   type PricingEntry,
   type Product,
   type ProductCategory,
@@ -176,12 +176,14 @@ export function ProductFormDialog({
   open,
   onOpenChange,
   product,
+  onSaved,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   product: Product | null
+  onSaved?: () => void
 }) {
-  const { addProduct, updateProduct } = useProducts()
+  const { addProduct, updateProduct } = useProductActions()
   const [draft, setDraft] = useState<ProductInput>(emptyDraft)
   const [nameError, setNameError] = useState<string | null>(null)
   const [pricingDialogOpen, setPricingDialogOpen] = useState(false)
@@ -250,6 +252,7 @@ export function ProductFormDialog({
         toast.success("Product created.")
       }
       onOpenChange(false)
+      onSaved?.()
     } catch (err) {
       toast.error(typeof err === "string" ? err : "Failed to save product.")
     } finally {

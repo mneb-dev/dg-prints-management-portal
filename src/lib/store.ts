@@ -5,6 +5,7 @@ import ordersReducer from "@/lib/orders-slice"
 import { subscribeToLocalStorage } from "@/lib/persist-subscribe"
 import productsReducer from "@/lib/products-slice"
 import themeReducer from "@/lib/theme-slice"
+import usersReducer from "@/lib/users-slice"
 
 export const store = configureStore({
   reducer: {
@@ -12,6 +13,7 @@ export const store = configureStore({
     theme: themeReducer,
     products: productsReducer,
     orders: ordersReducer,
+    users: usersReducer,
   },
 })
 

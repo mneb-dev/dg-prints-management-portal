@@ -10,6 +10,7 @@ import { NotFoundPage } from "@/pages/not-found-page"
 import { OrderDetailsPage } from "@/pages/order-details-page"
 import { OrdersPage } from "@/pages/orders-page"
 import { ProductsPage } from "@/pages/products-page"
+import { ProfilePage } from "@/pages/profile-page"
 import { UsersPage } from "@/pages/users-page"
 
 function App() {
@@ -33,11 +34,33 @@ function App() {
       >
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/orders" element={<OrdersPage />} />
-        <Route path="/orders/new" element={<CreateOrderPage />} />
+        <Route
+          path="/orders/new"
+          element={
+            <ProtectedRoute permission="manage_orders">
+              <CreateOrderPage />
+            </ProtectedRoute>
+          }
+        />
         <Route path="/orders/:id" element={<OrderDetailsPage />} />
-        <Route path="/orders/:id/edit" element={<EditOrderPage />} />
+        <Route
+          path="/orders/:id/edit"
+          element={
+            <ProtectedRoute permission="manage_orders">
+              <EditOrderPage />
+            </ProtectedRoute>
+          }
+        />
         <Route path="/products" element={<ProductsPage />} />
-        <Route path="/users" element={<UsersPage />} />
+        <Route path="/profile" element={<ProfilePage />} />
+        <Route
+          path="/users"
+          element={
+            <ProtectedRoute roles={["admin", "superadmin"]}>
+              <UsersPage />
+            </ProtectedRoute>
+          }
+        />
         <Route path="*" element={<NotFoundPage />} />
       </Route>
 

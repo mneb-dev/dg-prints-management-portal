@@ -29,15 +29,16 @@ import {
   canRefundOrder,
   getStatusFlowForCategory,
   isTerminalStatus,
-  useOrders,
+  useOrder,
+  useOrderActions,
 } from "@/lib/orders"
 import type { Order, OrderStatus } from "@/lib/orders"
-import { formatCurrency } from "@/lib/utils"
+import { formatCurrency, formatDate } from "@/lib/utils"
 
 export function OrderDetailsPage() {
   const { id } = useParams<{ id: string }>()
-  const { getOrder, setOrderStatus, isLoading, isError, error } = useOrders()
-  const order = id ? getOrder(id) : undefined
+  const { order, isLoading, isError, error } = useOrder(id)
+  const { setOrderStatus } = useOrderActions()
   const [cancelling, setCancelling] = useState(false)
   const [refunding, setRefunding] = useState(false)
   const [isCancelling, setIsCancelling] = useState(false)
@@ -334,7 +335,7 @@ export function OrderDetailsPage() {
         <CardHeader>
           <CardTitle>Status</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="flex flex-col gap-3">
           <Select value={order.status} onValueChange={handleStatusChange}>
             <SelectTrigger className="w-48">
               <SelectValue>
@@ -349,6 +350,15 @@ export function OrderDetailsPage() {
               ))}
             </SelectContent>
           </Select>
+          {order.statusUpdatedAt && (
+            <p className="text-sm text-muted-foreground">
+              Status updated by{" "}
+              <span className="font-medium text-foreground">
+                {order.statusUpdatedByName || "Unknown user"}
+              </span>{" "}
+              on {formatDate(order.statusUpdatedAt)}
+            </p>
+          )}
         </CardContent>
       </Card>
     </div>

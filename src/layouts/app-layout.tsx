@@ -1,3 +1,4 @@
+import { useEffect } from "react"
 import { Link, Outlet, useLocation } from "react-router-dom"
 
 import { AppSidebar } from "@/components/app-sidebar"
@@ -13,11 +14,18 @@ import {
 import { Separator } from "@/components/ui/separator"
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
 import { TooltipProvider } from "@/components/ui/tooltip"
+import { useAuth } from "@/lib/auth"
 import { getBreadcrumbSegments } from "@/lib/breadcrumbs"
 
 export function AppLayout() {
   const location = useLocation()
   const segments = getBreadcrumbSegments(location.pathname)
+  const { refreshCurrentUser } = useAuth()
+
+  useEffect(() => {
+    refreshCurrentUser()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return (
     <TooltipProvider>

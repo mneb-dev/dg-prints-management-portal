@@ -2,7 +2,9 @@ import {
   EllipsisVerticalIcon,
   Loader2Icon,
   PackageSearchIcon,
+  PlusIcon,
   TriangleAlertIcon,
+  XIcon,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -14,6 +16,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import {
   Empty,
+  EmptyContent,
   EmptyDescription,
   EmptyHeader,
   EmptyMedia,
@@ -29,7 +32,7 @@ import {
 } from "@/components/ui/table"
 import { canRefundOrder, isTerminalStatus } from "@/lib/orders"
 import type { Order } from "@/lib/orders"
-import { formatCurrency, formatDate } from "@/lib/utils"
+import { cn, formatCurrency, formatDate } from "@/lib/utils"
 
 import { OrderStatusBadge } from "./order-status-badge"
 import { PaymentStatusBadge } from "./payment-status-badge"
@@ -37,8 +40,14 @@ import { PaymentStatusBadge } from "./payment-status-badge"
 export function OrderTable({
   orders,
   isLoading,
+  isFetching,
   isError,
   error,
+  hasActiveFilters,
+  searchTerm,
+  canManage,
+  onClearFilters,
+  onCreate,
   onView,
   onEdit,
   onCancel,
@@ -47,8 +56,14 @@ export function OrderTable({
 }: {
   orders: Order[]
   isLoading?: boolean
+  isFetching?: boolean
   isError?: boolean
   error?: string | null
+  hasActiveFilters?: boolean
+  searchTerm?: string
+  canManage?: boolean
+  onClearFilters?: () => void
+  onCreate?: () => void
   onView: (order: Order) => void
   onEdit: (order: Order) => void
   onCancel: (order: Order) => void
@@ -84,23 +99,53 @@ export function OrderTable({
   }
 
   if (orders.length === 0) {
+    if (hasActiveFilters) {
+      return (
+        <Empty className="border">
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <PackageSearchIcon />
+            </EmptyMedia>
+            <EmptyTitle>No orders match your {searchTerm ? "search" : "filters"}</EmptyTitle>
+            <EmptyDescription>
+              {searchTerm
+                ? `No results for "${searchTerm}". Try a different search or clear your filters.`
+                : "Try adjusting or clearing your filters."}
+            </EmptyDescription>
+          </EmptyHeader>
+          <EmptyContent>
+            <Button variant="outline" size="sm" onClick={onClearFilters}>
+              <XIcon data-icon="inline-start" />
+              Clear filters
+            </Button>
+          </EmptyContent>
+        </Empty>
+      )
+    }
     return (
       <Empty className="border">
         <EmptyHeader>
           <EmptyMedia variant="icon">
             <PackageSearchIcon />
           </EmptyMedia>
-          <EmptyTitle>No orders found</EmptyTitle>
-          <EmptyDescription>
-            Try adjusting your search or filters, or create a new order.
-          </EmptyDescription>
+          <EmptyTitle>No orders yet</EmptyTitle>
+          <EmptyDescription>Get started by creating your first order.</EmptyDescription>
         </EmptyHeader>
+        {canManage && (
+          <EmptyContent>
+            <Button size="sm" onClick={onCreate}>
+              <PlusIcon data-icon="inline-start" />
+              Create Order
+            </Button>
+          </EmptyContent>
+        )}
       </Empty>
     )
   }
 
   return (
-    <div className="rounded-lg border">
+    <div className="relative" aria-busy={isFetching}>
+      <div className={cn("rounded-lg border", isFetching && "opacity-60 transition-opacity duration-150")}>
       <Table>
         <TableHeader>
           <TableRow>
@@ -149,18 +194,20 @@ export function OrderTable({
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                       <DropdownMenuItem onClick={() => onView(order)}>View</DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => onEdit(order)}>Edit</DropdownMenuItem>
-                      <DropdownMenuItem disabled={!canCancel} onClick={() => onCancel(order)}>
-                        Cancel
-                      </DropdownMenuItem>
-                      <DropdownMenuItem disabled={!canRefund} onClick={() => onRefund(order)}>
-                        Refund
-                      </DropdownMenuItem>
-                      {/* Delete is available to all authenticated staff for this MVP —
-                          useAuth() has no roles yet, so a real admin-only gate isn't possible. */}
-                      <DropdownMenuItem variant="destructive" onClick={() => onDelete(order)}>
-                        Delete
-                      </DropdownMenuItem>
+                      {canManage && (
+                        <>
+                          <DropdownMenuItem onClick={() => onEdit(order)}>Edit</DropdownMenuItem>
+                          <DropdownMenuItem disabled={!canCancel} onClick={() => onCancel(order)}>
+                            Cancel
+                          </DropdownMenuItem>
+                          <DropdownMenuItem disabled={!canRefund} onClick={() => onRefund(order)}>
+                            Refund
+                          </DropdownMenuItem>
+                          <DropdownMenuItem variant="destructive" onClick={() => onDelete(order)}>
+                            Delete
+                          </DropdownMenuItem>
+                        </>
+                      )}
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </TableCell>
@@ -169,6 +216,13 @@ export function OrderTable({
           })}
         </TableBody>
       </Table>
+      </div>
+      {isFetching && (
+        <div className="absolute top-3 right-3 flex items-center gap-1.5 rounded-full bg-background/90 px-2 py-1 text-xs text-muted-foreground shadow-sm ring-1 ring-border">
+          <Loader2Icon className="size-3.5 animate-spin" />
+          Updating…
+        </div>
+      )}
     </div>
   )
 }

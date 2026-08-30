@@ -9,6 +9,7 @@ import { NavLink, useLocation } from "react-router-dom"
 
 import dgPrintsLogo from "@/assets/images/dg_prints_logo.jpg"
 import { NavUser } from "@/components/nav-user"
+import { useAuth } from "@/lib/auth"
 import {
   Sidebar,
   SidebarContent,
@@ -32,6 +33,8 @@ const navItems = [
 
 export function AppSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
   const location = useLocation()
+  const { role } = useAuth()
+  const visibleNavItems = navItems.filter((item) => item.title !== "Users" || role !== "staff")
 
   return (
     <Sidebar collapsible="icon" {...props}>
@@ -58,7 +61,7 @@ export function AppSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
           <SidebarGroupLabel>Platform</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {navItems.map((item) => (
+              {visibleNavItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
                     tooltip={item.title}

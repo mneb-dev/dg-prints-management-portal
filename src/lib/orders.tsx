@@ -4,10 +4,12 @@ import { useAppDispatch, useAppSelector } from "@/lib/hooks"
 import {
   createOrderThunk,
   deleteOrderThunk,
+  fetchOrderByIdThunk,
   fetchOrdersThunk,
+  setOrdersParams,
   updateOrderThunk,
 } from "@/lib/orders-slice"
-import type { Order, OrderInput, OrderStatus } from "@/lib/orders-slice"
+import type { Order, OrderInput, OrderStatus, OrdersQueryParams } from "@/lib/orders-slice"
 
 export {
   ORDER_CHANNELS,
@@ -28,6 +30,7 @@ export type {
   OrderItem,
   OrderItemPricing,
   OrderStatus,
+  OrdersQueryParams,
   Payment,
   PaymentMethod,
   PaymentStatus,
@@ -35,15 +38,75 @@ export type {
   ShippingAddress,
 } from "@/lib/orders-slice"
 
+/** Paginated Orders list — for the Orders list page only. Refetches whenever `params` changes. */
 export function useOrders() {
   const orders = useAppSelector((state) => state.orders.items)
+  const total = useAppSelector((state) => state.orders.total)
+  const params = useAppSelector((state) => state.orders.params)
   const status = useAppSelector((state) => state.orders.status)
   const error = useAppSelector((state) => state.orders.error)
   const dispatch = useAppDispatch()
 
   useEffect(() => {
-    dispatch(fetchOrdersThunk())
-  }, [dispatch])
+    dispatch(fetchOrdersThunk(params))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    dispatch,
+    params.page,
+    params.pageSize,
+    params.search,
+    params.status,
+    params.paymentStatus,
+    params.category,
+    params.dateFrom,
+    params.dateTo,
+    params.sortBy,
+    params.sortDir,
+  ])
+
+  function setParams(patch: Partial<OrdersQueryParams>) {
+    dispatch(setOrdersParams(patch))
+  }
+
+  function refetch() {
+    dispatch(fetchOrdersThunk(params))
+  }
+
+  return {
+    orders,
+    total,
+    params,
+    setParams,
+    refetch,
+    isLoading: status === "idle" || (status === "loading" && orders.length === 0),
+    isFetching: status === "loading" && orders.length > 0,
+    isError: status === "failed",
+    error,
+  }
+}
+
+/** Fetches a single order by id — for the Order detail/edit pages. */
+export function useOrder(id: string | undefined) {
+  const dispatch = useAppDispatch()
+  const order = useAppSelector((state) => state.orders.current)
+  const status = useAppSelector((state) => state.orders.currentStatus)
+  const error = useAppSelector((state) => state.orders.currentError)
+
+  useEffect(() => {
+    if (id) dispatch(fetchOrderByIdThunk(id))
+  }, [dispatch, id])
+
+  return {
+    order: order?.id === id ? order : undefined,
+    isLoading: status === "loading" || status === "idle",
+    isError: status === "failed",
+    error,
+  }
+}
+
+/** Order create/update/delete only — no list fetch. For forms and dialogs. */
+export function useOrderActions() {
+  const dispatch = useAppDispatch()
 
   async function addOrder(input: OrderInput): Promise<Order> {
     return await dispatch(createOrderThunk(input)).unwrap()
@@ -61,19 +124,5 @@ export function useOrders() {
     await dispatch(deleteOrderThunk(id)).unwrap()
   }
 
-  function getOrder(id: string) {
-    return orders.find((order) => order.id === id)
-  }
-
-  return {
-    orders,
-    isLoading: status === "loading" || status === "idle",
-    isError: status === "failed",
-    error,
-    addOrder,
-    updateOrder,
-    setOrderStatus,
-    deleteOrder,
-    getOrder,
-  }
+  return { addOrder, updateOrder, setOrderStatus, deleteOrder }
 }

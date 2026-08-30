@@ -9,8 +9,8 @@ type PersistedState = {
 }
 
 function writeAuth(auth: AuthState) {
-  if (auth.isAuthenticated) {
-    localStorage.setItem(AUTH_STORAGE_KEY, "mock-token")
+  if (auth.isAuthenticated && auth.token) {
+    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ token: auth.token, user: auth.user }))
   } else {
     localStorage.removeItem(AUTH_STORAGE_KEY)
   }

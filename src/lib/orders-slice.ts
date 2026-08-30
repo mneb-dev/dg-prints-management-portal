@@ -125,9 +125,15 @@ export type Order = {
   payment: Payment
   createdAt: string
   updatedAt: string
+  statusUpdatedBy: string | null
+  statusUpdatedByName: string
+  statusUpdatedAt: string | null
 }
 
-export type OrderInput = Omit<Order, "id" | "orderNumber" | "createdAt" | "updatedAt">
+export type OrderInput = Omit<
+  Order,
+  "id" | "orderNumber" | "createdAt" | "updatedAt" | "statusUpdatedBy" | "statusUpdatedByName" | "statusUpdatedAt"
+>
 
 function normalizeOrder(order: Order): Order {
   return {
@@ -135,6 +141,9 @@ function normalizeOrder(order: Order): Order {
     status: LEGACY_STATUS_MAP[order.status] ?? order.status,
     channel: order.channel ?? "Walk-in",
     additionalFees: order.additionalFees ?? 0,
+    statusUpdatedBy: order.statusUpdatedBy ?? null,
+    statusUpdatedByName: order.statusUpdatedByName ?? "",
+    statusUpdatedAt: order.statusUpdatedAt ?? null,
     payment: order.payment ?? {
       status: "unpaid",
       method: null,
@@ -151,20 +160,63 @@ function normalizeOrder(order: Order): Order {
   }
 }
 
+export type OrdersQueryParams = {
+  page: number
+  pageSize: number
+  search: string
+  status: string
+  paymentStatus: string
+  category: string
+  dateFrom: string
+  dateTo: string
+  sortBy: string
+  sortDir: "asc" | "desc"
+}
+
+export type OrdersListResponse = {
+  items: Order[]
+  total: number
+  page: number
+  pageSize: number
+}
+
 export const fetchOrdersThunk = createAsyncThunk<
-  Order[],
-  void,
+  OrdersListResponse,
+  OrdersQueryParams,
   { rejectValue: string; state: RootState }
->("orders/fetchAll", async (_arg, { rejectWithValue }) => {
+>("orders/fetchAll", async (params, { rejectWithValue }) => {
   try {
-    const { data } = await apiClient.get<Order[]>("/orders")
+    const { data } = await apiClient.get<OrdersListResponse>("/orders", {
+      params: {
+        page: params.page,
+        pageSize: params.pageSize,
+        search: params.search || undefined,
+        status: params.status || undefined,
+        paymentStatus: params.paymentStatus || undefined,
+        category: params.category || undefined,
+        dateFrom: params.dateFrom || undefined,
+        dateTo: params.dateTo || undefined,
+        sortBy: params.sortBy,
+        sortDir: params.sortDir,
+      },
+    })
     return data
   } catch (err) {
     return rejectWithValue(getErrorMessage(err))
   }
-}, {
-  condition: (_arg, { getState }) => getState().orders.status === "idle",
 })
+
+export const fetchOrderByIdThunk = createAsyncThunk<Order, string, { rejectValue: string }>(
+  "orders/fetchById",
+  async (id, { rejectWithValue }) => {
+    try {
+      const { data } = await apiClient.get<Order>(`/orders/${id}`)
+      return data
+    } catch (err) {
+      return rejectWithValue(getErrorMessage(err))
+    }
+  }
+)
 
 // Unlike products, order items don't need their ids stripped before POSTing: the
 // server always force-regenerates item ids on create, and reuses client-supplied
@@ -209,46 +261,93 @@ export const deleteOrderThunk = createAsyncThunk<string, string, { rejectValue: 
 
 type OrdersState = {
   items: Order[]
+  total: number
   status: "idle" | "loading" | "succeeded" | "failed"
   error: string | null
+  latestRequestId: string | null
+  params: OrdersQueryParams
+  current: Order | null
+  currentStatus: "idle" | "loading" | "succeeded" | "failed"
+  currentError: string | null
 }
 
 const initialState: OrdersState = {
   items: [],
+  total: 0,
   status: "idle",
   error: null,
+  latestRequestId: null,
+  params: {
+    page: 1,
+    pageSize: 10,
+    search: "",
+    status: "",
+    paymentStatus: "",
+    category: "",
+    dateFrom: "",
+    dateTo: "",
+    sortBy: "created_at",
+    sortDir: "desc",
+  },
+  current: null,
+  currentStatus: "idle",
+  currentError: null,
 }
 
 const ordersSlice = createSlice({
   name: "orders",
   initialState,
-  reducers: {},
+  reducers: {
+    setOrdersParams(state, action: PayloadAction<Partial<OrdersQueryParams>>) {
+      state.params = { ...state.params, ...action.payload }
+    },
+  },
   extraReducers(builder) {
     builder
-      .addCase(fetchOrdersThunk.pending, (state) => {
+      .addCase(fetchOrdersThunk.pending, (state, action) => {
         state.status = "loading"
         state.error = null
+        state.latestRequestId = action.meta.requestId
       })
-      .addCase(fetchOrdersThunk.fulfilled, (state, action: PayloadAction<Order[]>) => {
+      .addCase(fetchOrdersThunk.fulfilled, (state, action) => {
+        if (action.meta.requestId !== state.latestRequestId) return
         state.status = "succeeded"
-        state.items = action.payload.map(normalizeOrder)
+        state.items = action.payload.items.map(normalizeOrder)
+        state.total = action.payload.total
       })
       .addCase(fetchOrdersThunk.rejected, (state, action) => {
+        if (action.meta.requestId !== state.latestRequestId) return
         state.status = "failed"
         state.error = action.payload ?? "Failed to load orders."
       })
+      .addCase(fetchOrderByIdThunk.pending, (state) => {
+        state.currentStatus = "loading"
+        state.currentError = null
+      })
+      .addCase(fetchOrderByIdThunk.fulfilled, (state, action: PayloadAction<Order>) => {
+        state.currentStatus = "succeeded"
+        state.current = normalizeOrder(action.payload)
+      })
+      .addCase(fetchOrderByIdThunk.rejected, (state, action) => {
+        state.currentStatus = "failed"
+        state.currentError = action.payload ?? "Failed to load order."
+      })
       .addCase(createOrderThunk.fulfilled, (state, action: PayloadAction<Order>) => {
-        state.items.push(normalizeOrder(action.payload))
+        state.current = normalizeOrder(action.payload)
       })
       .addCase(updateOrderThunk.fulfilled, (state, action: PayloadAction<Order>) => {
-        const index = state.items.findIndex((item) => item.id === action.payload.id)
-        if (index !== -1) state.items[index] = normalizeOrder(action.payload)
+        if (state.current?.id === action.payload.id) {
+          state.current = normalizeOrder(action.payload)
+        }
       })
       .addCase(deleteOrderThunk.fulfilled, (state, action: PayloadAction<string>) => {
-        state.items = state.items.filter((item) => item.id !== action.payload)
+        if (state.current?.id === action.payload) {
+          state.current = null
+        }
       })
   },
 })
 
+export const { setOrdersParams } = ordersSlice.actions
 export default ordersSlice.reducer
 export type { OrdersState }

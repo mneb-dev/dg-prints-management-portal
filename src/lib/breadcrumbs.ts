@@ -20,6 +20,7 @@ const ROUTES: { pattern: RegExp; segments: BreadcrumbSegment[] }[] = [
   },
   { pattern: /^\/products$/, segments: [{ label: "Products" }] },
   { pattern: /^\/users$/, segments: [{ label: "Users" }] },
+  { pattern: /^\/profile$/, segments: [{ label: "Profile" }] },
 ]
 
 export function getBreadcrumbSegments(pathname: string): BreadcrumbSegment[] {

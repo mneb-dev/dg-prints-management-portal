@@ -9,12 +9,11 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty"
-import { useOrders } from "@/lib/orders"
+import { useOrder } from "@/lib/orders"
 
 export function EditOrderPage() {
   const { id } = useParams<{ id: string }>()
-  const { getOrder, isLoading, isError, error } = useOrders()
-  const order = id ? getOrder(id) : undefined
+  const { order, isLoading, isError, error } = useOrder(id)
 
   if (isLoading) {
     return (

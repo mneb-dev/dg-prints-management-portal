@@ -78,19 +78,63 @@ function toProductPayload(input: ProductInput) {
   }
 }
 
+export type ProductsQueryParams = {
+  page: number
+  pageSize: number
+  search: string
+  category: string
+  status: string
+  pricingType: string
+  sortBy: string
+  sortDir: "asc" | "desc"
+}
+
+export type ProductsListResponse = {
+  items: Product[]
+  total: number
+  page: number
+  pageSize: number | null
+}
+
 export const fetchProductsThunk = createAsyncThunk<
-  Product[],
-  void,
+  ProductsListResponse,
+  ProductsQueryParams,
   { rejectValue: string; state: RootState }
->("products/fetchAll", async (_arg, { rejectWithValue }) => {
+>("products/fetchAll", async (params, { rejectWithValue }) => {
   try {
-    const { data } = await apiClient.get<Product[]>("/products")
+    const { data } = await apiClient.get<ProductsListResponse>("/products", {
+      params: {
+        page: params.page,
+        pageSize: params.pageSize,
+        search: params.search || undefined,
+        category: params.category || undefined,
+        status: params.status || undefined,
+        pricingType: params.pricingType || undefined,
+        sortBy: params.sortBy,
+        sortDir: params.sortDir,
+      },
+    })
     return data
   } catch (err) {
     return rejectWithValue(getErrorMessage(err))
   }
+})
+
+export const fetchAllProductsThunk = createAsyncThunk<
+  Product[],
+  void,
+  { rejectValue: string; state: RootState }
+>("products/fetchAllCatalog", async (_arg, { rejectWithValue }) => {
+  try {
+    const { data } = await apiClient.get<ProductsListResponse>("/products", {
+      params: { all: true },
+    })
+    return data.items
+  } catch (err) {
+    return rejectWithValue(getErrorMessage(err))
+  }
 }, {
-  condition: (_arg, { getState }) => getState().products.status === "idle",
+  condition: (_arg, { getState }) => getState().products.catalogStatus === "idle",
 })
 
 export const createProductThunk = createAsyncThunk<Product, ProductInput, { rejectValue: string }>(
@@ -132,46 +176,88 @@ export const deleteProductThunk = createAsyncThunk<string, string, { rejectValue
 
 type ProductsState = {
   items: Product[]
+  total: number
   status: "idle" | "loading" | "succeeded" | "failed"
   error: string | null
+  latestRequestId: string | null
+  params: ProductsQueryParams
+  catalog: Product[]
+  catalogStatus: "idle" | "loading" | "succeeded" | "failed"
+  catalogError: string | null
 }
 
 const initialState: ProductsState = {
   items: [],
+  total: 0,
   status: "idle",
   error: null,
+  latestRequestId: null,
+  params: {
+    page: 1,
+    pageSize: 10,
+    search: "",
+    category: "",
+    status: "",
+    pricingType: "",
+    sortBy: "created_at",
+    sortDir: "asc",
+  },
+  catalog: [],
+  catalogStatus: "idle",
+  catalogError: null,
 }
 
 const productsSlice = createSlice({
   name: "products",
   initialState,
-  reducers: {},
+  reducers: {
+    setProductsParams(state, action: PayloadAction<Partial<ProductsQueryParams>>) {
+      state.params = { ...state.params, ...action.payload }
+    },
+  },
   extraReducers(builder) {
     builder
-      .addCase(fetchProductsThunk.pending, (state) => {
+      .addCase(fetchProductsThunk.pending, (state, action) => {
         state.status = "loading"
         state.error = null
+        state.latestRequestId = action.meta.requestId
       })
-      .addCase(fetchProductsThunk.fulfilled, (state, action: PayloadAction<Product[]>) => {
+      .addCase(fetchProductsThunk.fulfilled, (state, action) => {
+        if (action.meta.requestId !== state.latestRequestId) return
         state.status = "succeeded"
-        state.items = action.payload
+        state.items = action.payload.items
+        state.total = action.payload.total
       })
       .addCase(fetchProductsThunk.rejected, (state, action) => {
+        if (action.meta.requestId !== state.latestRequestId) return
         state.status = "failed"
         state.error = action.payload ?? "Failed to load products."
       })
+      .addCase(fetchAllProductsThunk.pending, (state) => {
+        state.catalogStatus = "loading"
+        state.catalogError = null
+      })
+      .addCase(fetchAllProductsThunk.fulfilled, (state, action: PayloadAction<Product[]>) => {
+        state.catalogStatus = "succeeded"
+        state.catalog = action.payload
+      })
+      .addCase(fetchAllProductsThunk.rejected, (state, action) => {
+        state.catalogStatus = "failed"
+        state.catalogError = action.payload ?? "Failed to load products."
+      })
       .addCase(createProductThunk.fulfilled, (state, action: PayloadAction<Product>) => {
-        state.items.push(action.payload)
+        state.catalog.push(action.payload)
       })
       .addCase(updateProductThunk.fulfilled, (state, action: PayloadAction<Product>) => {
-        const index = state.items.findIndex((item) => item.id === action.payload.id)
-        if (index !== -1) state.items[index] = action.payload
+        const index = state.catalog.findIndex((item) => item.id === action.payload.id)
+        if (index !== -1) state.catalog[index] = action.payload
       })
       .addCase(deleteProductThunk.fulfilled, (state, action: PayloadAction<string>) => {
-        state.items = state.items.filter((item) => item.id !== action.payload)
+        state.catalog = state.catalog.filter((item) => item.id !== action.payload)
       })
   },
 })
 
+export const { setProductsParams } = productsSlice.actions
 export default productsSlice.reducer
 export type { ProductsState }
