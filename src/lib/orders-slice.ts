@@ -119,6 +119,7 @@ export type Order = {
   additionalFees: number
   total: number
   notes: string
+  description: string
   shippingAddress: ShippingAddress | null
   channel: OrderChannel
   payment: Payment

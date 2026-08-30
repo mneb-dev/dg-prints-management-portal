@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { convertToFeet, type LengthUnit } from "@/lib/length-units"
-import { getStatusFlowForCategory, useOrders } from "@/lib/orders"
+import { getStatusFlowForCategory, useOrderActions } from "@/lib/orders"
 import type {
   Order,
   OrderChannel,
@@ -30,7 +30,7 @@ import {
   isManualPricingProduct,
   resolvePricing,
 } from "@/lib/pricing-resolver"
-import { useProducts } from "@/lib/products"
+import { useProductCatalog } from "@/lib/products"
 import { calculateStickerQuotation, nearestPackageTier, type StickerUnit } from "@/lib/sticker-quotation"
 import { generateId } from "@/lib/utils"
 
@@ -43,8 +43,8 @@ import { StickerQuotationFields } from "./sticker-quotation-fields"
 
 export function OrderForm({ order }: { order: Order | null }) {
   const navigate = useNavigate()
-  const { products } = useProducts()
-  const { addOrder, updateOrder } = useOrders()
+  const { products } = useProductCatalog()
+  const { addOrder, updateOrder } = useOrderActions()
 
   const [customerName, setCustomerName] = useState("")
   const [customerPhone, setCustomerPhone] = useState("")
@@ -60,6 +60,7 @@ export function OrderForm({ order }: { order: Order | null }) {
   const [stickerHeight, setStickerHeight] = useState("")
   const [stickerUnit, setStickerUnit] = useState<StickerUnit>("cm")
   const [notes, setNotes] = useState("")
+  const [description, setDescription] = useState("")
   const [manualProductName, setManualProductName] = useState("")
   const [manualUnitPrice, setManualUnitPrice] = useState("")
   const [discount, setDiscount] = useState("0")
@@ -100,6 +101,7 @@ export function OrderForm({ order }: { order: Order | null }) {
 
     setCustomerName(order.customerName)
     setCustomerPhone(order.customerPhone)
+    setDescription(order.description ?? "")
     setProductId(item.productId)
     setOptionValues(
       Object.fromEntries(item.selectedOptions.map((option) => [option.optionId, option.value]))
@@ -332,6 +334,10 @@ export function OrderForm({ order }: { order: Order | null }) {
       nextErrors.customerName = "Customer name is required."
     }
 
+    if (description.length > 20) {
+      nextErrors.description = "Must be 20 characters or fewer."
+    }
+
     if (!channel) {
       nextErrors.channel = "Order channel is required."
     }
@@ -394,6 +400,7 @@ export function OrderForm({ order }: { order: Order | null }) {
         await updateOrder(order.id, {
           customerName: customerName.trim(),
           customerPhone: customerPhone.trim(),
+          description: description.trim(),
           discount: discountNum,
           additionalFees: additionalFeesNum,
           total,
@@ -444,6 +451,7 @@ export function OrderForm({ order }: { order: Order | null }) {
         await updateOrder(order.id, {
           customerName: customerName.trim(),
           customerPhone: customerPhone.trim(),
+          description: description.trim(),
           status,
           items: [item],
           subtotal,
@@ -460,6 +468,7 @@ export function OrderForm({ order }: { order: Order | null }) {
         const created = await addOrder({
           customerName: customerName.trim(),
           customerPhone: customerPhone.trim(),
+          description: description.trim(),
           status: "pending",
           items: [item],
           subtotal,
@@ -515,6 +524,21 @@ export function OrderForm({ order }: { order: Order | null }) {
                   />
                 </Field>
               </div>
+              <Field data-invalid={!!errors.description}>
+                <FieldLabel htmlFor="order-description">Description</FieldLabel>
+                <Input
+                  id="order-description"
+                  value={description}
+                  onChange={(event) => {
+                    setDescription(event.target.value)
+                    clearError("description")
+                  }}
+                  placeholder="Optional short description"
+                  maxLength={20}
+                  aria-invalid={!!errors.description}
+                />
+                <FieldError>{errors.description}</FieldError>
+              </Field>
             </FieldGroup>
           </CardContent>
         </Card>

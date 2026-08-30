@@ -107,6 +107,7 @@ export function OrderTable({
             <TableHead>Order</TableHead>
             <TableHead>Customer</TableHead>
             <TableHead>Product</TableHead>
+            <TableHead>Description</TableHead>
             <TableHead>Total</TableHead>
             <TableHead>Created</TableHead>
             <TableHead>Status</TableHead>
@@ -126,6 +127,9 @@ export function OrderTable({
                 <TableCell>{order.customerName}</TableCell>
                 <TableCell className="text-muted-foreground">
                   {order.items[0]?.productName ?? "—"}
+                </TableCell>
+                <TableCell className="text-muted-foreground">
+                  {order.description || "—"}
                 </TableCell>
                 <TableCell>{formatCurrency(order.total)}</TableCell>
                 <TableCell className="text-muted-foreground">

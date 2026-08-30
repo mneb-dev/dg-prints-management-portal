@@ -170,6 +170,9 @@ export function OrderDetailsPage() {
           {order.customerPhone && (
             <p className="text-sm text-muted-foreground">{order.customerPhone}</p>
           )}
+          {order.description && (
+            <p className="text-sm text-muted-foreground">{order.description}</p>
+          )}
         </CardContent>
       </Card>
 
