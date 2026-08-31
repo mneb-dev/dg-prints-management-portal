@@ -19,19 +19,24 @@ export function LoginPage() {
   const { login } = useAuth()
   const navigate = useNavigate()
   const [error, setError] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
-  function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
+  async function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault()
     const formData = new FormData(event.currentTarget)
     const username = String(formData.get("username") ?? "")
     const password = String(formData.get("password") ?? "")
 
-    if (login(username, password)) {
+    setIsSubmitting(true)
+    const loginError = await login(username, password)
+    setIsSubmitting(false)
+
+    if (!loginError) {
       navigate("/dashboard", { replace: true })
       return
     }
 
-    setError("Enter a username and password to sign in.")
+    setError(loginError)
   }
 
   return (
@@ -39,7 +44,7 @@ export function LoginPage() {
       <Card className="w-full max-w-sm">
         <CardHeader>
           <CardTitle>Sign in to DG Prints</CardTitle>
-          <CardDescription>Enter any username and password to continue.</CardDescription>
+          <CardDescription>Enter your username and password to continue.</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit}>
@@ -66,7 +71,9 @@ export function LoginPage() {
                 <FieldError errors={error ? [{ message: error }] : undefined} />
               </Field>
               <Field>
-                <Button type="submit">Sign in</Button>
+                <Button type="submit" disabled={isSubmitting}>
+                  {isSubmitting ? "Signing in..." : "Sign in"}
+                </Button>
               </Field>
             </FieldGroup>
           </form>

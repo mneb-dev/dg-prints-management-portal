@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react"
 import { PlusIcon, Trash2Icon, XIcon } from "lucide-react"
+import { toast } from "sonner"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -11,7 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
+import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import {
   Select,
@@ -35,7 +36,7 @@ import {
   ALL_VARIANTS,
   PRODUCT_CATEGORIES,
   PRODUCT_STATUSES,
-  useProducts,
+  useProductActions,
   type PricingEntry,
   type Product,
   type ProductCategory,
@@ -175,15 +176,18 @@ export function ProductFormDialog({
   open,
   onOpenChange,
   product,
+  onSaved,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   product: Product | null
+  onSaved?: () => void
 }) {
-  const { addProduct, updateProduct } = useProducts()
+  const { addProduct, updateProduct } = useProductActions()
   const [draft, setDraft] = useState<ProductInput>(emptyDraft)
   const [nameError, setNameError] = useState<string | null>(null)
   const [pricingDialogOpen, setPricingDialogOpen] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   useEffect(() => {
     if (!open) return
@@ -231,19 +235,29 @@ export function ProductFormDialog({
     }))
   }
 
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!draft.name.trim()) {
       setNameError("Product name is required.")
       return
     }
 
-    if (product) {
-      updateProduct(product.id, draft)
-    } else {
-      addProduct(draft)
+    setIsSubmitting(true)
+    try {
+      if (product) {
+        await updateProduct(product.id, draft)
+        toast.success("Product updated.")
+      } else {
+        await addProduct(draft)
+        toast.success("Product created.")
+      }
+      onOpenChange(false)
+      onSaved?.()
+    } catch (err) {
+      toast.error(typeof err === "string" ? err : "Failed to save product.")
+    } finally {
+      setIsSubmitting(false)
     }
-    onOpenChange(false)
   }
 
   return (
@@ -276,9 +290,7 @@ export function ProductFormDialog({
                   aria-invalid={!!nameError}
                   placeholder="Sticker Label"
                 />
-                {nameError && (
-                  <p className="text-sm text-destructive">{nameError}</p>
-                )}
+                <FieldError>{nameError ?? undefined}</FieldError>
               </Field>
 
               <div className="grid grid-cols-2 gap-4">
@@ -447,8 +459,8 @@ export function ProductFormDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button type="submit" form="product-form">
-            Save Product
+          <Button type="submit" form="product-form" disabled={isSubmitting}>
+            {isSubmitting ? "Saving..." : "Save Product"}
           </Button>
         </DialogFooter>
       </DialogContent>

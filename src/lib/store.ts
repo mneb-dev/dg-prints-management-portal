@@ -1,15 +1,19 @@
 import { configureStore } from "@reduxjs/toolkit"
 
 import authReducer from "@/lib/auth-slice"
+import ordersReducer from "@/lib/orders-slice"
 import { subscribeToLocalStorage } from "@/lib/persist-subscribe"
 import productsReducer from "@/lib/products-slice"
 import themeReducer from "@/lib/theme-slice"
+import usersReducer from "@/lib/users-slice"
 
 export const store = configureStore({
   reducer: {
     auth: authReducer,
     theme: themeReducer,
     products: productsReducer,
+    orders: ordersReducer,
+    users: usersReducer,
   },
 })
 
