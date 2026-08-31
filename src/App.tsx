@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from "react-router-dom"
 
 import { AppLayout } from "@/layouts/app-layout"
 import { ProtectedRoute, PublicOnlyRoute } from "@/lib/route-guards"
+import { CalculatorPage } from "@/pages/calculator-page"
 import { CreateOrderPage } from "@/pages/create-order-page"
 import { DashboardPage } from "@/pages/dashboard-page"
 import { EditOrderPage } from "@/pages/edit-order-page"
@@ -33,6 +34,7 @@ function App() {
         }
       >
         <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/calculator" element={<CalculatorPage />} />
         <Route path="/orders" element={<OrdersPage />} />
         <Route
           path="/orders/new"

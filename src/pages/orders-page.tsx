@@ -49,7 +49,7 @@ const SORT_OPTIONS = [
 
 export function OrdersPage() {
   const navigate = useNavigate()
-  const { hasPermission } = useAuth()
+  const { hasPermission, role } = useAuth()
   const canManage = hasPermission("manage_orders")
   const { orders, total, params, setParams, refetch, isLoading, isFetching, isError, error } = useOrders()
   const { setOrderStatus, deleteOrder } = useOrderActions()
@@ -319,6 +319,7 @@ export function OrdersPage() {
         hasActiveFilters={hasActiveFilters}
         searchTerm={params.search}
         canManage={canManage}
+        role={role}
         onClearFilters={clearFilters}
         onCreate={() => navigate("/orders/new")}
         onView={(order) => navigate(`/orders/${order.id}`)}

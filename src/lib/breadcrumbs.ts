@@ -5,6 +5,7 @@ export type BreadcrumbSegment = {
 
 const ROUTES: { pattern: RegExp; segments: BreadcrumbSegment[] }[] = [
   { pattern: /^\/dashboard$/, segments: [{ label: "Dashboard" }] },
+  { pattern: /^\/calculator$/, segments: [{ label: "Calculator" }] },
   { pattern: /^\/orders$/, segments: [{ label: "Orders" }] },
   {
     pattern: /^\/orders\/new$/,

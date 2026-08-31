@@ -25,3 +25,10 @@ export function formatDate(iso: string): string {
     day: "numeric",
   })
 }
+
+export function formatRelativeDate(iso: string): string {
+  const diffDays = Math.floor((Date.now() - new Date(iso).getTime()) / (1000 * 60 * 60 * 24))
+  if (diffDays <= 0) return "Today"
+  if (diffDays === 1) return "1 day ago"
+  return `${diffDays} days ago`
+}

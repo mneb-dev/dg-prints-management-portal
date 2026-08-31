@@ -1,5 +1,6 @@
 import type { ComponentProps } from "react"
 import {
+  CalculatorIcon,
   LayoutDashboardIcon,
   PackageIcon,
   ShoppingCartIcon,
@@ -28,6 +29,7 @@ const navItems = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboardIcon },
   { title: "Orders", url: "/orders", icon: ShoppingCartIcon },
   { title: "Products", url: "/products", icon: PackageIcon },
+  { title: "Calculator", url: "/calculator", icon: CalculatorIcon },
   { title: "Users", url: "/users", icon: UsersIcon },
 ]
 

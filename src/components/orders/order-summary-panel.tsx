@@ -12,6 +12,7 @@ export function OrderSummaryPanel({
   lineTotal,
   discount,
   additionalFees,
+  layoutFee,
   shippingFee,
   stickerQuotationResult,
 }: {
@@ -22,10 +23,11 @@ export function OrderSummaryPanel({
   lineTotal: number
   discount: number
   additionalFees: number
+  layoutFee: number
   shippingFee: number
   stickerQuotationResult: { quantity: number; free: number } | null
 }) {
-  const total = Math.max(lineTotal + additionalFees + shippingFee - discount, 0)
+  const total = Math.max(lineTotal + additionalFees + layoutFee + shippingFee - discount, 0)
 
   return (
     <Card>
@@ -88,6 +90,12 @@ export function OrderSummaryPanel({
                   <span className="text-muted-foreground">Additional Fees</span>
                   <span>{formatCurrency(additionalFees)}</span>
                 </div>
+                {layoutFee >= 1 && (
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Layout Fee</span>
+                    <span>{formatCurrency(layoutFee)}</span>
+                  </div>
+                )}
                 {shippingFee > 0 && (
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">Shipping Fee</span>

@@ -19,8 +19,10 @@ export {
 } from "@/lib/orders-slice"
 export {
   ORDER_TERMINAL_STATUSES,
+  canReleaseOrder,
   canRefundOrder,
   getStatusFlowForCategory,
+  isReleaseLockedForRole,
   isTerminalStatus,
 } from "@/lib/order-status"
 export type {

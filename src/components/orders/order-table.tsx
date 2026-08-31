@@ -30,8 +30,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { canRefundOrder, isTerminalStatus } from "@/lib/orders"
+import { canRefundOrder, isReleaseLockedForRole, isTerminalStatus } from "@/lib/orders"
 import type { Order } from "@/lib/orders"
+import type { Role } from "@/lib/users"
 import { cn, formatCurrency, formatDate } from "@/lib/utils"
 
 import { OrderStatusBadge } from "./order-status-badge"
@@ -46,6 +47,7 @@ export function OrderTable({
   hasActiveFilters,
   searchTerm,
   canManage,
+  role,
   onClearFilters,
   onCreate,
   onView,
@@ -62,6 +64,7 @@ export function OrderTable({
   hasActiveFilters?: boolean
   searchTerm?: string
   canManage?: boolean
+  role?: Role | null
   onClearFilters?: () => void
   onCreate?: () => void
   onView: (order: Order) => void
@@ -164,7 +167,8 @@ export function OrderTable({
         </TableHeader>
         <TableBody>
           {orders.map((order) => {
-            const canCancel = !isTerminalStatus(order.status)
+            const isReleaseLocked = isReleaseLockedForRole(order.status, role)
+            const canCancel = !isTerminalStatus(order.status) && !isReleaseLocked
             const canRefund = canRefundOrder(order.status, order.payment.status)
             return (
               <TableRow key={order.id}>
@@ -196,14 +200,20 @@ export function OrderTable({
                       <DropdownMenuItem onClick={() => onView(order)}>View</DropdownMenuItem>
                       {canManage && (
                         <>
-                          <DropdownMenuItem onClick={() => onEdit(order)}>Edit</DropdownMenuItem>
+                          <DropdownMenuItem disabled={isReleaseLocked} onClick={() => onEdit(order)}>
+                            Edit
+                          </DropdownMenuItem>
                           <DropdownMenuItem disabled={!canCancel} onClick={() => onCancel(order)}>
                             Cancel
                           </DropdownMenuItem>
                           <DropdownMenuItem disabled={!canRefund} onClick={() => onRefund(order)}>
                             Refund
                           </DropdownMenuItem>
-                          <DropdownMenuItem variant="destructive" onClick={() => onDelete(order)}>
+                          <DropdownMenuItem
+                            variant="destructive"
+                            disabled={isReleaseLocked}
+                            onClick={() => onDelete(order)}
+                          >
                             Delete
                           </DropdownMenuItem>
                         </>

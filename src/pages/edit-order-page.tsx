@@ -1,19 +1,23 @@
-import { FileWarningIcon, Loader2Icon, TriangleAlertIcon } from "lucide-react"
-import { useParams } from "react-router-dom"
+import { FileWarningIcon, LockIcon, Loader2Icon, TriangleAlertIcon } from "lucide-react"
+import { Link, useParams } from "react-router-dom"
 
 import { OrderForm } from "@/components/orders/order-form"
+import { Button } from "@/components/ui/button"
 import {
   Empty,
+  EmptyContent,
   EmptyDescription,
   EmptyHeader,
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty"
-import { useOrder } from "@/lib/orders"
+import { useAuth } from "@/lib/auth"
+import { isReleaseLockedForRole, useOrder } from "@/lib/orders"
 
 export function EditOrderPage() {
   const { id } = useParams<{ id: string }>()
   const { order, isLoading, isError, error } = useOrder(id)
+  const { role } = useAuth()
 
   if (isLoading) {
     return (
@@ -52,6 +56,25 @@ export function EditOrderPage() {
           <EmptyTitle>Order not found</EmptyTitle>
           <EmptyDescription>This order may have been deleted.</EmptyDescription>
         </EmptyHeader>
+      </Empty>
+    )
+  }
+
+  if (isReleaseLockedForRole(order.status, role)) {
+    return (
+      <Empty className="border">
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <LockIcon />
+          </EmptyMedia>
+          <EmptyTitle>This order can't be edited</EmptyTitle>
+          <EmptyDescription>Released orders are locked for your role.</EmptyDescription>
+        </EmptyHeader>
+        <EmptyContent>
+          <Button size="sm" render={<Link to={`/orders/${order.id}`} />}>
+            Back to Order
+          </Button>
+        </EmptyContent>
       </Empty>
     )
   }

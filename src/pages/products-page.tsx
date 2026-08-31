@@ -40,7 +40,7 @@ const SORT_OPTIONS = [
 ]
 
 export function ProductsPage() {
-  const { hasPermission } = useAuth()
+  const { hasPermission, role } = useAuth()
   const canManage = hasPermission("manage_products")
   const { products, total, params, setParams, refetch, isLoading, isFetching, isError, error } = useProducts()
   const { deleteProduct } = useProductActions()
@@ -236,6 +236,7 @@ export function ProductsPage() {
         hasActiveFilters={hasActiveFilters}
         searchTerm={params.search}
         canManage={canManage}
+        role={role}
         onClearFilters={clearFilters}
         onCreate={handleAdd}
         onEdit={handleEdit}

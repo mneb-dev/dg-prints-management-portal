@@ -117,6 +117,7 @@ export type Order = {
   subtotal: number
   discount: number
   additionalFees: number
+  layoutFee: number
   total: number
   notes: string
   description: string
@@ -125,6 +126,8 @@ export type Order = {
   payment: Payment
   createdAt: string
   updatedAt: string
+  createdBy: string | null
+  createdByName: string
   statusUpdatedBy: string | null
   statusUpdatedByName: string
   statusUpdatedAt: string | null
@@ -132,7 +135,15 @@ export type Order = {
 
 export type OrderInput = Omit<
   Order,
-  "id" | "orderNumber" | "createdAt" | "updatedAt" | "statusUpdatedBy" | "statusUpdatedByName" | "statusUpdatedAt"
+  | "id"
+  | "orderNumber"
+  | "createdAt"
+  | "updatedAt"
+  | "createdBy"
+  | "createdByName"
+  | "statusUpdatedBy"
+  | "statusUpdatedByName"
+  | "statusUpdatedAt"
 >
 
 function normalizeOrder(order: Order): Order {
@@ -141,6 +152,9 @@ function normalizeOrder(order: Order): Order {
     status: LEGACY_STATUS_MAP[order.status] ?? order.status,
     channel: order.channel ?? "Walk-in",
     additionalFees: order.additionalFees ?? 0,
+    layoutFee: order.layoutFee ?? 0,
+    createdBy: order.createdBy ?? null,
+    createdByName: order.createdByName ?? "",
     statusUpdatedBy: order.statusUpdatedBy ?? null,
     statusUpdatedByName: order.statusUpdatedByName ?? "",
     statusUpdatedAt: order.statusUpdatedAt ?? null,

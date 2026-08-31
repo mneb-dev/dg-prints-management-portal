@@ -1,5 +1,14 @@
 import { useState } from "react"
-import { ArrowLeftIcon, FileWarningIcon, Loader2Icon, TriangleAlertIcon } from "lucide-react"
+import {
+  ArrowLeftIcon,
+  CheckCircle2Icon,
+  FileWarningIcon,
+  Loader2Icon,
+  PencilIcon,
+  RotateCcwIcon,
+  TriangleAlertIcon,
+  XCircleIcon,
+} from "lucide-react"
 import { Link, useParams } from "react-router-dom"
 import { toast } from "sonner"
 
@@ -24,25 +33,32 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { useAuth } from "@/lib/auth"
 import {
   ORDER_STATUSES,
+  canReleaseOrder,
   canRefundOrder,
   getStatusFlowForCategory,
+  isReleaseLockedForRole,
   isTerminalStatus,
   useOrder,
   useOrderActions,
 } from "@/lib/orders"
 import type { Order, OrderStatus } from "@/lib/orders"
-import { formatCurrency, formatDate } from "@/lib/utils"
+import { formatCurrency, formatDate, formatRelativeDate } from "@/lib/utils"
 
 export function OrderDetailsPage() {
   const { id } = useParams<{ id: string }>()
   const { order, isLoading, isError, error } = useOrder(id)
   const { setOrderStatus } = useOrderActions()
+  const { role } = useAuth()
   const [cancelling, setCancelling] = useState(false)
   const [refunding, setRefunding] = useState(false)
   const [isCancelling, setIsCancelling] = useState(false)
   const [isRefunding, setIsRefunding] = useState(false)
+  const [optimisticStatus, setOptimisticStatus] = useState<OrderStatus | null>(null)
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false)
 
   if (isLoading) {
     return (
@@ -87,16 +103,26 @@ export function OrderDetailsPage() {
 
   const item = order.items[0]
   const statusOptions = item ? getStatusFlowForCategory(item.productCategory) : ORDER_STATUSES
-  const canCancel = !isTerminalStatus(order.status)
+  const isReleaseLocked = isReleaseLockedForRole(order.status, role)
+  const canCancel = !isTerminalStatus(order.status) && !isReleaseLocked
   const canRefund = canRefundOrder(order.status, order.payment.status)
+  const canRelease = canReleaseOrder(order.status, order.payment.status)
+  const canEditOrder = !isReleaseLocked
+  const displayStatus = optimisticStatus ?? order.status
 
   async function handleStatusChange(value: string | null) {
-    if (!order || !value) return
+    if (!order || !value || value === order.status) return
+    setOptimisticStatus(value as OrderStatus)
+    setIsUpdatingStatus(true)
     try {
       await setOrderStatus(order.id, value as OrderStatus)
       toast.success("Status updated.")
     } catch (err) {
+      setOptimisticStatus(null)
       toast.error(typeof err === "string" ? err : "Failed to update status.")
+    } finally {
+      setIsUpdatingStatus(false)
+      setOptimisticStatus(null)
     }
   }
 
@@ -135,16 +161,30 @@ export function OrderDetailsPage() {
             <span className="sr-only">Back to Orders</span>
           </Button>
           <h1 className="text-2xl font-semibold">Order {order.orderNumber}</h1>
-          <OrderStatusBadge status={order.status} />
+          <OrderStatusBadge key={displayStatus} status={displayStatus} />
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" disabled={!canCancel} onClick={() => setCancelling(true)}>
+          <Button variant="destructive" disabled={!canCancel} onClick={() => setCancelling(true)}>
+            <XCircleIcon data-icon="inline-start" />
             Cancel
           </Button>
+          <Button
+            variant="outline"
+            disabled={!canRelease || isUpdatingStatus}
+            onClick={() => handleStatusChange("released")}
+          >
+            <CheckCircle2Icon data-icon="inline-start" />
+            Release
+          </Button>
+          <Separator orientation="vertical" className="h-6" />
           <Button variant="outline" disabled={!canRefund} onClick={() => setRefunding(true)}>
+            <RotateCcwIcon data-icon="inline-start" />
             Refund
           </Button>
-          <Button render={<Link to={`/orders/${order.id}/edit`} />}>Edit Order</Button>
+          <Button disabled={!canEditOrder} render={<Link to={`/orders/${order.id}/edit`} />}>
+            <PencilIcon data-icon="inline-start" />
+            Edit Order
+          </Button>
         </div>
       </div>
 
@@ -281,6 +321,12 @@ export function OrderDetailsPage() {
             <span className="text-muted-foreground">Additional Fees</span>
             <span>{formatCurrency(order.additionalFees)}</span>
           </div>
+          {order.layoutFee >= 1 && (
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">Layout Fee</span>
+              <span>{formatCurrency(order.layoutFee)}</span>
+            </div>
+          )}
           {!!order.shippingAddress?.fee && (
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">Shipping Fee</span>
@@ -336,27 +382,58 @@ export function OrderDetailsPage() {
           <CardTitle>Status</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
-          <Select value={order.status} onValueChange={handleStatusChange}>
-            <SelectTrigger className="w-48">
-              <SelectValue>
-                {(value: string | null) => (value ? ORDER_STATUS_LABELS[value as OrderStatus] : "")}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {statusOptions.map((status) => (
-                <SelectItem key={status} value={status}>
-                  {ORDER_STATUS_LABELS[status]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="flex items-center gap-2">
+            <Select
+              value={displayStatus}
+              onValueChange={handleStatusChange}
+              disabled={isUpdatingStatus || isReleaseLocked}
+            >
+              <SelectTrigger className="w-48">
+                <SelectValue>
+                  {(value: string | null) => (value ? ORDER_STATUS_LABELS[value as OrderStatus] : "")}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {statusOptions.map((status) => (
+                  <SelectItem
+                    key={status}
+                    value={status}
+                    disabled={
+                      (status === "released" && !canRelease) ||
+                      (status === "refunded" && !canRefund)
+                    }
+                  >
+                    {ORDER_STATUS_LABELS[status]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {isUpdatingStatus && (
+              <Loader2Icon className="size-4 animate-spin text-muted-foreground animate-in fade-in-0 duration-200" />
+            )}
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Created by{" "}
+            <span >{order.createdByName || "Unknown user"}</span>{" "}
+            {" "}
+            <Tooltip>
+              <TooltipTrigger className="font-medium text-foreground">
+                {formatRelativeDate(order.createdAt)}
+              </TooltipTrigger>
+              <TooltipContent >{formatDate(order.createdAt)}</TooltipContent>
+            </Tooltip>
+          </p>
           {order.statusUpdatedAt && (
             <p className="text-sm text-muted-foreground">
               Status updated by{" "}
-              <span className="font-medium text-foreground">
-                {order.statusUpdatedByName || "Unknown user"}
-              </span>{" "}
-              on {formatDate(order.statusUpdatedAt)}
+              <span >{order.statusUpdatedByName || "Unknown user"}</span>{" "}
+              {" "}
+              <Tooltip>
+                <TooltipTrigger className="font-medium text-foreground">
+                  {formatRelativeDate(order.statusUpdatedAt)}
+                </TooltipTrigger>
+                <TooltipContent>{formatDate(order.statusUpdatedAt)}</TooltipContent>
+              </Tooltip>
             </p>
           )}
         </CardContent>

@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/table"
 import { cn } from "@/lib/utils"
 import { summarizePricing, type Product } from "@/lib/products"
+import type { Role } from "@/lib/users-slice"
 
 export function ProductTable({
   products,
@@ -39,6 +40,7 @@ export function ProductTable({
   hasActiveFilters,
   searchTerm,
   canManage,
+  role,
   onClearFilters,
   onCreate,
   onEdit,
@@ -52,11 +54,14 @@ export function ProductTable({
   hasActiveFilters?: boolean
   searchTerm?: string
   canManage?: boolean
+  role?: Role | null
   onClearFilters?: () => void
   onCreate?: () => void
   onEdit: (product: Product) => void
   onDelete: (product: Product) => void
 }) {
+  const isStaff = role === "staff"
+
   if (isLoading) {
     return (
       <Empty className="border">
@@ -140,7 +145,7 @@ export function ProductTable({
             <TableHead>Category</TableHead>
             <TableHead>Pricing</TableHead>
             <TableHead>Status</TableHead>
-            <TableHead className="text-right">Actions</TableHead>
+            {!isStaff && <TableHead className="text-right">Actions</TableHead>}
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -163,28 +168,30 @@ export function ProductTable({
                   {product.status}
                 </Badge>
               </TableCell>
-              <TableCell className="text-right">
-                {canManage && (
-                  <div className="flex justify-end gap-1">
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      onClick={() => onEdit(product)}
-                    >
-                      <PencilIcon />
-                      <span className="sr-only">Edit {product.name}</span>
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      onClick={() => onDelete(product)}
-                    >
-                      <Trash2Icon />
-                      <span className="sr-only">Delete {product.name}</span>
-                    </Button>
-                  </div>
-                )}
-              </TableCell>
+              {!isStaff && (
+                <TableCell className="text-right">
+                  {canManage && (
+                    <div className="flex justify-end gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() => onEdit(product)}
+                      >
+                        <PencilIcon />
+                        <span className="sr-only">Edit {product.name}</span>
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() => onDelete(product)}
+                      >
+                        <Trash2Icon />
+                        <span className="sr-only">Delete {product.name}</span>
+                      </Button>
+                    </div>
+                  )}
+                </TableCell>
+              )}
             </TableRow>
           ))}
         </TableBody>

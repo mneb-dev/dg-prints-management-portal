@@ -41,7 +41,24 @@ import { ProductOptionsFields } from "./product-options-fields"
 import { ShippingAddressFields } from "./shipping-address-fields"
 import { StickerQuotationFields } from "./sticker-quotation-fields"
 
-export function OrderForm({ order }: { order: Order | null }) {
+export type OrderFormSeed = {
+  productId?: string
+  optionValues?: Record<string, string>
+  width?: string
+  height?: string
+  dimensionUnit?: LengthUnit
+  stickerWidth?: string
+  stickerHeight?: string
+  stickerUnit?: StickerUnit
+}
+
+export function OrderForm({
+  order,
+  initialValues,
+}: {
+  order: Order | null
+  initialValues?: OrderFormSeed
+}) {
   const navigate = useNavigate()
   const { products } = useProductCatalog()
   const { addOrder, updateOrder } = useOrderActions()
@@ -58,13 +75,14 @@ export function OrderForm({ order }: { order: Order | null }) {
   const [quantity, setQuantity] = useState("1")
   const [stickerWidth, setStickerWidth] = useState("")
   const [stickerHeight, setStickerHeight] = useState("")
-  const [stickerUnit, setStickerUnit] = useState<StickerUnit>("cm")
+  const [stickerUnit, setStickerUnit] = useState<StickerUnit>("in")
   const [notes, setNotes] = useState("")
   const [description, setDescription] = useState("")
   const [manualProductName, setManualProductName] = useState("")
   const [manualUnitPrice, setManualUnitPrice] = useState("")
   const [discount, setDiscount] = useState("0")
   const [additionalFees, setAdditionalFees] = useState("0")
+  const [layoutFee, setLayoutFee] = useState("0")
   const [shippingEnabled, setShippingEnabled] = useState(false)
   const [sameName, setSameName] = useState(true)
   const [samePhone, setSamePhone] = useState(true)
@@ -110,6 +128,7 @@ export function OrderForm({ order }: { order: Order | null }) {
     setNotes(item.notes)
     setDiscount(String(order.discount))
     setAdditionalFees(String(order.additionalFees))
+    setLayoutFee(String(order.layoutFee))
 
     if (item.pricing.pricingType === "Package") {
       setPackageEntryId(item.pricing.pricingEntryId)
@@ -153,6 +172,18 @@ export function OrderForm({ order }: { order: Order | null }) {
     }
   }, [order])
 
+  useEffect(() => {
+    if (order || !initialValues) return
+    if (initialValues.productId) setProductId(initialValues.productId)
+    if (initialValues.optionValues) setOptionValues(initialValues.optionValues)
+    if (initialValues.width) setWidth(initialValues.width)
+    if (initialValues.height) setHeight(initialValues.height)
+    if (initialValues.dimensionUnit) setDimensionUnit(initialValues.dimensionUnit)
+    if (initialValues.stickerWidth) setStickerWidth(initialValues.stickerWidth)
+    if (initialValues.stickerHeight) setStickerHeight(initialValues.stickerHeight)
+    if (initialValues.stickerUnit) setStickerUnit(initialValues.stickerUnit)
+  }, [order, initialValues])
+
   function handleProductChange(id: string) {
     setProductId(id)
     setOptionValues({})
@@ -164,9 +195,13 @@ export function OrderForm({ order }: { order: Order | null }) {
     setQuantity("1")
     setManualProductName("")
     setManualUnitPrice("")
-    setStickerWidth("")
-    setStickerHeight("")
-    setStickerUnit("cm")
+    if (productId) {
+      // Only reset sticker size when switching away from a previously selected product —
+      // preserves a size carried over from the calculator on the first product pick.
+      setStickerWidth("")
+      setStickerHeight("")
+      setStickerUnit("cm")
+    }
     clearError("product")
     clearError("options")
     clearError("pricing")
@@ -278,10 +313,11 @@ export function OrderForm({ order }: { order: Order | null }) {
     : 0
   const discountNum = Math.max(0, Number(discount) || 0)
   const additionalFeesNum = Math.max(0, Number(additionalFees) || 0)
+  const layoutFeeNum = Math.max(0, Number(layoutFee) || 0)
   const shippingFeeNum = shippingEnabled ? Math.max(0, Number(shippingFee) || 0) : 0
   const previewTotal = isEditingMissingProduct
-    ? Math.max((existingItem?.lineTotal ?? 0) + additionalFeesNum + shippingFeeNum - discountNum, 0)
-    : Math.max(previewLineTotal + additionalFeesNum + shippingFeeNum - discountNum, 0)
+    ? Math.max((existingItem?.lineTotal ?? 0) + additionalFeesNum + layoutFeeNum + shippingFeeNum - discountNum, 0)
+    : Math.max(previewLineTotal + additionalFeesNum + layoutFeeNum + shippingFeeNum - discountNum, 0)
 
   const stickerQuotationPackage =
     selectedProduct?.category === "Sticker Label" ? selectedStickerPackage : null
@@ -394,7 +430,7 @@ export function OrderForm({ order }: { order: Order | null }) {
     try {
       if (order && isEditingMissingProduct && existingItem) {
         const total = Math.max(
-          existingItem.lineTotal + additionalFeesNum + shippingFeeNum - discountNum,
+          existingItem.lineTotal + additionalFeesNum + layoutFeeNum + shippingFeeNum - discountNum,
           0
         )
         await updateOrder(order.id, {
@@ -403,6 +439,7 @@ export function OrderForm({ order }: { order: Order | null }) {
           description: description.trim(),
           discount: discountNum,
           additionalFees: additionalFeesNum,
+          layoutFee: layoutFeeNum,
           total,
           shippingAddress: resolveShippingAddress(),
           channel: channel as OrderChannel,
@@ -443,7 +480,7 @@ export function OrderForm({ order }: { order: Order | null }) {
       }
 
       const subtotal = item.lineTotal
-      const total = Math.max(subtotal + additionalFeesNum + shippingFeeNum - discountNum, 0)
+      const total = Math.max(subtotal + additionalFeesNum + layoutFeeNum + shippingFeeNum - discountNum, 0)
 
       if (order) {
         const validStatuses = getStatusFlowForCategory(item.productCategory)
@@ -457,6 +494,7 @@ export function OrderForm({ order }: { order: Order | null }) {
           subtotal,
           discount: discountNum,
           additionalFees: additionalFeesNum,
+          layoutFee: layoutFeeNum,
           total,
           shippingAddress: resolveShippingAddress(),
           channel: channel as OrderChannel,
@@ -474,6 +512,7 @@ export function OrderForm({ order }: { order: Order | null }) {
           subtotal,
           discount: discountNum,
           additionalFees: additionalFeesNum,
+          layoutFee: layoutFeeNum,
           total,
           notes: "",
           shippingAddress: resolveShippingAddress(),
@@ -747,6 +786,18 @@ export function OrderForm({ order }: { order: Order | null }) {
                   onChange={(event) => setAdditionalFees(event.target.value)}
                 />
               </Field>
+
+              <Field>
+                <FieldLabel htmlFor="order-layout-fee">Layout Fee</FieldLabel>
+                <Input
+                  id="order-layout-fee"
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={layoutFee}
+                  onChange={(event) => setLayoutFee(event.target.value)}
+                />
+              </Field>
             </FieldGroup>
           </CardContent>
         </Card>
@@ -805,6 +856,7 @@ export function OrderForm({ order }: { order: Order | null }) {
           lineTotal={isEditingMissingProduct ? (existingItem?.lineTotal ?? 0) : previewLineTotal}
           discount={discountNum}
           additionalFees={additionalFeesNum}
+          layoutFee={layoutFeeNum}
           shippingFee={shippingFeeNum}
           stickerQuotationResult={isEditingMissingProduct ? null : stickerQuotationResult}
         />

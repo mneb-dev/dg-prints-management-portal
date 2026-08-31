@@ -1,5 +1,6 @@
 import type { ProductCategory } from "@/lib/products"
 import type { OrderStatus, PaymentStatus } from "@/lib/orders-slice"
+import type { Role } from "@/lib/users-slice"
 
 export const ORDER_TERMINAL_STATUSES: OrderStatus[] = ["cancelled", "refunded"]
 
@@ -21,4 +22,12 @@ export function isTerminalStatus(status: OrderStatus): boolean {
 
 export function canRefundOrder(status: OrderStatus, paymentStatus: PaymentStatus): boolean {
   return !isTerminalStatus(status) && paymentStatus !== "unpaid"
+}
+
+export function canReleaseOrder(status: OrderStatus, paymentStatus: PaymentStatus): boolean {
+  return status !== "released" && !isTerminalStatus(status) && paymentStatus === "paid"
+}
+
+export function isReleaseLockedForRole(status: OrderStatus, role: Role | null | undefined): boolean {
+  return role === "staff" && status === "released"
 }
