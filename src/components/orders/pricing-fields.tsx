@@ -26,6 +26,8 @@ export function PricingFields({
   onDimensionUnitChange,
   quantity,
   onQuantityChange,
+  hidePackageSelector = false,
+  hideQuantity = false,
 }: {
   resolution: PricingResolution
   packageEntryId: string
@@ -38,6 +40,8 @@ export function PricingFields({
   onDimensionUnitChange: (value: LengthUnit) => void
   quantity: string
   onQuantityChange: (value: string) => void
+  hidePackageSelector?: boolean
+  hideQuantity?: boolean
 }) {
   if (resolution.kind === "none") {
     return (
@@ -51,7 +55,7 @@ export function PricingFields({
 
   return (
     <>
-      {resolution.kind === "package" && (
+      {!hidePackageSelector && resolution.kind === "package" && (
         <Field>
           <FieldLabel htmlFor="order-package">Package</FieldLabel>
           <Select value={packageEntryId} onValueChange={(value) => onPackageEntryIdChange(value as string)}>
@@ -74,7 +78,7 @@ export function PricingFields({
         </Field>
       )}
 
-      {resolution.kind === "auto" && resolution.entry.pricingType === "Package" && (
+      {!hidePackageSelector && resolution.kind === "auto" && resolution.entry.pricingType === "Package" && (
         <p className="text-sm text-muted-foreground">
           {resolution.entry.packageName} — {formatCurrency(resolution.entry.price)}
         </p>
@@ -125,17 +129,19 @@ export function PricingFields({
         </div>
       )}
 
-      <Field>
-        <FieldLabel htmlFor="order-quantity">Quantity</FieldLabel>
-        <Input
-          id="order-quantity"
-          type="number"
-          min={1}
-          step="1"
-          value={quantity}
-          onChange={(event) => onQuantityChange(event.target.value)}
-        />
-      </Field>
+      {!hideQuantity && (
+        <Field>
+          <FieldLabel htmlFor="order-quantity">Quantity</FieldLabel>
+          <Input
+            id="order-quantity"
+            type="number"
+            min={1}
+            step="1"
+            value={quantity}
+            onChange={(event) => onQuantityChange(event.target.value)}
+          />
+        </Field>
+      )}
     </>
   )
 }

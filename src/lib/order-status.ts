@@ -6,6 +6,7 @@ export const ORDER_TERMINAL_STATUSES: OrderStatus[] = ["cancelled", "refunded"]
 
 const CATEGORY_STATUS_FLOWS: Record<ProductCategory, OrderStatus[]> = {
   "Sticker Label": ["pending", "layout", "trace", "print", "cut", "pack", "pickup", "released"],
+  "Laminated Sticker": ["pending", "layout", "trace", "print", "cut", "pack", "pickup", "released"],
   Tarpaulin: ["pending", "layout", "print", "pickup", "released"],
   "Sintra Board": ["pending", "layout", "print", "cut", "pickup", "released"],
   "3D Print": ["pending", "layout", "print", "pickup", "released"],
@@ -30,4 +31,8 @@ export function canReleaseOrder(status: OrderStatus, paymentStatus: PaymentStatu
 
 export function isReleaseLockedForRole(status: OrderStatus, role: Role | null | undefined): boolean {
   return role === "staff" && status === "released"
+}
+
+export function canEditOrderMetadata(role: Role | null | undefined): boolean {
+  return role === "admin" || role === "superadmin"
 }

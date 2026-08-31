@@ -1,5 +1,8 @@
 import type { OrderItem } from "@/lib/orders-slice"
-import { ALL_VARIANTS, type PricingEntry, type Product } from "@/lib/products"
+import { ALL_VARIANTS, type PricingEntry, type Product, type ProductCategory } from "@/lib/products"
+
+/** Categories whose package tiers are picked via clickable quotation cards instead of a dropdown. */
+export const CARD_SELECTABLE_PACKAGE_CATEGORIES: ProductCategory[] = ["Sticker Label", "Laminated Sticker"]
 
 export type PricingResolution =
   | { kind: "package"; candidates: PricingEntry[] }
@@ -34,7 +37,7 @@ export function computeLineTotal(item: Pick<OrderItem, "pricing" | "quantity">):
   const { pricing, quantity } = item
   switch (pricing.pricingType) {
     case "Package":
-      return pricing.unitPrice
+      return pricing.unitPrice * quantity
     case "Per Unit":
       return pricing.width && pricing.height
         ? pricing.width * pricing.height * pricing.unitPrice * quantity
@@ -42,6 +45,8 @@ export function computeLineTotal(item: Pick<OrderItem, "pricing" | "quantity">):
     case "Fixed":
       return pricing.unitPrice * quantity
     case "Manual":
+      return pricing.unitPrice * quantity
+    case "Custom":
       return pricing.unitPrice * quantity
   }
 }

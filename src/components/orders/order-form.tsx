@@ -13,11 +13,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
+import { useAuth } from "@/lib/auth"
 import { convertToFeet, type LengthUnit } from "@/lib/length-units"
-import { getStatusFlowForCategory, useOrderActions } from "@/lib/orders"
+import { canEditOrderMetadata, getStatusFlowForCategory, useOrderActions } from "@/lib/orders"
 import type {
   Order,
+  OrderAdminEditableFields,
   OrderChannel,
   OrderItem,
   OrderItemPricing,
@@ -26,20 +29,54 @@ import type {
   SelectedOption,
 } from "@/lib/orders"
 import {
+  CARD_SELECTABLE_PACKAGE_CATEGORIES,
   computeLineTotal,
   isManualPricingProduct,
   resolvePricing,
 } from "@/lib/pricing-resolver"
-import { useProductCatalog } from "@/lib/products"
+import { ALL_VARIANTS, useProductCatalog, type PricingEntry, type Product } from "@/lib/products"
+import { useUserOptions } from "@/lib/users"
+import { calculateLaminatedStickerQuotation } from "@/lib/laminated-sticker-quotation"
+import {
+  calculateSintraCustomPrice,
+  describeSintraCustom,
+  parseSintraCustomDescription,
+  type SintraThickness,
+} from "@/lib/sintra-board-pricing"
 import { calculateStickerQuotation, nearestPackageTier, type StickerUnit } from "@/lib/sticker-quotation"
 import { generateId } from "@/lib/utils"
 
+import { LaminatedStickerQuotationFields } from "./laminated-sticker-quotation-fields"
 import { OrderSummaryPanel } from "./order-summary-panel"
 import { PaymentFields } from "./payment-fields"
 import { PricingFields, type SizeUnit } from "./pricing-fields"
 import { ProductOptionsFields } from "./product-options-fields"
 import { ShippingAddressFields } from "./shipping-address-fields"
+import { SintraBoardCustomFields } from "./sintra-board-custom-fields"
 import { StickerQuotationFields } from "./sticker-quotation-fields"
+
+// Converts between an ISO timestamp and the value a `datetime-local` input needs,
+// in the browser's local timezone (the input has no timezone concept of its own).
+function toDatetimeLocalValue(iso: string | null | undefined): string {
+  if (!iso) return ""
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return ""
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000)
+  return local.toISOString().slice(0, 16)
+}
+
+function fromDatetimeLocalValue(value: string): string | null {
+  if (!value) return null
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? null : date.toISOString()
+}
+
+// For Sticker Label / Laminated Sticker products, the option named "Package" is the one
+// that drives pricing tier selection — it's replaced by clickable quotation cards instead
+// of a dropdown, so it's looked up by this naming convention rather than rendered generically.
+function findPackageOption(product: Product) {
+  return product.options.find((option) => option.name.trim().toLowerCase() === "package") ?? null
+}
 
 export type OrderFormSeed = {
   productId?: string
@@ -50,6 +87,11 @@ export type OrderFormSeed = {
   stickerWidth?: string
   stickerHeight?: string
   stickerUnit?: StickerUnit
+  isCustomSize?: boolean
+  customWidth?: string
+  customHeight?: string
+  customThickness?: SintraThickness
+  customBackToBack?: boolean
 }
 
 export function OrderForm({
@@ -62,6 +104,9 @@ export function OrderForm({
   const navigate = useNavigate()
   const { products } = useProductCatalog()
   const { addOrder, updateOrder } = useOrderActions()
+  const { role } = useAuth()
+  const canEditMetadata = !!order && canEditOrderMetadata(role)
+  const { users: userOptions } = useUserOptions(canEditMetadata)
 
   const [customerName, setCustomerName] = useState("")
   const [customerPhone, setCustomerPhone] = useState("")
@@ -76,6 +121,11 @@ export function OrderForm({
   const [stickerWidth, setStickerWidth] = useState("")
   const [stickerHeight, setStickerHeight] = useState("")
   const [stickerUnit, setStickerUnit] = useState<StickerUnit>("in")
+  const [isCustomSize, setIsCustomSize] = useState(false)
+  const [customWidth, setCustomWidth] = useState("")
+  const [customHeight, setCustomHeight] = useState("")
+  const [customThickness, setCustomThickness] = useState<SintraThickness>("3mm")
+  const [customBackToBack, setCustomBackToBack] = useState(false)
   const [notes, setNotes] = useState("")
   const [description, setDescription] = useState("")
   const [manualProductName, setManualProductName] = useState("")
@@ -97,6 +147,10 @@ export function OrderForm({
   const [downPayment, setDownPayment] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [createdAtLocal, setCreatedAtLocal] = useState("")
+  const [createdByValue, setCreatedByValue] = useState("")
+  const [statusUpdatedAtLocal, setStatusUpdatedAtLocal] = useState("")
+  const [statusUpdatedByValue, setStatusUpdatedByValue] = useState("")
 
   function clearError(key: string) {
     setErrors((prev) => {
@@ -111,6 +165,25 @@ export function OrderForm({
   const selectedProduct = products.find((product) => product.id === productId) ?? null
   const isEditingMissingProduct = !!order && !!existingItem && !selectedProduct
   const activeProducts = products.filter((product) => product.status === "Active")
+
+  const isCardSelectablePackage =
+    !!selectedProduct && CARD_SELECTABLE_PACKAGE_CATEGORIES.includes(selectedProduct.category)
+  const packageOption =
+    selectedProduct && isCardSelectablePackage ? findPackageOption(selectedProduct) : null
+  const packageCandidates: PricingEntry[] =
+    selectedProduct && isCardSelectablePackage
+      ? selectedProduct.pricing.filter((entry) => entry.pricingType === "Package")
+      : []
+
+  // A package option with a single possible value has nothing to click — auto-select it so
+  // the required-option validation is satisfied without a dropdown or a no-op click target.
+  useEffect(() => {
+    if (!packageOption || packageOption.values.length !== 1) return
+    const onlyValue = packageOption.values[0]
+    if (optionValues[packageOption.id] === onlyValue) return
+    setOptionValues((prev) => ({ ...prev, [packageOption.id]: onlyValue }))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [packageOption?.id, packageOption?.values.length])
 
   useEffect(() => {
     if (!order) return
@@ -145,6 +218,16 @@ export function OrderForm({
     } else if (item.pricing.pricingType === "Manual") {
       setManualProductName(item.pricing.productName)
       setManualUnitPrice(String(item.pricing.unitPrice))
+    } else if (item.pricing.pricingType === "Custom") {
+      // thickness/back-to-back aren't stored as structured data (the backend
+      // whitelists a fixed set of pricing keys) — recovered from the folded
+      // packageName description instead. See sintra-board-pricing.ts.
+      setIsCustomSize(true)
+      setCustomWidth(String(item.pricing.width))
+      setCustomHeight(String(item.pricing.height))
+      const parsed = parseSintraCustomDescription(item.pricing.packageName)
+      setCustomThickness(parsed.thickness)
+      setCustomBackToBack(parsed.backToBack)
     }
 
     if (item.stickerQuotation) {
@@ -170,6 +253,11 @@ export function OrderForm({
       setPaymentMethod(order.payment.method ?? "")
       setDownPayment(String(order.payment.downPayment))
     }
+
+    setCreatedAtLocal(toDatetimeLocalValue(order.createdAt))
+    setCreatedByValue(order.createdBy ?? "")
+    setStatusUpdatedAtLocal(toDatetimeLocalValue(order.statusUpdatedAt))
+    setStatusUpdatedByValue(order.statusUpdatedBy ?? "")
   }, [order])
 
   useEffect(() => {
@@ -182,6 +270,11 @@ export function OrderForm({
     if (initialValues.stickerWidth) setStickerWidth(initialValues.stickerWidth)
     if (initialValues.stickerHeight) setStickerHeight(initialValues.stickerHeight)
     if (initialValues.stickerUnit) setStickerUnit(initialValues.stickerUnit)
+    if (initialValues.isCustomSize) setIsCustomSize(true)
+    if (initialValues.customWidth) setCustomWidth(initialValues.customWidth)
+    if (initialValues.customHeight) setCustomHeight(initialValues.customHeight)
+    if (initialValues.customThickness) setCustomThickness(initialValues.customThickness)
+    if (initialValues.customBackToBack !== undefined) setCustomBackToBack(initialValues.customBackToBack)
   }, [order, initialValues])
 
   function handleProductChange(id: string) {
@@ -200,10 +293,42 @@ export function OrderForm({
       // preserves a size carried over from the calculator on the first product pick.
       setStickerWidth("")
       setStickerHeight("")
-      setStickerUnit("cm")
+      setStickerUnit("in")
     }
+    setIsCustomSize(false)
+    setCustomWidth("")
+    setCustomHeight("")
+    setCustomThickness("3mm")
+    setCustomBackToBack(false)
     clearError("product")
     clearError("options")
+    clearError("pricing")
+  }
+
+  function handleCustomSizeToggle(value: boolean) {
+    setIsCustomSize(value)
+    if (value) setOptionValues({})
+    clearError("pricing")
+    clearError("options")
+  }
+
+  function handleCustomWidthChange(value: string) {
+    setCustomWidth(value)
+    clearError("pricing")
+  }
+
+  function handleCustomHeightChange(value: string) {
+    setCustomHeight(value)
+    clearError("pricing")
+  }
+
+  function handleCustomThicknessChange(value: SintraThickness) {
+    setCustomThickness(value)
+    clearError("pricing")
+  }
+
+  function handleCustomBackToBackChange(value: boolean) {
+    setCustomBackToBack(value)
     clearError("pricing")
   }
 
@@ -219,6 +344,18 @@ export function OrderForm({
 
   function handlePackageEntryIdChange(value: string) {
     setPackageEntryId(value)
+    clearError("pricing")
+  }
+
+  // Selecting a quotation card for a card-selectable (Sticker Label / Laminated Sticker)
+  // product writes into optionValues — the value resolvePricing()/buildPricing() actually
+  // read — since these products drive pricing off a "Package" product option, not a
+  // multi-candidate PricingEntry list.
+  function handleSelectPackageOption(entry: PricingEntry) {
+    if (!packageOption) return
+    const value = entry.appliesTo === ALL_VARIANTS ? (packageOption.values[0] ?? entry.appliesTo) : entry.appliesTo
+    setOptionValues((prev) => ({ ...prev, [packageOption.id]: value }))
+    clearError("options")
     clearError("pricing")
   }
 
@@ -239,7 +376,9 @@ export function OrderForm({
   const selectedPackagePricingEntry =
     resolution.kind === "package"
       ? resolution.candidates.find((candidate) => candidate.id === packageEntryId) ?? null
-      : null
+      : resolution.kind === "auto" && resolution.entry.pricingType === "Package"
+        ? resolution.entry
+        : null
   const selectedStickerPackage = selectedPackagePricingEntry
     ? nearestPackageTier(selectedPackagePricingEntry.price)
     : null
@@ -251,6 +390,25 @@ export function OrderForm({
       const price = Number(manualUnitPrice)
       if (!manualProductName.trim() || !Number.isFinite(price) || price < 0) return null
       return { pricingType: "Manual", productName: manualProductName.trim(), unitPrice: price }
+    }
+
+    if (selectedProduct.category === "Sintra Board" && isCustomSize) {
+      const w = Number(customWidth)
+      const h = Number(customHeight)
+      if (!(w > 0) || !(h > 0)) return null
+      return {
+        pricingType: "Custom",
+        unitPrice: calculateSintraCustomPrice({
+          width: w,
+          height: h,
+          thickness: customThickness,
+          backToBack: customBackToBack,
+        }),
+        unit: "in",
+        width: w,
+        height: h,
+        packageName: describeSintraCustom(customThickness, customBackToBack),
+      }
     }
 
     if (resolution.kind === "package") {
@@ -321,6 +479,7 @@ export function OrderForm({
 
   const stickerQuotationPackage =
     selectedProduct?.category === "Sticker Label" ? selectedStickerPackage : null
+  const isLaminatedSticker = selectedProduct?.category === "Laminated Sticker"
 
   const stickerWidthNum = Number(stickerWidth)
   const stickerHeightNum = Number(stickerHeight)
@@ -330,6 +489,20 @@ export function OrderForm({
     : null
   const stickerQuotationResult =
     stickerQuotationPackage && stickerQuotation ? stickerQuotation[stickerQuotationPackage] : null
+
+  const laminatedStickerPrice = selectedPackagePricingEntry?.price ?? null
+  const laminatedStickerQuantity =
+    isLaminatedSticker && hasValidStickerSize && laminatedStickerPrice && laminatedStickerPrice > 0
+      ? calculateLaminatedStickerQuotation(
+          stickerWidthNum,
+          stickerHeightNum,
+          stickerUnit,
+          laminatedStickerPrice
+        )
+      : null
+  const laminatedStickerQuotationResult =
+    laminatedStickerQuantity !== null ? { quantity: laminatedStickerQuantity } : null
+
   const stickerQuotationSnapshot =
     stickerQuotationPackage && stickerQuotationResult
       ? {
@@ -339,7 +512,38 @@ export function OrderForm({
           unit: stickerUnit,
           ...stickerQuotationResult,
         }
-      : null
+      : laminatedStickerQuotationResult
+        ? {
+            package: selectedPackagePricingEntry?.packageName ?? null,
+            width: stickerWidthNum,
+            height: stickerHeightNum,
+            unit: stickerUnit,
+            ...laminatedStickerQuotationResult,
+          }
+        : null
+
+  const quotationResult = stickerQuotationResult ?? laminatedStickerQuotationResult
+
+  // Only sent when the requester can edit these fields, and only the ones actually
+  // changed — never overwrites createdAt with an empty/invalid value.
+  function buildAdminMetadataChanges(): Partial<OrderAdminEditableFields> {
+    if (!order || !canEditMetadata) return {}
+    const changes: Partial<OrderAdminEditableFields> = {}
+
+    const createdAtIso = fromDatetimeLocalValue(createdAtLocal)
+    if (createdAtIso && createdAtIso !== order.createdAt) changes.createdAt = createdAtIso
+
+    if (createdByValue !== (order.createdBy ?? "")) changes.createdBy = createdByValue || null
+
+    const statusUpdatedAtIso = fromDatetimeLocalValue(statusUpdatedAtLocal)
+    if (statusUpdatedAtIso !== order.statusUpdatedAt) changes.statusUpdatedAt = statusUpdatedAtIso
+
+    if (statusUpdatedByValue !== (order.statusUpdatedBy ?? "")) {
+      changes.statusUpdatedBy = statusUpdatedByValue || null
+    }
+
+    return changes
+  }
 
   function resolveShippingAddress() {
     if (!shippingEnabled) return null
@@ -406,7 +610,7 @@ export function OrderForm({
         nextErrors.product = "Select a product."
       } else if (selectedProduct.status !== "Active") {
         nextErrors.product = "This product is inactive and can't be used for new or updated orders."
-      } else if (!isManual) {
+      } else if (!isManual && !(selectedProduct.category === "Sintra Board" && isCustomSize)) {
         const missingRequired = selectedProduct.options.some(
           (option) => option.required && !optionValues[option.id]
         )
@@ -444,6 +648,7 @@ export function OrderForm({
           shippingAddress: resolveShippingAddress(),
           channel: channel as OrderChannel,
           payment: resolvePayment(total),
+          ...buildAdminMetadataChanges(),
         })
         toast.success("Order updated.")
         navigate(`/orders/${order.id}`)
@@ -499,6 +704,7 @@ export function OrderForm({
           shippingAddress: resolveShippingAddress(),
           channel: channel as OrderChannel,
           payment: resolvePayment(total),
+          ...buildAdminMetadataChanges(),
         })
         toast.success("Order updated.")
         navigate(`/orders/${order.id}`)
@@ -665,28 +871,59 @@ export function OrderForm({
 
               {selectedProduct && !isEditingMissingProduct && !isManual && (
                 <>
-                  <ProductOptionsFields
-                    product={selectedProduct}
-                    values={optionValues}
-                    onChange={(optionId, value) => {
-                      setOptionValues((prev) => ({ ...prev, [optionId]: value }))
-                      clearError("options")
-                    }}
-                  />
-                  <FieldError>{errors.options}</FieldError>
-                  <PricingFields
-                    resolution={resolution}
-                    packageEntryId={packageEntryId}
-                    onPackageEntryIdChange={handlePackageEntryIdChange}
-                    width={width}
-                    onWidthChange={handleWidthChange}
-                    height={height}
-                    onHeightChange={handleHeightChange}
-                    dimensionUnit={dimensionUnit}
-                    onDimensionUnitChange={handleDimensionUnitChange}
-                    quantity={quantity}
-                    onQuantityChange={handleQuantityChange}
-                  />
+                  {!(selectedProduct.category === "Sintra Board" && isCustomSize) && (
+                    <>
+                      <ProductOptionsFields
+                        product={selectedProduct}
+                        values={optionValues}
+                        onChange={(optionId, value) => {
+                          setOptionValues((prev) => ({ ...prev, [optionId]: value }))
+                          clearError("options")
+                        }}
+                        excludeOptionIds={packageOption ? [packageOption.id] : undefined}
+                      />
+                      <FieldError>{errors.options}</FieldError>
+                    </>
+                  )}
+                  {selectedProduct.category === "Sintra Board" && (
+                    <label className="flex items-center gap-2 text-sm font-medium">
+                      <Switch
+                        checked={isCustomSize}
+                        onCheckedChange={(checked) => handleCustomSizeToggle(!!checked)}
+                      />
+                      Custom size
+                    </label>
+                  )}
+                  {selectedProduct.category === "Sintra Board" && isCustomSize ? (
+                    <SintraBoardCustomFields
+                      width={customWidth}
+                      onWidthChange={handleCustomWidthChange}
+                      height={customHeight}
+                      onHeightChange={handleCustomHeightChange}
+                      thickness={customThickness}
+                      onThicknessChange={handleCustomThicknessChange}
+                      backToBack={customBackToBack}
+                      onBackToBackChange={handleCustomBackToBackChange}
+                      quantity={quantity}
+                      onQuantityChange={handleQuantityChange}
+                    />
+                  ) : (
+                    <PricingFields
+                      resolution={resolution}
+                      packageEntryId={packageEntryId}
+                      onPackageEntryIdChange={handlePackageEntryIdChange}
+                      width={width}
+                      onWidthChange={handleWidthChange}
+                      height={height}
+                      onHeightChange={handleHeightChange}
+                      dimensionUnit={dimensionUnit}
+                      onDimensionUnitChange={handleDimensionUnitChange}
+                      quantity={quantity}
+                      onQuantityChange={handleQuantityChange}
+                      hidePackageSelector={isCardSelectablePackage}
+                      hideQuantity={isCardSelectablePackage}
+                    />
+                  )}
                   <FieldError>{errors.pricing}</FieldError>
                 </>
               )}
@@ -700,6 +937,35 @@ export function OrderForm({
                   unit={stickerUnit}
                   onUnitChange={setStickerUnit}
                   selectedPackage={selectedStickerPackage}
+                  candidates={packageCandidates}
+                  onSelectPackage={(entryId) => {
+                    const entry = packageCandidates.find((candidate) => candidate.id === entryId)
+                    if (entry) handleSelectPackageOption(entry)
+                  }}
+                  selectable
+                  selectedEntryId={selectedPackagePricingEntry?.id ?? null}
+                  quantity={quantity}
+                  onQuantityChange={handleQuantityChange}
+                />
+              )}
+
+              {selectedProduct && !isEditingMissingProduct && isLaminatedSticker && (
+                <LaminatedStickerQuotationFields
+                  width={stickerWidth}
+                  onWidthChange={setStickerWidth}
+                  height={stickerHeight}
+                  onHeightChange={setStickerHeight}
+                  unit={stickerUnit}
+                  onUnitChange={setStickerUnit}
+                  candidates={packageCandidates}
+                  selectedEntryId={selectedPackagePricingEntry?.id ?? null}
+                  onSelectPackage={(entryId) => {
+                    const entry = packageCandidates.find((candidate) => candidate.id === entryId)
+                    if (entry) handleSelectPackageOption(entry)
+                  }}
+                  showAmount
+                  quantity={quantity}
+                  onQuantityChange={handleQuantityChange}
                 />
               )}
 
@@ -837,6 +1103,86 @@ export function OrderForm({
           </CardContent>
         </Card>
 
+        {canEditMetadata && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Order Metadata</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <FieldGroup>
+                <div className="grid grid-cols-2 gap-4">
+                  <Field>
+                    <FieldLabel htmlFor="order-created-at">Created Date</FieldLabel>
+                    <Input
+                      id="order-created-at"
+                      type="datetime-local"
+                      value={createdAtLocal}
+                      onChange={(event) => setCreatedAtLocal(event.target.value)}
+                    />
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor="order-created-by">Created By</FieldLabel>
+                    <Select
+                      value={createdByValue}
+                      onValueChange={(value) => setCreatedByValue(value as string)}
+                    >
+                      <SelectTrigger id="order-created-by" className="w-full">
+                        <SelectValue placeholder="Select a user">
+                          {(value: string | null) => {
+                            const match = userOptions.find((u) => u.id === value)
+                            return match ? `${match.firstName} ${match.lastName}` : "Select a user"
+                          }}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {userOptions.map((u) => (
+                          <SelectItem key={u.id} value={u.id}>
+                            {u.firstName} {u.lastName}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <Field>
+                    <FieldLabel htmlFor="order-status-updated-at">Status Updated Date</FieldLabel>
+                    <Input
+                      id="order-status-updated-at"
+                      type="datetime-local"
+                      value={statusUpdatedAtLocal}
+                      onChange={(event) => setStatusUpdatedAtLocal(event.target.value)}
+                    />
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor="order-status-updated-by">Status Updated By</FieldLabel>
+                    <Select
+                      value={statusUpdatedByValue}
+                      onValueChange={(value) => setStatusUpdatedByValue(value as string)}
+                    >
+                      <SelectTrigger id="order-status-updated-by" className="w-full">
+                        <SelectValue placeholder="Select a user">
+                          {(value: string | null) => {
+                            const match = userOptions.find((u) => u.id === value)
+                            return match ? `${match.firstName} ${match.lastName}` : "Select a user"
+                          }}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {userOptions.map((u) => (
+                          <SelectItem key={u.id} value={u.id}>
+                            {u.firstName} {u.lastName}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                </div>
+              </FieldGroup>
+            </CardContent>
+          </Card>
+        )}
+
         <div className="flex justify-end gap-2">
           <Button type="button" variant="outline" onClick={() => navigate(-1)}>
             Cancel
@@ -858,7 +1204,7 @@ export function OrderForm({
           additionalFees={additionalFeesNum}
           layoutFee={layoutFeeNum}
           shippingFee={shippingFeeNum}
-          stickerQuotationResult={isEditingMissingProduct ? null : stickerQuotationResult}
+          stickerQuotationResult={isEditingMissingProduct ? null : quotationResult}
         />
       </div>
     </form>

@@ -2,6 +2,7 @@ import { ChevronsUpDownIcon, LogOutIcon, UserIcon } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Badge } from "@/components/ui/badge"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,6 +27,12 @@ const ROLE_LABELS: Record<string, string> = {
   superadmin: "Super Admin",
 }
 
+const ROLE_VARIANTS: Record<string, "default" | "info" | "secondary"> = {
+  superadmin: "default",
+  admin: "info",
+  staff: "secondary",
+}
+
 export function NavUser() {
   const { isMobile } = useSidebar()
   const { user, logout } = useAuth()
@@ -41,6 +48,7 @@ export function NavUser() {
     ? `${user.firstName[0] ?? ""}${user.lastName[0] ?? ""}`.toUpperCase() || "?"
     : "?"
   const roleLabel = user ? (ROLE_LABELS[user.role] ?? user.role) : ""
+  const roleVariant = user ? (ROLE_VARIANTS[user.role] ?? "secondary") : "secondary"
 
   return (
     <SidebarMenu>
@@ -55,7 +63,9 @@ export function NavUser() {
             </Avatar>
             <div className="grid flex-1 text-left text-sm leading-tight">
               <span className="truncate font-medium">{displayName}</span>
-              <span className="truncate text-xs">{roleLabel}</span>
+              <Badge variant={roleVariant} className="w-fit">
+                {roleLabel}
+              </Badge>
             </div>
             <ChevronsUpDownIcon className="ml-auto size-4" />
           </DropdownMenuTrigger>
@@ -74,7 +84,9 @@ export function NavUser() {
                   </Avatar>
                   <div className="grid flex-1 text-left text-sm leading-tight">
                     <span className="truncate font-medium">{displayName}</span>
-                    <span className="truncate text-xs">{roleLabel}</span>
+                    <Badge variant={roleVariant} className="w-fit">
+                {roleLabel}
+              </Badge>
                   </div>
                 </div>
               </DropdownMenuLabel>

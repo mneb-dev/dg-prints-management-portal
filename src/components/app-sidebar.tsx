@@ -11,6 +11,7 @@ import { NavLink, useLocation } from "react-router-dom"
 import dgPrintsLogo from "@/assets/images/dg_prints_logo.jpg"
 import { NavUser } from "@/components/nav-user"
 import { useAuth } from "@/lib/auth"
+import { cn } from "@/lib/utils"
 import {
   Sidebar,
   SidebarContent,
@@ -23,6 +24,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
+  SidebarSeparator,
 } from "@/components/ui/sidebar"
 
 const navItems = [
@@ -58,30 +60,38 @@ export function AppSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
+      <SidebarSeparator />
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupLabel>Platform</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {visibleNavItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton
-                    tooltip={item.title}
-                    isActive={
-                      location.pathname === item.url ||
-                      location.pathname.startsWith(`${item.url}/`)
-                    }
-                    render={<NavLink to={item.url} />}
-                  >
-                    <item.icon />
-                    <span>{item.title}</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+              {visibleNavItems.map((item) => {
+                const isActive =
+                  location.pathname === item.url ||
+                  location.pathname.startsWith(`${item.url}/`)
+                return (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton
+                      tooltip={item.title}
+                      isActive={isActive}
+                      className={cn(
+                        isActive &&
+                          "relative after:absolute after:inset-y-1.5 after:left-0 after:w-0.5 after:rounded-full after:bg-primary"
+                      )}
+                      render={<NavLink to={item.url} />}
+                    >
+                      <item.icon />
+                      <span>{item.title}</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )
+              })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+      <SidebarSeparator />
       <SidebarFooter>
         <NavUser />
       </SidebarFooter>

@@ -2,6 +2,7 @@ import { useState } from "react"
 import {
   ArrowLeftIcon,
   CheckCircle2Icon,
+  CopyIcon,
   FileWarningIcon,
   Loader2Icon,
   PencilIcon,
@@ -17,7 +18,7 @@ import { ORDER_STATUS_LABELS, OrderStatusBadge } from "@/components/orders/order
 import { PaymentStatusBadge } from "@/components/orders/payment-status-badge"
 import { RefundOrderDialog } from "@/components/orders/refund-order-dialog"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Empty,
   EmptyDescription,
@@ -35,6 +36,9 @@ import {
 } from "@/components/ui/select"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useAuth } from "@/lib/auth"
+import { copyToClipboard } from "@/lib/clipboard"
+import { formatOrderSummaryText } from "@/lib/quote-text"
+import { scaleQuotation } from "@/lib/sticker-quotation"
 import {
   ORDER_STATUSES,
   canReleaseOrder,
@@ -102,6 +106,8 @@ export function OrderDetailsPage() {
   }
 
   const item = order.items[0]
+  const totalQuotation =
+    item && item.stickerQuotation ? scaleQuotation(item.stickerQuotation, item.quantity) : null
   const statusOptions = item ? getStatusFlowForCategory(item.productCategory) : ORDER_STATUSES
   const isReleaseLocked = isReleaseLockedForRole(order.status, role)
   const canCancel = !isTerminalStatus(order.status) && !isReleaseLocked
@@ -109,6 +115,55 @@ export function OrderDetailsPage() {
   const canRelease = canReleaseOrder(order.status, order.payment.status)
   const canEditOrder = !isReleaseLocked
   const displayStatus = optimisticStatus ?? order.status
+
+  function handleCopySummary() {
+    if (!item || !order) return
+
+    const infoLines = [item.productName]
+
+    for (const option of item.selectedOptions) {
+      infoLines.push(`${option.optionName}: ${option.value}`)
+    }
+
+    if (item.pricing.pricingType === "Package") {
+      infoLines.push(`Package: ${item.pricing.packageName}`)
+      if (item.pricing.size) {
+        infoLines.push(
+          `Size: ${item.pricing.size.width} × ${item.pricing.size.height} ${item.pricing.size.unit}`
+        )
+      }
+    }
+    if (item.pricing.pricingType === "Per Unit" && item.pricing.width && item.pricing.height) {
+      infoLines.push(`Size: ${item.pricing.width} × ${item.pricing.height} ft`)
+    }
+    if (item.pricing.pricingType === "Custom") {
+      infoLines.push(`Custom Size: ${item.pricing.packageName}`)
+      infoLines.push(`Size: ${item.pricing.width} × ${item.pricing.height} in`)
+    }
+
+    infoLines.push(`Quantity: ${item.quantity}`)
+
+    if (totalQuotation) {
+      infoLines.push(
+        `${item.productCategory} Quotation: ${totalQuotation.quantity} pcs` +
+          (totalQuotation.free ? ` + ${totalQuotation.free} pcs free` : "")
+      )
+    }
+
+    if (item.notes) infoLines.push(`Notes: ${item.notes}`)
+
+    copyToClipboard(
+      formatOrderSummaryText({
+        infoLines,
+        subtotal: order.subtotal,
+        additionalFees: order.additionalFees,
+        layoutFee: order.layoutFee,
+        shippingFee: order.shippingAddress?.fee ?? 0,
+        discount: order.discount,
+        total: order.total,
+      })
+    )
+  }
 
   async function handleStatusChange(value: string | null) {
     if (!order || !value || value === order.status) return
@@ -256,16 +311,32 @@ export function OrderDetailsPage() {
               </div>
             )}
 
+            {item.pricing.pricingType === "Custom" && (
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Custom Size</span>
+                <span>{item.pricing.packageName}</span>
+              </div>
+            )}
+            {item.pricing.pricingType === "Custom" && (
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Size</span>
+                <span>
+                  {item.pricing.width} × {item.pricing.height} in
+                </span>
+              </div>
+            )}
+
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">Quantity</span>
               <span>{item.quantity}</span>
             </div>
 
-            {item.stickerQuotation && (
+            {totalQuotation && (
               <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Sticker Quotation</span>
+                <span className="text-muted-foreground">{item.productCategory} Quotation</span>
                 <span>
-                  {item.stickerQuotation.quantity} pcs + {item.stickerQuotation.free} pcs free
+                  {totalQuotation.quantity} pcs
+                  {totalQuotation.free ? ` + ${totalQuotation.free} pcs free` : ""}
                 </span>
               </div>
             )}
@@ -311,6 +382,19 @@ export function OrderDetailsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Pricing</CardTitle>
+          {item && (
+            <CardAction>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                onClick={handleCopySummary}
+                aria-label="Copy order summary"
+              >
+                <CopyIcon />
+              </Button>
+            </CardAction>
+          )}
         </CardHeader>
         <CardContent className="flex flex-col gap-2">
           <div className="flex items-center justify-between text-sm">

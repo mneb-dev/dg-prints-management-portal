@@ -9,7 +9,13 @@ import {
   setOrdersParams,
   updateOrderThunk,
 } from "@/lib/orders-slice"
-import type { Order, OrderInput, OrderStatus, OrdersQueryParams } from "@/lib/orders-slice"
+import type {
+  Order,
+  OrderInput,
+  OrderStatus,
+  OrdersQueryParams,
+  OrderUpdateInput,
+} from "@/lib/orders-slice"
 
 export {
   ORDER_CHANNELS,
@@ -19,6 +25,7 @@ export {
 } from "@/lib/orders-slice"
 export {
   ORDER_TERMINAL_STATUSES,
+  canEditOrderMetadata,
   canReleaseOrder,
   canRefundOrder,
   getStatusFlowForCategory,
@@ -27,12 +34,14 @@ export {
 } from "@/lib/order-status"
 export type {
   Order,
+  OrderAdminEditableFields,
   OrderChannel,
   OrderInput,
   OrderItem,
   OrderItemPricing,
   OrderStatus,
   OrdersQueryParams,
+  OrderUpdateInput,
   Payment,
   PaymentMethod,
   PaymentStatus,
@@ -114,7 +123,7 @@ export function useOrderActions() {
     return await dispatch(createOrderThunk(input)).unwrap()
   }
 
-  async function updateOrder(id: string, changes: Partial<OrderInput>): Promise<Order> {
+  async function updateOrder(id: string, changes: OrderUpdateInput): Promise<Order> {
     return await dispatch(updateOrderThunk({ id, changes })).unwrap()
   }
 

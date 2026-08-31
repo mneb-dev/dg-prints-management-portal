@@ -6,6 +6,7 @@ import type { RootState } from "@/lib/store"
 
 export const PRODUCT_CATEGORIES = [
   "Sticker Label",
+  "Laminated Sticker",
   "Tarpaulin",
   "Sintra Board",
   "General Merchandise",

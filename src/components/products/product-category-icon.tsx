@@ -1,6 +1,7 @@
 import {
   BoxIcon,
   FlagIcon,
+  LayersIcon,
   LayoutPanelLeftIcon,
   PackageIcon,
   StickerIcon,
@@ -12,6 +13,7 @@ import type { ProductCategory } from "@/lib/products"
 
 const CATEGORY_ICONS: Record<ProductCategory, LucideIcon> = {
   "Sticker Label": StickerIcon,
+  "Laminated Sticker": LayersIcon,
   Tarpaulin: FlagIcon,
   "Sintra Board": LayoutPanelLeftIcon,
   "General Merchandise": PackageIcon,
@@ -20,6 +22,7 @@ const CATEGORY_ICONS: Record<ProductCategory, LucideIcon> = {
 
 const CATEGORY_TONES: Record<ProductCategory, string> = {
   "Sticker Label": "bg-status-progress/10 text-status-progress",
+  "Laminated Sticker": "bg-status-warning/10 text-status-warning",
   Tarpaulin: "bg-status-info/10 text-status-info",
   "Sintra Board": "bg-status-ready/10 text-status-ready",
   "General Merchandise": "bg-muted text-muted-foreground",

@@ -1,3 +1,5 @@
+import type { PricingEntry } from "@/lib/products"
+
 export const STICKER_UNITS = ["in","cm", "mm", ] as const
 export type StickerUnit = (typeof STICKER_UNITS)[number]
 
@@ -21,7 +23,49 @@ export function nearestPackageTier(price: number): keyof StickerQuotation {
   ).key
 }
 
-function convertToInches(value: number, unit: StickerUnit): number {
+export function nearestCandidateForTier(
+  tierPrice: number,
+  candidates: PricingEntry[]
+): PricingEntry | null {
+  if (candidates.length === 0) return null
+  return candidates.reduce((closest, candidate) =>
+    Math.abs(candidate.price - tierPrice) < Math.abs(closest.price - tierPrice) ? candidate : closest
+  )
+}
+
+const FREE_RATE_BY_TIER: Record<keyof StickerQuotation, number> = {
+  package300: 0.085,
+  package500: 0.1,
+  package1000: 0.25,
+}
+
+/** Scales a per-package pcs/free result up by order quantity — e.g. 100 pcs + 5 pcs free × 5 = 500 + 25. */
+export function scaleQuotation<T extends { quantity: number; free?: number }>(
+  result: T,
+  multiplier: number
+): T {
+  return {
+    ...result,
+    quantity: result.quantity * multiplier,
+    free: result.free !== undefined ? result.free * multiplier : result.free,
+  }
+}
+
+export function calculateStickerPackageResult(
+  width: number,
+  height: number,
+  unit: StickerUnit,
+  price: number
+): StickerPackageResult {
+  let area = convertToInches(width, unit) * convertToInches(height, unit)
+  if (area < 1) area = 1
+
+  const quantity = roundDownToFive((4 * price) / area)
+  const freeRate = FREE_RATE_BY_TIER[nearestPackageTier(price)]
+  return { quantity, free: roundDownToFive(quantity * freeRate) }
+}
+
+export function convertToInches(value: number, unit: StickerUnit): number {
   if (unit === "cm") return value / 2.54
   if (unit === "mm") return value / 25.4
   return value

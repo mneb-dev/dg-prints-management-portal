@@ -1,4 +1,4 @@
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 
 import { useAppDispatch, useAppSelector } from "@/lib/hooks"
 import {
@@ -8,7 +8,7 @@ import {
   setUsersParams,
   updateUserThunk,
 } from "@/lib/users-slice"
-import type { UserInput, UsersQueryParams } from "@/lib/users-slice"
+import type { User, UserInput, UsersQueryParams } from "@/lib/users-slice"
 
 export {
   PERMISSION_KEYS,
@@ -56,6 +56,39 @@ export function useUsers() {
     isError: status === "failed",
     error,
   }
+}
+
+/**
+ * Full-ish user list for pickers (e.g. the order admin "Created by"/"Status updated by" fields) —
+ * independent of the Users list page's paginated `params` state, so it won't clobber that page's
+ * pagination when both are used in the same session.
+ */
+export function useUserOptions(enabled = true) {
+  const dispatch = useAppDispatch()
+  const [users, setUsers] = useState<User[]>([])
+  const [isLoading, setIsLoading] = useState(enabled)
+
+  useEffect(() => {
+    if (!enabled) return
+    let cancelled = false
+    setIsLoading(true)
+    dispatch(
+      fetchUsersThunk({ page: 1, pageSize: 50, search: "", role: "", sortBy: "username", sortDir: "asc" })
+    )
+      .unwrap()
+      .then((result) => {
+        if (!cancelled) setUsers(result.items)
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setIsLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [dispatch, enabled])
+
+  return { users, isLoading }
 }
 
 /** User create/update/delete only — no list fetch. For dialogs and the Users page's delete action. */

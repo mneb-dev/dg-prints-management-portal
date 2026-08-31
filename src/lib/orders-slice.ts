@@ -4,7 +4,7 @@ import { apiClient } from "@/lib/api-client"
 import { getErrorMessage } from "@/lib/api-error"
 import type { PricingUnit, ProductCategory } from "@/lib/products"
 import type { RootState } from "@/lib/store"
-import type { StickerQuotation, StickerUnit } from "@/lib/sticker-quotation"
+import type { StickerUnit } from "@/lib/sticker-quotation"
 
 export const ORDER_STATUSES = [
   "pending",
@@ -63,6 +63,19 @@ export type OrderItemPricing =
       productName: string
       unitPrice: number
     }
+  | {
+      // Sintra Board "Custom size" mode — a form-level override that bypasses the
+      // product's configured pricing entirely. thickness/back-to-back aren't stored
+      // structurally (the backend whitelists a fixed set of pricing keys); they're
+      // folded into `packageName` as a human-readable description instead — see
+      // describeSintraCustom/parseSintraCustomDescription in sintra-board-pricing.ts.
+      pricingType: "Custom"
+      unitPrice: number
+      unit: "in"
+      width: number
+      height: number
+      packageName: string
+    }
 
 export type OrderItem = {
   id: string
@@ -75,12 +88,12 @@ export type OrderItem = {
   pricing: OrderItemPricing
   lineTotal: number
   stickerQuotation: {
-    package: keyof StickerQuotation
+    package: string | null
     width: number
     height: number
     unit: StickerUnit
     quantity: number
-    free: number
+    free?: number
   } | null
 }
 
@@ -145,6 +158,16 @@ export type OrderInput = Omit<
   | "statusUpdatedByName"
   | "statusUpdatedAt"
 >
+
+// Fields only an admin/superadmin may include when updating an order (enforced
+// server-side) — never sent on create, and never includes the *Name fields since
+// those are always resolved live from the users list, never stored as a snapshot.
+export type OrderAdminEditableFields = Pick<
+  Order,
+  "createdAt" | "createdBy" | "statusUpdatedAt" | "statusUpdatedBy"
+>
+
+export type OrderUpdateInput = Partial<OrderInput> & Partial<OrderAdminEditableFields>
 
 function normalizeOrder(order: Order): Order {
   return {
@@ -250,7 +273,7 @@ export const createOrderThunk = createAsyncThunk<Order, OrderInput, { rejectValu
 
 export const updateOrderThunk = createAsyncThunk<
   Order,
-  { id: string; changes: Partial<OrderInput> },
+  { id: string; changes: OrderUpdateInput },
   { rejectValue: string }
 >("orders/update", async ({ id, changes }, { rejectWithValue }) => {
   try {
@@ -350,8 +373,13 @@ const ordersSlice = createSlice({
         state.current = normalizeOrder(action.payload)
       })
       .addCase(updateOrderThunk.fulfilled, (state, action: PayloadAction<Order>) => {
+        const normalized = normalizeOrder(action.payload)
         if (state.current?.id === action.payload.id) {
-          state.current = normalizeOrder(action.payload)
+          state.current = normalized
+        }
+        const idx = state.items.findIndex((order) => order.id === action.payload.id)
+        if (idx !== -1) {
+          state.items[idx] = normalized
         }
       })
       .addCase(deleteOrderThunk.fulfilled, (state, action: PayloadAction<string>) => {

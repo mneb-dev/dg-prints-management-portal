@@ -12,16 +12,22 @@ export function ProductOptionsFields({
   product,
   values,
   onChange,
+  excludeOptionIds,
 }: {
   product: Product
   values: Record<string, string>
   onChange: (optionId: string, value: string) => void
+  excludeOptionIds?: string[]
 }) {
-  if (product.options.length === 0) return null
+  const options = excludeOptionIds
+    ? product.options.filter((option) => !excludeOptionIds.includes(option.id))
+    : product.options
+
+  if (options.length === 0) return null
 
   return (
     <>
-      {product.options.map((option) => (
+      {options.map((option) => (
         <Field key={option.id}>
           <FieldLabel htmlFor={`order-option-${option.id}`}>
             {option.name}
