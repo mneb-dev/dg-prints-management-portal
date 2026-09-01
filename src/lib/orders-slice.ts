@@ -217,6 +217,22 @@ export type OrdersListResponse = {
   pageSize: number
 }
 
+// One customer aggregated server-side over the ranking window (see CUSTOMER_RANKING_WINDOW_DAYS
+// on the server) — powers the order form's customer combobox suggestions, top-5 badge, and
+// auto-fill of Phone + shipping fields from the customer's most recent order.
+export type CustomerRanking = {
+  customerName: string
+  customerPhone: string
+  shippingAddress: ShippingAddress | null
+  totalSpent: number
+  orderCount: number
+}
+
+type CustomerRankingResponse = {
+  customers: CustomerRanking[]
+  windowDays: number
+}
+
 export const fetchOrdersThunk = createAsyncThunk<
   OrdersListResponse,
   OrdersQueryParams,
@@ -252,6 +268,66 @@ export const fetchOrderByIdThunk = createAsyncThunk<Order, string, { rejectValue
     } catch (err) {
       return rejectWithValue(getErrorMessage(err))
     }
+  }
+)
+
+const HOT_PRODUCT_TOP_N = 5
+const HOT_PRODUCT_MIN_ORDER_COUNT = 2
+
+// Ranks products by how many of the latest 100 orders they appear in (breadth of demand,
+// not summed quantity, so one bulk order doesn't outrank genuinely repeat-ordered products).
+function computeHotProductIds(orders: Order[]): string[] {
+  const counts = new Map<string, number>()
+  for (const order of orders) {
+    for (const item of order.items) {
+      if (!item.productId) continue
+      counts.set(item.productId, (counts.get(item.productId) ?? 0) + 1)
+    }
+  }
+  return [...counts.entries()]
+    .filter(([, count]) => count >= HOT_PRODUCT_MIN_ORDER_COUNT)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, HOT_PRODUCT_TOP_N)
+    .map(([productId]) => productId)
+}
+
+export const fetchRecentOrdersForRankingThunk = createAsyncThunk<
+  Order[],
+  void,
+  { rejectValue: string; state: RootState }
+>(
+  "orders/fetchRecentForRanking",
+  async (_arg, { rejectWithValue }) => {
+    try {
+      const { data } = await apiClient.get<OrdersListResponse>("/orders", {
+        params: { limit: 100, sortBy: "created_at", sortDir: "desc" },
+      })
+      return data.items
+    } catch (err) {
+      return rejectWithValue(getErrorMessage(err))
+    }
+  },
+  {
+    condition: (_arg, { getState }) => getState().orders.rankingStatus === "idle",
+  }
+)
+
+export const fetchTopCustomersThunk = createAsyncThunk<
+  CustomerRanking[],
+  void,
+  { rejectValue: string; state: RootState }
+>(
+  "orders/fetchTopCustomers",
+  async (_arg, { rejectWithValue }) => {
+    try {
+      const { data } = await apiClient.get<CustomerRankingResponse>("/orders/customers/top")
+      return data.customers
+    } catch (err) {
+      return rejectWithValue(getErrorMessage(err))
+    }
+  },
+  {
+    condition: (_arg, { getState }) => getState().orders.customerRankingStatus === "idle",
   }
 )
 
@@ -306,6 +382,12 @@ type OrdersState = {
   current: Order | null
   currentStatus: "idle" | "loading" | "succeeded" | "failed"
   currentError: string | null
+  hotProductIds: string[]
+  rankingStatus: "idle" | "loading" | "succeeded" | "failed"
+  rankingError: string | null
+  customerRankings: CustomerRanking[]
+  customerRankingStatus: "idle" | "loading" | "succeeded" | "failed"
+  customerRankingError: string | null
 }
 
 const initialState: OrdersState = {
@@ -329,6 +411,12 @@ const initialState: OrdersState = {
   current: null,
   currentStatus: "idle",
   currentError: null,
+  hotProductIds: [],
+  rankingStatus: "idle",
+  rankingError: null,
+  customerRankings: [],
+  customerRankingStatus: "idle",
+  customerRankingError: null,
 }
 
 const ordersSlice = createSlice({
@@ -386,6 +474,30 @@ const ordersSlice = createSlice({
         if (state.current?.id === action.payload) {
           state.current = null
         }
+      })
+      .addCase(fetchRecentOrdersForRankingThunk.pending, (state) => {
+        state.rankingStatus = "loading"
+        state.rankingError = null
+      })
+      .addCase(fetchRecentOrdersForRankingThunk.fulfilled, (state, action: PayloadAction<Order[]>) => {
+        state.rankingStatus = "succeeded"
+        state.hotProductIds = computeHotProductIds(action.payload)
+      })
+      .addCase(fetchRecentOrdersForRankingThunk.rejected, (state, action) => {
+        state.rankingStatus = "failed"
+        state.rankingError = action.payload ?? "Failed to load product rankings."
+      })
+      .addCase(fetchTopCustomersThunk.pending, (state) => {
+        state.customerRankingStatus = "loading"
+        state.customerRankingError = null
+      })
+      .addCase(fetchTopCustomersThunk.fulfilled, (state, action: PayloadAction<CustomerRanking[]>) => {
+        state.customerRankingStatus = "succeeded"
+        state.customerRankings = action.payload
+      })
+      .addCase(fetchTopCustomersThunk.rejected, (state, action) => {
+        state.customerRankingStatus = "failed"
+        state.customerRankingError = action.payload ?? "Failed to load customer rankings."
       })
   },
 })

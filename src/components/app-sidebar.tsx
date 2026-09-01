@@ -53,7 +53,7 @@ export function AppSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
                   className="size-full object-cover object-top"
                 />
               </div>
-              <div className="grid flex-1 text-left text-sm leading-tight">
+              <div className="grid flex-1 text-left text-sm leading-tight group-data-[collapsible=icon]:hidden">
                 <span className="truncate font-medium">DG Prints</span>
               </div>
             </SidebarMenuButton>
@@ -77,7 +77,7 @@ export function AppSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
                       isActive={isActive}
                       className={cn(
                         isActive &&
-                          "relative after:absolute after:inset-y-1.5 after:left-0 after:w-0.5 after:rounded-full after:bg-primary"
+                          "relative after:absolute after:inset-y-1.5 after:left-0 after:w-0.5 after:rounded-full after:bg-primary after:transition-opacity after:duration-150"
                       )}
                       render={<NavLink to={item.url} />}
                     >

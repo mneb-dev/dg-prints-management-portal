@@ -88,7 +88,7 @@ export function ShippingAddressFields({
               value={samePhone ? customerPhone : phone}
               onChange={(event) => onPhoneChange(event.target.value)}
               disabled={samePhone}
-              placeholder="0917 000 0000"
+              placeholder="09XX XXX XXXX"
             />
           </Field>
 

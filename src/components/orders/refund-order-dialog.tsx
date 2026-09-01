@@ -11,6 +11,7 @@ import {
   AlertDialogMedia,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { Spinner } from "@/components/ui/spinner"
 import type { Order } from "@/lib/orders"
 
 export function RefundOrderDialog({
@@ -45,6 +46,7 @@ export function RefundOrderDialog({
             disabled={isPending}
             onClick={() => order && onConfirm(order)}
           >
+            {isPending && <Spinner data-icon="inline-start" />}
             {isPending ? "Refunding..." : "Refund Order"}
           </AlertDialogAction>
         </AlertDialogFooter>
