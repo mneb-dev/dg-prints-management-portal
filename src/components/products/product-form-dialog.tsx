@@ -71,6 +71,15 @@ function draftFromProduct(product: Product): ProductInput {
   }
 }
 
+/** True when a product's shape is exactly "no options, one price that applies to everything". */
+function isSinglePriceProduct(product: Product): boolean {
+  return (
+    product.options.length === 0 &&
+    product.pricing.length === 1 &&
+    product.pricing[0].appliesTo === ALL_VARIANTS
+  )
+}
+
 function OptionRow({
   option,
   onChange,
@@ -190,11 +199,23 @@ export function ProductFormDialog({
   const [descriptionError, setDescriptionError] = useState<string | null>(null)
   const [pricingDialogOpen, setPricingDialogOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isSinglePrice, setIsSinglePrice] = useState(true)
+  const [singlePrice, setSinglePrice] = useState("")
+  const [singlePriceError, setSinglePriceError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!open) return
     setDraft(product ? draftFromProduct(product) : emptyDraft())
     setNameError(null)
+    setDescriptionError(null)
+    if (product) {
+      setIsSinglePrice(isSinglePriceProduct(product))
+      setSinglePrice(isSinglePriceProduct(product) ? String(product.pricing[0].price) : "")
+    } else {
+      setIsSinglePrice(true)
+      setSinglePrice("")
+    }
+    setSinglePriceError(null)
   }, [open, product])
 
   const appliesToOptions = [
@@ -249,13 +270,37 @@ export function ProductFormDialog({
       return
     }
 
+    let payload = draft
+    if (isSinglePrice) {
+      const numericPrice = Number(singlePrice)
+      if (!Number.isFinite(numericPrice) || numericPrice < 0) {
+        setSinglePriceError("Enter a valid price.")
+        return
+      }
+      const existingEntry =
+        product && isSinglePriceProduct(product) ? product.pricing[0] : null
+      payload = {
+        ...draft,
+        options: [],
+        pricing: [
+          {
+            id: existingEntry?.id ?? generateId(),
+            appliesTo: ALL_VARIANTS,
+            pricingType: "Fixed",
+            price: numericPrice,
+            unit: "piece",
+          },
+        ],
+      }
+    }
+
     setIsSubmitting(true)
     try {
       if (product) {
-        await updateProduct(product.id, draft)
+        await updateProduct(product.id, payload)
         toast.success("Product updated.")
       } else {
-        await addProduct(draft)
+        await addProduct(payload)
         toast.success("Product created.")
       }
       onOpenChange(false)
@@ -376,94 +421,140 @@ export function ProductFormDialog({
           <Separator />
 
           <div className="flex flex-col gap-3">
-            <div>
-              <h3 className="text-sm font-medium">Product Options</h3>
-              <p className="text-sm text-muted-foreground">
-                Configure the options customers can select for this product.
-              </p>
-            </div>
+            <label className="flex items-center justify-between gap-2">
+              <span>
+                <span className="text-sm font-medium">Single price</span>
+                <p className="text-sm text-muted-foreground">
+                  This product has one price and no options or variants.
+                </p>
+              </span>
+              <Switch
+                checked={isSinglePrice}
+                onCheckedChange={(checked) => setIsSinglePrice(!!checked)}
+              />
+            </label>
 
-            <div className="flex flex-col gap-3">
-              {draft.options.map((option) => (
-                <OptionRow
-                  key={option.id}
-                  option={option}
-                  onChange={(next) => updateOption(option.id, next)}
-                  onRemove={() => removeOption(option.id)}
-                />
-              ))}
-            </div>
-
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="self-start"
-              onClick={addOption}
-            >
-              <PlusIcon data-icon="inline-start" />
-              Add Option
-            </Button>
-          </div>
-
-          <Separator />
-
-          <div className="flex flex-col gap-3">
-            <h3 className="text-sm font-medium">Pricing</h3>
-
-            {draft.pricing.length > 0 && (
-              <div className="rounded-lg border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Condition</TableHead>
-                      <TableHead>Pricing Type</TableHead>
-                      <TableHead>Package</TableHead>
-                      <TableHead>Price</TableHead>
-                      <TableHead className="text-right">
-                        <span className="sr-only">Remove</span>
-                      </TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {draft.pricing.map((entry) => (
-                      <TableRow key={entry.id}>
-                        <TableCell>{entry.appliesTo}</TableCell>
-                        <TableCell>{entry.pricingType}</TableCell>
-                        <TableCell>{entry.packageName ?? "—"}</TableCell>
-                        <TableCell>
-                          {formatCurrency(entry.price)}
-                          {entry.pricingType === "Per Unit" && ` / ${entry.unit}`}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon-sm"
-                            onClick={() => removePricingEntry(entry.id)}
-                          >
-                            <Trash2Icon />
-                            <span className="sr-only">Remove pricing row</span>
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+            {isSinglePrice && (
+              <Field data-invalid={!!singlePriceError}>
+                <FieldLabel htmlFor="product-single-price">Price</FieldLabel>
+                <div className="relative">
+                  <span className="pointer-events-none absolute inset-y-0 left-2.5 flex items-center text-sm text-muted-foreground">
+                    ₱
+                  </span>
+                  <Input
+                    id="product-single-price"
+                    className="pl-6"
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={singlePrice}
+                    onChange={(event) => {
+                      setSinglePrice(event.target.value)
+                      setSinglePriceError(null)
+                    }}
+                    aria-invalid={!!singlePriceError}
+                  />
+                </div>
+                <FieldError>{singlePriceError ?? undefined}</FieldError>
+              </Field>
             )}
-
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="self-start"
-              onClick={() => setPricingDialogOpen(true)}
-            >
-              <PlusIcon data-icon="inline-start" />
-              Add Pricing
-            </Button>
           </div>
+
+          {!isSinglePrice && (
+            <>
+              <Separator />
+
+              <div className="flex flex-col gap-3">
+                <div>
+                  <h3 className="text-sm font-medium">Product Options</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Configure the options customers can select for this product.
+                  </p>
+                </div>
+
+                <div className="flex flex-col gap-3">
+                  {draft.options.map((option) => (
+                    <OptionRow
+                      key={option.id}
+                      option={option}
+                      onChange={(next) => updateOption(option.id, next)}
+                      onRemove={() => removeOption(option.id)}
+                    />
+                  ))}
+                </div>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="self-start"
+                  onClick={addOption}
+                >
+                  <PlusIcon data-icon="inline-start" />
+                  Add Option
+                </Button>
+              </div>
+
+              <Separator />
+
+              <div className="flex flex-col gap-3">
+                <h3 className="text-sm font-medium">Pricing</h3>
+
+                {draft.pricing.length > 0 && (
+                  <div className="rounded-lg border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Condition</TableHead>
+                          <TableHead>Pricing Type</TableHead>
+                          <TableHead>Package</TableHead>
+                          <TableHead>Price</TableHead>
+                          <TableHead className="text-right">
+                            <span className="sr-only">Remove</span>
+                          </TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {draft.pricing.map((entry) => (
+                          <TableRow key={entry.id}>
+                            <TableCell>{entry.appliesTo}</TableCell>
+                            <TableCell>{entry.pricingType}</TableCell>
+                            <TableCell>{entry.packageName ?? "—"}</TableCell>
+                            <TableCell>
+                              {formatCurrency(entry.price)}
+                              {entry.pricingType === "Per Unit" && ` / ${entry.unit}`}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon-sm"
+                                onClick={() => removePricingEntry(entry.id)}
+                              >
+                                <Trash2Icon />
+                                <span className="sr-only">Remove pricing row</span>
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="self-start"
+                  onClick={() => setPricingDialogOpen(true)}
+                >
+                  <PlusIcon data-icon="inline-start" />
+                  Add Pricing
+                </Button>
+              </div>
+            </>
+          )}
         </form>
 
         <DialogFooter>
