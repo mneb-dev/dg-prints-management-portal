@@ -49,7 +49,7 @@ import {
   useOrder,
   useOrderActions,
 } from "@/lib/orders"
-import type { Order, OrderStatus } from "@/lib/orders"
+import type { Order, OrderItem, OrderStatus } from "@/lib/orders"
 import { formatCurrency, formatDate, formatRelativeDate } from "@/lib/utils"
 
 export function OrderDetailsPage() {
@@ -105,10 +105,9 @@ export function OrderDetailsPage() {
     )
   }
 
-  const item = order.items[0]
-  const totalQuotation =
-    item && item.stickerQuotation ? scaleQuotation(item.stickerQuotation, item.quantity) : null
-  const statusOptions = item ? getStatusFlowForCategory(item.productCategory) : ORDER_STATUSES
+  const items = order.items
+  const firstItem = items[0]
+  const statusOptions = firstItem ? getStatusFlowForCategory(firstItem.productCategory) : ORDER_STATUSES
   const isReleaseLocked = isReleaseLockedForRole(order.status, role)
   const canCancel = !isTerminalStatus(order.status) && !isReleaseLocked
   const canRefund = canRefundOrder(order.status, order.payment.status)
@@ -116,41 +115,70 @@ export function OrderDetailsPage() {
   const canEditOrder = !isReleaseLocked
   const displayStatus = optimisticStatus ?? order.status
 
-  function handleCopySummary() {
-    if (!item || !order) return
+  function itemQuotation(item: OrderItem) {
+    return item.stickerQuotation ? scaleQuotation(item.stickerQuotation, item.quantity) : null
+  }
 
-    const infoLines = [item.productName]
+  function itemPackageSize(item: OrderItem) {
+    if (item.pricing.pricingType !== "Package") return null
+    return item.pricing.size ?? item.stickerQuotation
+  }
+
+  function itemInfoLines(item: OrderItem): string[] {
+    const lines = [item.productName]
 
     for (const option of item.selectedOptions) {
-      infoLines.push(`${option.optionName}: ${option.value}`)
+      lines.push(`${option.optionName}: ${option.value}`)
     }
 
     if (item.pricing.pricingType === "Package") {
-      infoLines.push(`Package: ${item.pricing.packageName}`)
-      if (item.pricing.size) {
-        infoLines.push(
-          `Size: ${item.pricing.size.width} × ${item.pricing.size.height} ${item.pricing.size.unit}`
-        )
+      lines.push(`Package: ${item.pricing.packageName}`)
+      const packageSize = itemPackageSize(item)
+      if (packageSize) {
+        lines.push(`Size: ${packageSize.width} × ${packageSize.height} ${packageSize.unit}`)
       }
     }
     if (item.pricing.pricingType === "Per Unit" && item.pricing.width && item.pricing.height) {
-      infoLines.push(`Size: ${item.pricing.width} × ${item.pricing.height} ft`)
+      lines.push(`Size: ${item.pricing.width} × ${item.pricing.height} ft`)
     }
     if (item.pricing.pricingType === "Custom") {
-      infoLines.push(`Custom Size: ${item.pricing.packageName}`)
-      infoLines.push(`Size: ${item.pricing.width} × ${item.pricing.height} in`)
+      lines.push(`Custom Size: ${item.pricing.packageName}`)
+      lines.push(`Size: ${item.pricing.width} × ${item.pricing.height} in`)
     }
 
-    infoLines.push(`Quantity: ${item.quantity}`)
+    if (item.stickerQuotation) {
+      lines.push(
+        `Package Quotation: ${item.stickerQuotation.quantity} pcs` +
+          (item.stickerQuotation.free ? ` + ${item.stickerQuotation.free} pcs free` : "")
+      )
+    }
 
+    lines.push(`Quantity: ${item.quantity}`)
+
+    const totalQuotation = itemQuotation(item)
     if (totalQuotation) {
-      infoLines.push(
-        `${item.productCategory} Quotation: ${totalQuotation.quantity} pcs` +
+      lines.push(
+        `To be received: ${totalQuotation.quantity} pcs` +
           (totalQuotation.free ? ` + ${totalQuotation.free} pcs free` : "")
       )
     }
 
-    if (item.notes) infoLines.push(`Notes: ${item.notes}`)
+    lines.push(`Amount: ${formatCurrency(item.lineTotal)}`)
+
+    if (item.notes) lines.push(`Notes: ${item.notes}`)
+
+    return lines
+  }
+
+  function handleCopySummary() {
+    if (items.length === 0 || !order) return
+
+    const infoLines: string[] = []
+    items.forEach((item, index) => {
+      if (index > 0) infoLines.push("")
+      if (items.length > 1) infoLines.push(`Item ${index + 1}:`)
+      infoLines.push(...itemInfoLines(item))
+    })
 
     copyToClipboard(
       formatOrderSummaryText({
@@ -161,6 +189,7 @@ export function OrderDetailsPage() {
         shippingFee: order.shippingAddress?.fee ?? 0,
         discount: order.discount,
         total: order.total,
+        notes: order.notes,
       })
     )
   }
@@ -272,81 +301,110 @@ export function OrderDetailsPage() {
         </CardContent>
       </Card>
 
-      {item && (
+      {items.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle>Product</CardTitle>
           </CardHeader>
-          <CardContent className="flex flex-col gap-2">
-            <p className="font-medium">{item.productName}</p>
+          <CardContent className="flex flex-col gap-4">
+            {items.map((orderItem, index) => {
+              const totalQuotation = itemQuotation(orderItem)
+              const packageSize = itemPackageSize(orderItem)
+              return (
+                <div key={orderItem.id} className="flex flex-col gap-2">
+                  <p className="font-medium">
+                    {items.length > 1 ? `Item ${index + 1}: ${orderItem.productName}` : orderItem.productName}
+                  </p>
 
-            {item.selectedOptions.map((option) => (
-              <div key={option.optionId} className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">{option.optionName}</span>
-                <span>{option.value}</span>
-              </div>
-            ))}
+                  {orderItem.selectedOptions.map((option) => (
+                    <div key={option.optionId} className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">{option.optionName}</span>
+                      <span>{option.value}</span>
+                    </div>
+                  ))}
 
-            {item.pricing.pricingType === "Package" && (
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Package</span>
-                <span>{item.pricing.packageName}</span>
-              </div>
-            )}
+                  {orderItem.pricing.pricingType === "Package" && (
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">Package</span>
+                      <span>{orderItem.pricing.packageName}</span>
+                    </div>
+                  )}
 
-            {item.pricing.pricingType === "Package" && item.pricing.size && (
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Size</span>
-                <span>
-                  {item.pricing.size.width} × {item.pricing.size.height} {item.pricing.size.unit}
-                </span>
-              </div>
-            )}
-            {item.pricing.pricingType === "Per Unit" && item.pricing.width && item.pricing.height && (
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Size</span>
-                <span>
-                  {item.pricing.width} × {item.pricing.height} ft
-                </span>
-              </div>
-            )}
+                  {orderItem.pricing.pricingType === "Package" && packageSize && (
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">Size</span>
+                      <span>
+                        {packageSize.width} × {packageSize.height} {packageSize.unit}
+                      </span>
+                    </div>
+                  )}
+                  {orderItem.pricing.pricingType === "Per Unit" &&
+                    orderItem.pricing.width &&
+                    orderItem.pricing.height && (
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-muted-foreground">Size</span>
+                        <span>
+                          {orderItem.pricing.width} × {orderItem.pricing.height} ft
+                        </span>
+                      </div>
+                    )}
 
-            {item.pricing.pricingType === "Custom" && (
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Custom Size</span>
-                <span>{item.pricing.packageName}</span>
-              </div>
-            )}
-            {item.pricing.pricingType === "Custom" && (
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Size</span>
-                <span>
-                  {item.pricing.width} × {item.pricing.height} in
-                </span>
-              </div>
-            )}
+                  {orderItem.pricing.pricingType === "Custom" && (
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">Custom Size</span>
+                      <span>{orderItem.pricing.packageName}</span>
+                    </div>
+                  )}
+                  {orderItem.pricing.pricingType === "Custom" && (
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">Size</span>
+                      <span>
+                        {orderItem.pricing.width} × {orderItem.pricing.height} in
+                      </span>
+                    </div>
+                  )}
 
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Quantity</span>
-              <span>{item.quantity}</span>
-            </div>
+                  {orderItem.stickerQuotation && (
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">{orderItem.productCategory} Quotation</span>
+                      <span>
+                        {orderItem.stickerQuotation.quantity} pcs
+                        {orderItem.stickerQuotation.free ? ` + ${orderItem.stickerQuotation.free} pcs free` : ""}
+                      </span>
+                    </div>
+                  )}
 
-            {totalQuotation && (
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">{item.productCategory} Quotation</span>
-                <span>
-                  {totalQuotation.quantity} pcs
-                  {totalQuotation.free ? ` + ${totalQuotation.free} pcs free` : ""}
-                </span>
-              </div>
-            )}
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Quantity</span>
+                    <span>{orderItem.quantity}</span>
+                  </div>
 
-            {item.notes && (
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Notes</span>
-                <span>{item.notes}</span>
-              </div>
-            )}
+                  {totalQuotation && (
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">Total to received</span>
+                      <span>
+                        {totalQuotation.quantity} pcs
+                        {totalQuotation.free ? ` + ${totalQuotation.free} pcs free` : ""}
+                      </span>
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Amount</span>
+                    <span>{formatCurrency(orderItem.lineTotal)}</span>
+                  </div>
+
+                  {orderItem.notes && (
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">Notes</span>
+                      <span>{orderItem.notes}</span>
+                    </div>
+                  )}
+
+                  {index < items.length - 1 && <Separator />}
+                </div>
+              )
+            })}
           </CardContent>
         </Card>
       )}
@@ -382,7 +440,7 @@ export function OrderDetailsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Pricing</CardTitle>
-          {item && (
+          {items.length > 0 && (
             <CardAction>
               <Button
                 type="button"
@@ -403,7 +461,10 @@ export function OrderDetailsPage() {
           </div>
           <div className="flex items-center justify-between text-sm">
             <span className="text-muted-foreground">Additional Fees</span>
-            <span>{formatCurrency(order.additionalFees)}</span>
+            <span>
+              {formatCurrency(order.additionalFees)}
+              {order.notes.trim() && ` (${order.notes.trim()})`}
+            </span>
           </div>
           {order.layoutFee >= 1 && (
             <div className="flex items-center justify-between text-sm">

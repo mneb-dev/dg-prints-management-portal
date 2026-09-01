@@ -156,7 +156,7 @@ export function StickerQuotationFields({
       {quotation && (
         <>
           <div className="grid grid-cols-1 gap-2 @sm/field-group:grid-cols-3">
-            {PACKAGE_TIERS.map((tier) => {
+            {PACKAGE_TIERS.map((tier, index) => {
               const result = quotation[tier.key]
               const isSelected = selectedPackage === tier.key
               const matchedCandidate = nearestCandidateForTier(tier.price, candidates)
@@ -168,7 +168,9 @@ export function StickerQuotationFields({
                       <span className="sr-only">Selected</span>
                     </span>
                   )}
-                  <span className="text-sm font-medium">{formatCurrency(tier.price)} package</span>
+                  <span className="text-sm font-medium">
+                    Package {index +1 } — {formatCurrency(tier.price)}
+                  </span>
                   <span className="text-sm text-muted-foreground">
                     {result.quantity} pcs + {result.free} pcs free
                   </span>

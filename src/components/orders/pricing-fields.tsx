@@ -11,8 +11,7 @@ import { LENGTH_UNITS, type LengthUnit } from "@/lib/length-units"
 import type { PricingResolution } from "@/lib/pricing-resolver"
 import { formatCurrency } from "@/lib/utils"
 
-const SIZE_UNITS = ["in", "cm"] as const
-export type SizeUnit = (typeof SIZE_UNITS)[number]
+export type { SizeUnit } from "@/lib/order-line-item"
 
 export function PricingFields({
   resolution,
@@ -28,6 +27,7 @@ export function PricingFields({
   onQuantityChange,
   hidePackageSelector = false,
   hideQuantity = false,
+  idPrefix = "",
 }: {
   resolution: PricingResolution
   packageEntryId: string
@@ -42,6 +42,7 @@ export function PricingFields({
   onQuantityChange: (value: string) => void
   hidePackageSelector?: boolean
   hideQuantity?: boolean
+  idPrefix?: string
 }) {
   if (resolution.kind === "none") {
     return (
@@ -57,9 +58,9 @@ export function PricingFields({
     <>
       {!hidePackageSelector && resolution.kind === "package" && (
         <Field>
-          <FieldLabel htmlFor="order-package">Package</FieldLabel>
+          <FieldLabel htmlFor={`${idPrefix}order-package`}>Package</FieldLabel>
           <Select value={packageEntryId} onValueChange={(value) => onPackageEntryIdChange(value as string)}>
-            <SelectTrigger id="order-package" className="w-full">
+            <SelectTrigger id={`${idPrefix}order-package`} className="w-full">
               <SelectValue placeholder="Select a package">
                 {(value: string | null) => {
                   const entry = resolution.candidates.find((candidate) => candidate.id === value)
@@ -87,9 +88,9 @@ export function PricingFields({
       {showsDimensions && (
         <div className="grid grid-cols-3 gap-4">
           <Field>
-            <FieldLabel htmlFor="order-width">Width</FieldLabel>
+            <FieldLabel htmlFor={`${idPrefix}order-width`}>Width</FieldLabel>
             <Input
-              id="order-width"
+              id={`${idPrefix}order-width`}
               type="number"
               min={0}
               step="0.01"
@@ -98,9 +99,9 @@ export function PricingFields({
             />
           </Field>
           <Field>
-            <FieldLabel htmlFor="order-height">Height</FieldLabel>
+            <FieldLabel htmlFor={`${idPrefix}order-height`}>Height</FieldLabel>
             <Input
-              id="order-height"
+              id={`${idPrefix}order-height`}
               type="number"
               min={0}
               step="0.01"
@@ -109,12 +110,12 @@ export function PricingFields({
             />
           </Field>
           <Field>
-            <FieldLabel htmlFor="order-dimension-unit">Unit</FieldLabel>
+            <FieldLabel htmlFor={`${idPrefix}order-dimension-unit`}>Unit</FieldLabel>
             <Select
               value={dimensionUnit}
               onValueChange={(value) => onDimensionUnitChange(value as LengthUnit)}
             >
-              <SelectTrigger id="order-dimension-unit">
+              <SelectTrigger id={`${idPrefix}order-dimension-unit`}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -131,9 +132,9 @@ export function PricingFields({
 
       {!hideQuantity && (
         <Field>
-          <FieldLabel htmlFor="order-quantity">Quantity</FieldLabel>
+          <FieldLabel htmlFor={`${idPrefix}order-quantity`}>Quantity</FieldLabel>
           <Input
-            id="order-quantity"
+            id={`${idPrefix}order-quantity`}
             type="number"
             min={1}
             step="1"
