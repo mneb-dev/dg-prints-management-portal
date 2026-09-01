@@ -50,7 +50,7 @@ function itemInfoLines(item: LineItemSummary): string[] {
 
   if (item.stickerQuotation) {
     lines.push(
-      `Per Pkg Quote: ${item.stickerQuotation.quantity} pcs` +
+      `Base Quote: ${item.stickerQuotation.quantity} pcs` +
         (item.stickerQuotation.free ? ` + ${item.stickerQuotation.free} pcs free` : "")
     )
   }
