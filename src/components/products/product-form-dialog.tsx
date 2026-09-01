@@ -22,6 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
+import { Spinner } from "@/components/ui/spinner"
 import { Switch } from "@/components/ui/switch"
 import {
   Table,
@@ -299,7 +300,7 @@ export function ProductFormDialog({
                 <FieldError>{nameError ?? undefined}</FieldError>
               </Field>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <Field>
                   <FieldLabel htmlFor="product-category">Category</FieldLabel>
                   <Select
@@ -470,6 +471,7 @@ export function ProductFormDialog({
             Cancel
           </Button>
           <Button type="submit" form="product-form" disabled={isSubmitting}>
+            {isSubmitting && <Spinner data-icon="inline-start" />}
             {isSubmitting ? "Saving..." : "Save Product"}
           </Button>
         </DialogFooter>

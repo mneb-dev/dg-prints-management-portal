@@ -19,6 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Spinner } from "@/components/ui/spinner"
 import { Switch } from "@/components/ui/switch"
 import {
   PERMISSION_KEYS,
@@ -132,7 +133,7 @@ export function UserFormDialog({
 
         <form id="user-form" onSubmit={handleSubmit} className="flex flex-col gap-6">
           <FieldGroup>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Field data-invalid={!!fieldErrors.firstName}>
                 <FieldLabel htmlFor="user-first-name">First Name</FieldLabel>
                 <Input
@@ -240,6 +241,7 @@ export function UserFormDialog({
             Cancel
           </Button>
           <Button type="submit" form="user-form" disabled={isSubmitting}>
+            {isSubmitting && <Spinner data-icon="inline-start" />}
             {isSubmitting ? "Saving..." : "Save User"}
           </Button>
         </DialogFooter>

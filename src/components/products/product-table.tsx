@@ -19,6 +19,7 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
   Table,
   TableBody,
@@ -64,15 +65,45 @@ export function ProductTable({
 
   if (isLoading) {
     return (
-      <Empty className="border">
-        <EmptyHeader>
-          <EmptyMedia variant="icon">
-            <Loader2Icon className="animate-spin" />
-          </EmptyMedia>
-          <EmptyTitle>Loading products…</EmptyTitle>
-          <EmptyDescription>Fetching your product catalog.</EmptyDescription>
-        </EmptyHeader>
-      </Empty>
+      <div className="rounded-lg border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Product</TableHead>
+              <TableHead>Category</TableHead>
+              <TableHead>Pricing</TableHead>
+              <TableHead>Status</TableHead>
+              {!isStaff && <TableHead className="text-right">Actions</TableHead>}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {Array.from({ length: 10 }).map((_, index) => (
+              <TableRow key={index}>
+                <TableCell>
+                  <div className="flex items-center gap-3">
+                    <Skeleton className="size-5 rounded-full" />
+                    <Skeleton className="h-4 w-40" />
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <Skeleton className="h-4 w-20" />
+                </TableCell>
+                <TableCell>
+                  <Skeleton className="h-4 w-28" />
+                </TableCell>
+                <TableCell>
+                  <Skeleton className="h-5 w-16 rounded-full" />
+                </TableCell>
+                {!isStaff && (
+                  <TableCell className="text-right">
+                    <Skeleton className="ml-auto h-7 w-16" />
+                  </TableCell>
+                )}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
     )
   }
 

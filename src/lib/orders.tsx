@@ -1,4 +1,4 @@
-import { useEffect } from "react"
+import { useEffect, useMemo } from "react"
 
 import { useAppDispatch, useAppSelector } from "@/lib/hooks"
 import {
@@ -6,6 +6,8 @@ import {
   deleteOrderThunk,
   fetchOrderByIdThunk,
   fetchOrdersThunk,
+  fetchRecentOrdersForRankingThunk,
+  fetchTopCustomersThunk,
   setOrdersParams,
   updateOrderThunk,
 } from "@/lib/orders-slice"
@@ -33,6 +35,7 @@ export {
   isTerminalStatus,
 } from "@/lib/order-status"
 export type {
+  CustomerRanking,
   Order,
   OrderAdminEditableFields,
   OrderChannel,
@@ -93,6 +96,49 @@ export function useOrders() {
     isFetching: status === "loading" && orders.length > 0,
     isError: status === "failed",
     error,
+  }
+}
+
+/** Top "hot" product ids from the latest 100 orders, fetched once per session — for the order-form product picker's hot badge. */
+export function useHotProductIds() {
+  const hotProductIds = useAppSelector((state) => state.orders.hotProductIds)
+  const status = useAppSelector((state) => state.orders.rankingStatus)
+  const dispatch = useAppDispatch()
+
+  useEffect(() => {
+    dispatch(fetchRecentOrdersForRankingThunk())
+  }, [dispatch])
+
+  return { hotProductIds, isLoading: status === "loading" || status === "idle" }
+}
+
+/** Customer names ranked by total amount spent within the server's ranking window, fetched once per
+ * session — for the order form's customer combobox suggestions, its top-5 "Top" badge, and
+ * auto-filling Phone/shipping fields (via `customerDetailsByName`) when a suggestion is picked. */
+export function useCustomerRankings() {
+  const rankings = useAppSelector((state) => state.orders.customerRankings)
+  const status = useAppSelector((state) => state.orders.customerRankingStatus)
+  const dispatch = useAppDispatch()
+
+  useEffect(() => {
+    dispatch(fetchTopCustomersThunk())
+  }, [dispatch])
+
+  const customerNames = useMemo(() => rankings.map((ranking) => ranking.customerName), [rankings])
+  const topCustomerNames = useMemo(
+    () => new Set(rankings.slice(0, 5).map((ranking) => ranking.customerName)),
+    [rankings]
+  )
+  const customerDetailsByName = useMemo(
+    () => new Map(rankings.map((ranking) => [ranking.customerName, ranking])),
+    [rankings]
+  )
+
+  return {
+    customerNames,
+    topCustomerNames,
+    customerDetailsByName,
+    isLoading: status === "loading" || status === "idle",
   }
 }
 

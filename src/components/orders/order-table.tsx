@@ -22,6 +22,7 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
   Table,
   TableBody,
@@ -75,15 +76,58 @@ export function OrderTable({
 }) {
   if (isLoading) {
     return (
-      <Empty className="border">
-        <EmptyHeader>
-          <EmptyMedia variant="icon">
-            <Loader2Icon className="animate-spin" />
-          </EmptyMedia>
-          <EmptyTitle>Loading orders…</EmptyTitle>
-          <EmptyDescription>Fetching your orders.</EmptyDescription>
-        </EmptyHeader>
-      </Empty>
+      <div className="rounded-lg border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="sticky left-0 bg-background">Order</TableHead>
+              <TableHead>Customer</TableHead>
+              <TableHead>Product</TableHead>
+              <TableHead>Order description</TableHead>
+              <TableHead>Total</TableHead>
+              <TableHead>Created</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Payment</TableHead>
+              <TableHead className="text-right">
+                <span className="sr-only">Actions</span>
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {Array.from({ length: 10 }).map((_, index) => (
+              <TableRow key={index}>
+                <TableCell className="sticky left-0 bg-background">
+                  <Skeleton className="h-4 w-20" />
+                </TableCell>
+                <TableCell>
+                  <Skeleton className="h-4 w-32" />
+                </TableCell>
+                <TableCell>
+                  <Skeleton className="h-4 w-28" />
+                </TableCell>
+                <TableCell>
+                  <Skeleton className="h-4 w-24" />
+                </TableCell>
+                <TableCell>
+                  <Skeleton className="h-4 w-16" />
+                </TableCell>
+                <TableCell>
+                  <Skeleton className="h-4 w-20" />
+                </TableCell>
+                <TableCell>
+                  <Skeleton className="h-5 w-16 rounded-full" />
+                </TableCell>
+                <TableCell>
+                  <Skeleton className="h-5 w-16 rounded-full" />
+                </TableCell>
+                <TableCell className="text-right">
+                  <Skeleton className="ml-auto size-7 rounded-md" />
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
     )
   }
 
@@ -152,7 +196,7 @@ export function OrderTable({
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Order</TableHead>
+            <TableHead className="sticky left-0 bg-background">Order</TableHead>
             <TableHead>Customer</TableHead>
             <TableHead>Product</TableHead>
             <TableHead>Order description</TableHead>
@@ -172,7 +216,9 @@ export function OrderTable({
             const canRefund = canRefundOrder(order.status, order.payment.status)
             return (
               <TableRow key={order.id}>
-                <TableCell className="font-medium">{order.orderNumber}</TableCell>
+                <TableCell className="sticky left-0 bg-background font-medium">
+                  {order.orderNumber}
+                </TableCell>
                 <TableCell>{order.customerName}</TableCell>
                 <TableCell className="text-muted-foreground">
                   {order.items[0]?.productName ?? "—"}

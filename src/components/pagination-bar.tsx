@@ -62,6 +62,7 @@ export function PaginationBar({
           type="button"
           variant="outline"
           size="icon-sm"
+          className="size-11"
           disabled={disabled || page <= 1}
           onClick={() => onPageChange(page - 1)}
         >
@@ -75,6 +76,7 @@ export function PaginationBar({
           type="button"
           variant="outline"
           size="icon-sm"
+          className="size-11"
           disabled={disabled || page >= pageCount}
           onClick={() => onPageChange(page + 1)}
         >

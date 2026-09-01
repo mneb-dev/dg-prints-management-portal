@@ -1,10 +1,21 @@
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { PlusIcon } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 import { toast } from "sonner"
 
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Autocomplete,
+  AutocompleteEmpty,
+  AutocompleteIcon,
+  AutocompleteInput,
+  AutocompleteInputGroup,
+  AutocompleteItem,
+  AutocompletePopup,
+  AutocompletePrimitive,
+} from "@/components/ui/autocomplete"
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import {
@@ -14,6 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Spinner } from "@/components/ui/spinner"
 import { useAuth } from "@/lib/auth"
 import type { LengthUnit } from "@/lib/length-units"
 import {
@@ -23,7 +35,13 @@ import {
   draftFromOrderItem,
   type LineItemDraft,
 } from "@/lib/order-line-item"
-import { canEditOrderMetadata, getStatusFlowForCategory, useOrderActions } from "@/lib/orders"
+import {
+  canEditOrderMetadata,
+  getStatusFlowForCategory,
+  useCustomerRankings,
+  useHotProductIds,
+  useOrderActions,
+} from "@/lib/orders"
 import type {
   Order,
   OrderAdminEditableFields,
@@ -83,6 +101,9 @@ export function OrderForm({
 }) {
   const navigate = useNavigate()
   const { products } = useProductCatalog()
+  const { hotProductIds: hotProductIdList } = useHotProductIds()
+  const hotProductIds = useMemo(() => new Set(hotProductIdList), [hotProductIdList])
+  const { customerNames, topCustomerNames, customerDetailsByName } = useCustomerRankings()
   const { addOrder, updateOrder } = useOrderActions()
   const { role } = useAuth()
   const canEditMetadata = !!order && canEditOrderMetadata(role)
@@ -132,6 +153,23 @@ export function OrderForm({
       }
       return next
     })
+  }
+
+  // Picking a suggested customer loads their last-known contact/shipping info, overwriting
+  // whatever is currently in Phone/shipping fields — same "picking resets dependent fields"
+  // convention as picking a product elsewhere in this form.
+  function applyCustomerSelection(name: string) {
+    const details = customerDetailsByName.get(name)
+    if (!details) return
+    setCustomerPhone(details.customerPhone)
+    if (details.shippingAddress) {
+      setShippingEnabled(true)
+      setSameName(details.shippingAddress.name.trim() === name.trim())
+      setShippingName(details.shippingAddress.name)
+      setSamePhone(details.shippingAddress.phone.trim() === details.customerPhone.trim())
+      setShippingPhone(details.shippingAddress.phone)
+      setShippingAddress(details.shippingAddress.address)
+    }
   }
 
   const activeProducts = products.filter((product) => product.status === "Active")
@@ -430,20 +468,47 @@ export function OrderForm({
           </CardHeader>
           <CardContent>
             <FieldGroup>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <Field data-invalid={!!errors.customerName}>
                   <FieldLabel htmlFor="order-customer-name">Customer Name</FieldLabel>
-                  <Input
-                    id="order-customer-name"
+                  <Autocomplete
+                    items={customerNames}
                     value={customerName}
-                    onChange={(event) => {
-                      setCustomerName(event.target.value)
+                    openOnInputClick
+                    onValueChange={(text, eventDetails) => {
+                      setCustomerName(text)
                       clearError("customerName")
+                      if (eventDetails.reason === "item-press") applyCustomerSelection(text)
                     }}
-                    placeholder="Juan Dela Cruz"
-                    maxLength={60}
-                    aria-invalid={!!errors.customerName}
-                  />
+                  >
+                    <AutocompleteInputGroup>
+                      <AutocompleteInput
+                        id="order-customer-name"
+                        className="w-full"
+                        placeholder="Juan Dela Cruz"
+                        maxLength={60}
+                        aria-invalid={!!errors.customerName}
+                      />
+                      <AutocompleteIcon />
+                    </AutocompleteInputGroup>
+                    <AutocompletePopup>
+                      <AutocompleteEmpty>No matching customers — this will be added as a new customer.</AutocompleteEmpty>
+                      <AutocompletePrimitive.List>
+                        {(name: string) => (
+                          <AutocompleteItem key={name} value={name}>
+                            <span className="flex flex-1 items-center gap-1.5">
+                              {name}
+                              {topCustomerNames.has(name) && (
+                                <Badge variant="warning" className="h-4 px-1.5 text-[10px]">
+                                  Top
+                                </Badge>
+                              )}
+                            </span>
+                          </AutocompleteItem>
+                        )}
+                      </AutocompletePrimitive.List>
+                    </AutocompletePopup>
+                  </Autocomplete>
                   <FieldError>{errors.customerName}</FieldError>
                 </Field>
                 <Field>
@@ -452,7 +517,7 @@ export function OrderForm({
                     id="order-customer-phone"
                     value={customerPhone}
                     onChange={(event) => setCustomerPhone(event.target.value)}
-                    placeholder="0917 000 0000"
+                    placeholder="09XX XXX XXXX"
                   />
                 </Field>
               </div>
@@ -481,6 +546,7 @@ export function OrderForm({
             index={index}
             products={products}
             activeProducts={activeProducts}
+            hotProductIds={hotProductIds}
             product={resolved.product}
             draft={resolved.draft}
             computed={resolved.computed}
@@ -559,7 +625,7 @@ export function OrderForm({
                 />
               </Field>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <Field>
                   <FieldLabel htmlFor="order-additional-fees">Additional Fees</FieldLabel>
                   <Input
@@ -645,7 +711,7 @@ export function OrderForm({
             </CardHeader>
             <CardContent>
               <FieldGroup>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <Field>
                     <FieldLabel htmlFor="order-created-at">Created Date</FieldLabel>
                     <Input
@@ -679,7 +745,7 @@ export function OrderForm({
                     </Select>
                   </Field>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <Field>
                     <FieldLabel htmlFor="order-status-updated-at">Status Updated Date</FieldLabel>
                     <Input
@@ -723,7 +789,8 @@ export function OrderForm({
             Cancel
           </Button>
           <Button type="submit" disabled={isSubmitting}>
-            {order ? "Update Order" : "Create Order"}
+            {isSubmitting && <Spinner data-icon="inline-start" />}
+            {isSubmitting ? "Saving..." : order ? "Update Order" : "Create Order"}
           </Button>
         </div>
       </div>

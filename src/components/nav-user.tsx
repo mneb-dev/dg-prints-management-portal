@@ -61,13 +61,13 @@ export function NavUser() {
               {user?.avatar && <AvatarImage src={getAvatarDataUri(user.avatar)} alt={displayName} />}
               <AvatarFallback>{initials}</AvatarFallback>
             </Avatar>
-            <div className="grid flex-1 text-left text-sm leading-tight">
+            <div className="grid flex-1 text-left text-sm leading-tight group-data-[collapsible=icon]:hidden">
               <span className="truncate font-medium">{displayName}</span>
               <Badge variant={roleVariant} className="w-fit">
                 {roleLabel}
               </Badge>
             </div>
-            <ChevronsUpDownIcon className="ml-auto size-4" />
+            <ChevronsUpDownIcon className="ml-auto size-4 group-data-[collapsible=icon]:hidden" />
           </DropdownMenuTrigger>
           <DropdownMenuContent
             className="w-fit"

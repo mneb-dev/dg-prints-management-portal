@@ -1,11 +1,21 @@
 import { useEffect } from "react"
 import { Trash2Icon } from "lucide-react"
 
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Combobox,
+  ComboboxEmpty,
+  ComboboxIcon,
+  ComboboxInput,
+  ComboboxInputGroup,
+  ComboboxItem,
+  ComboboxPopup,
+  ComboboxPrimitive,
+} from "@/components/ui/combobox"
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import type { LengthUnit } from "@/lib/length-units"
@@ -27,6 +37,7 @@ export function OrderLineItemCard({
   index,
   products,
   activeProducts,
+  hotProductIds,
   product,
   draft,
   computed,
@@ -39,6 +50,7 @@ export function OrderLineItemCard({
   index: number
   products: Product[]
   activeProducts: Product[]
+  hotProductIds: Set<string>
   product: Product | null
   draft: LineItemDraft
   computed: LineItemComputed
@@ -154,22 +166,42 @@ export function OrderLineItemCard({
         <FieldGroup>
           <Field data-invalid={!!errors.product}>
             <FieldLabel htmlFor={`${idPrefix}order-product`}>Product</FieldLabel>
-            <Select value={draft.productId} onValueChange={(value) => handleProductChange(value as string)}>
-              <SelectTrigger id={`${idPrefix}order-product`} className="w-full" aria-invalid={!!errors.product}>
-                <SelectValue placeholder="Select a product">
-                  {(value: string | null) =>
-                    products.find((candidate) => candidate.id === value)?.name ?? "Select a product"
-                  }
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {activeProducts.map((candidate) => (
-                  <SelectItem key={candidate.id} value={candidate.id}>
-                    {candidate.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Combobox
+              items={activeProducts.map((candidate) => candidate.id)}
+              value={draft.productId || null}
+              onValueChange={(id) => handleProductChange((id as string | null) ?? "")}
+              itemToStringLabel={(id: string) => products.find((candidate) => candidate.id === id)?.name ?? ""}
+            >
+              <ComboboxInputGroup>
+                <ComboboxInput
+                  id={`${idPrefix}order-product`}
+                  className="w-full"
+                  aria-invalid={!!errors.product}
+                  placeholder="Select a product"
+                />
+                <ComboboxIcon />
+              </ComboboxInputGroup>
+              <ComboboxPopup>
+                <ComboboxEmpty>No products found.</ComboboxEmpty>
+                <ComboboxPrimitive.List>
+                  {(id: string) => {
+                    const candidate = activeProducts.find((item) => item.id === id)
+                    return (
+                      <ComboboxItem key={id} value={id}>
+                        <span className="flex flex-1 items-center gap-1.5">
+                          {candidate?.name}
+                          {hotProductIds.has(id) && (
+                            <Badge variant="warning" className="h-4 px-1.5 text-[10px]">
+                              Hot
+                            </Badge>
+                          )}
+                        </span>
+                      </ComboboxItem>
+                    )
+                  }}
+                </ComboboxPrimitive.List>
+              </ComboboxPopup>
+            </Combobox>
             <FieldError>{errors.product}</FieldError>
           </Field>
 

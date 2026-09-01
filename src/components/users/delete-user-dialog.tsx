@@ -11,6 +11,7 @@ import {
   AlertDialogMedia,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { Spinner } from "@/components/ui/spinner"
 import type { User } from "@/lib/users"
 
 export function DeleteUserDialog({
@@ -47,6 +48,7 @@ export function DeleteUserDialog({
             disabled={isDeleting}
             onClick={() => user && onConfirm(user)}
           >
+            {isDeleting && <Spinner data-icon="inline-start" />}
             {isDeleting ? "Deleting..." : "Delete"}
           </AlertDialogAction>
         </AlertDialogFooter>
