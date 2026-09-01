@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { copyToClipboard } from "@/lib/clipboard"
-import type { OrderItemPricing } from "@/lib/orders"
+import type { OrderItem, OrderItemPricing } from "@/lib/orders"
 import type { Product } from "@/lib/products"
 import { formatOrderSummaryText } from "@/lib/quote-text"
 import { scaleQuotation } from "@/lib/sticker-quotation"
@@ -16,16 +16,13 @@ export type LineItemSummary = {
   pricing: OrderItemPricing | null
   quantity: number
   lineTotal: number
-  stickerQuotationResult: { quantity: number; free?: number } | null
+  stickerQuotation: OrderItem["stickerQuotation"]
 }
 
 function pricingLine(pricing: OrderItemPricing): string | null {
-  if (pricing.pricingType === "Package") return pricing.packageName
+  if (pricing.pricingType === "Package") return `Package: ${pricing.packageName}`
   if (pricing.pricingType === "Per Unit") {
-    return (
-      `${formatCurrency(pricing.unitPrice)} / ${pricing.unit}` +
-      (pricing.width && pricing.height ? ` · ${pricing.width} × ${pricing.height} ft` : "")
-    )
+    return pricing.width && pricing.height ? `Size: ${pricing.width} × ${pricing.height} ft` : null
   }
   if (pricing.pricingType === "Fixed") return `${formatCurrency(pricing.unitPrice)} / ${pricing.unit}`
   if (pricing.pricingType === "Manual") return pricing.productName
@@ -44,19 +41,33 @@ function itemInfoLines(item: LineItemSummary): string[] {
   if (item.pricing) {
     const line = pricingLine(item.pricing)
     if (line) lines.push(line)
+    if (item.pricing.pricingType === "Package" && item.stickerQuotation) {
+      lines.push(
+        `Size: ${item.stickerQuotation.width} × ${item.stickerQuotation.height} ${item.stickerQuotation.unit}`
+      )
+    }
   }
 
-  const totalQuotation = item.stickerQuotationResult
-    ? scaleQuotation(item.stickerQuotationResult, item.quantity)
+  if (item.stickerQuotation) {
+    lines.push(
+      `Per Pkg Quote: ${item.stickerQuotation.quantity} pcs` +
+        (item.stickerQuotation.free ? ` + ${item.stickerQuotation.free} pcs free` : "")
+    )
+  }
+
+  if (item.pricing) lines.push(`Qty: ${item.quantity}`)
+
+  const totalQuotation = item.stickerQuotation
+    ? scaleQuotation(item.stickerQuotation, item.quantity)
     : null
   if (totalQuotation) {
     lines.push(
-      `${item.product.category} Quotation: ${totalQuotation.quantity} pcs` +
+      `To receive: ${totalQuotation.quantity} pcs` +
         (totalQuotation.free ? ` + ${totalQuotation.free} pcs free` : "")
     )
   }
 
-  if (item.pricing) lines.push(`Quantity: ${item.quantity}`)
+  if (item.pricing) lines.push(`Amount: ${formatCurrency(item.lineTotal)}`)
 
   return lines
 }
@@ -67,12 +78,14 @@ export function OrderSummaryPanel({
   additionalFees,
   layoutFee,
   shippingFee,
+  notes,
 }: {
   items: LineItemSummary[]
   discount: number
   additionalFees: number
   layoutFee: number
   shippingFee: number
+  notes: string
 }) {
   const subtotal = items.reduce((sum, item) => sum + item.lineTotal, 0)
   const total = Math.max(subtotal + additionalFees + layoutFee + shippingFee - discount, 0)
@@ -84,11 +97,13 @@ export function OrderSummaryPanel({
 
     const infoLines: string[] = []
     copyableItems.forEach((item, index) => {
-      if (index > 0) infoLines.push("")
+      if (index > 0) infoLines.push("-----")
       infoLines.push(
         copyableItems.length > 1 ? `Item ${index + 1}: ${item.product!.name}` : item.product!.name
       )
       infoLines.push(...itemInfoLines(item))
+
+      if (index + 1 === copyableItems.length) infoLines.push("=====")
     })
 
     copyToClipboard(
@@ -100,6 +115,7 @@ export function OrderSummaryPanel({
         shippingFee,
         discount,
         total,
+        notes,
       })
     )
   }
@@ -131,15 +147,10 @@ export function OrderSummaryPanel({
         ) : (
           items.map((item, index) => (
             <div key={index} className="flex flex-col gap-1">
-              <div className="flex items-baseline justify-between gap-2">
-                <p className="font-medium">
-                  Item {index + 1}:{" "}
-                  {item.product?.name ?? (item.lineTotal > 0 ? "Product unavailable" : "Select a product")}
-                </p>
-                <span className="shrink-0 text-sm text-muted-foreground">
-                  {formatCurrency(item.lineTotal)}
-                </span>
-              </div>
+              <p className="font-medium">
+                Item {index + 1}:{" "}
+                {item.product?.name ?? (item.lineTotal > 0 ? "Product unavailable" : "Select a product")}
+              </p>
               {itemInfoLines(item).map((line) => (
                 <p key={line} className="text-sm text-muted-foreground">
                   {line}

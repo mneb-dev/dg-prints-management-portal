@@ -155,7 +155,7 @@ export function OrderTable({
             <TableHead>Order</TableHead>
             <TableHead>Customer</TableHead>
             <TableHead>Product</TableHead>
-            <TableHead>Description</TableHead>
+            <TableHead>Order description</TableHead>
             <TableHead>Total</TableHead>
             <TableHead>Created</TableHead>
             <TableHead>Status</TableHead>

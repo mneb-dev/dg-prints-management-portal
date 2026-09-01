@@ -94,6 +94,7 @@ export function OrderForm({
   const [description, setDescription] = useState("")
   const [discount, setDiscount] = useState("0")
   const [additionalFees, setAdditionalFees] = useState("0")
+  const [notes, setNotes] = useState("")
   const [layoutFee, setLayoutFee] = useState("0")
   const [shippingEnabled, setShippingEnabled] = useState(false)
   const [sameName, setSameName] = useState(true)
@@ -155,6 +156,7 @@ export function OrderForm({
     setDescription(order.description ?? "")
     setDiscount(String(order.discount))
     setAdditionalFees(String(order.additionalFees))
+    setNotes(order.notes ?? "")
     setLayoutFee(String(order.layoutFee))
     setItems(order.items.length > 0 ? order.items.map(draftFromOrderItem) : [createEmptyLineItemDraft()])
 
@@ -278,8 +280,14 @@ export function OrderForm({
       nextErrors.customerName = "Must be 60 characters or fewer."
     }
 
-    if (description.length > 20) {
-      nextErrors.description = "Must be 20 characters or fewer."
+    if (description.length > 60) {
+      nextErrors.description = "Must be 60 characters or fewer."
+    }
+
+    if (notes.length > 20) {
+      nextErrors.notes = "Must be 20 characters or fewer."
+    } else if (additionalFeesNum > 0 && !notes.trim()) {
+      nextErrors.notes = "Notes is required when Additional Fees is greater than 0."
     }
 
     if (!channel) {
@@ -378,6 +386,7 @@ export function OrderForm({
           additionalFees: additionalFeesNum,
           layoutFee: layoutFeeNum,
           total,
+          notes: notes.trim(),
           shippingAddress: resolveShippingAddress(),
           channel: channel as OrderChannel,
           payment: resolvePayment(total),
@@ -397,7 +406,7 @@ export function OrderForm({
           additionalFees: additionalFeesNum,
           layoutFee: layoutFeeNum,
           total,
-          notes: "",
+          notes: notes.trim(),
           shippingAddress: resolveShippingAddress(),
           channel: channel as OrderChannel,
           payment: resolvePayment(total),
@@ -448,7 +457,7 @@ export function OrderForm({
                 </Field>
               </div>
               <Field data-invalid={!!errors.description}>
-                <FieldLabel htmlFor="order-description">Description</FieldLabel>
+                <FieldLabel htmlFor="order-description">Order description</FieldLabel>
                 <Input
                   id="order-description"
                   value={description}
@@ -457,7 +466,7 @@ export function OrderForm({
                     clearError("description")
                   }}
                   placeholder="Optional short description"
-                  maxLength={20}
+                  maxLength={60}
                   aria-invalid={!!errors.description}
                 />
                 <FieldError>{errors.description}</FieldError>
@@ -550,17 +559,34 @@ export function OrderForm({
                 />
               </Field>
 
-              <Field>
-                <FieldLabel htmlFor="order-additional-fees">Additional Fees</FieldLabel>
-                <Input
-                  id="order-additional-fees"
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  value={additionalFees}
-                  onChange={(event) => setAdditionalFees(event.target.value)}
-                />
-              </Field>
+              <div className="grid grid-cols-2 gap-4">
+                <Field>
+                  <FieldLabel htmlFor="order-additional-fees">Additional Fees</FieldLabel>
+                  <Input
+                    id="order-additional-fees"
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={additionalFees}
+                    onChange={(event) => setAdditionalFees(event.target.value)}
+                  />
+                </Field>
+
+                <Field data-invalid={!!errors.notes}>
+                  <FieldLabel htmlFor="order-notes">Notes</FieldLabel>
+                  <Input
+                    id="order-notes"
+                    value={notes}
+                    onChange={(event) => {
+                      setNotes(event.target.value)
+                      clearError("notes")
+                    }}
+                    maxLength={20}
+                    aria-invalid={!!errors.notes}
+                  />
+                  <FieldError>{errors.notes}</FieldError>
+                </Field>
+              </div>
 
               <Field>
                 <FieldLabel htmlFor="order-layout-fee">Layout Fee</FieldLabel>
@@ -710,12 +736,13 @@ export function OrderForm({
             pricing: resolved.computed.pricing,
             quantity: Math.max(1, Math.round(Number(resolved.draft.quantity) || 1)),
             lineTotal: resolved.lineTotal,
-            stickerQuotationResult: resolved.computed.quotationResult,
+            stickerQuotation: resolved.computed.stickerQuotationSnapshot,
           }))}
           discount={discountNum}
           additionalFees={additionalFeesNum}
           layoutFee={layoutFeeNum}
           shippingFee={shippingFeeNum}
+          notes={notes}
         />
       </div>
     </form>
