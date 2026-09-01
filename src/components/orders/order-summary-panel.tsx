@@ -170,7 +170,10 @@ export function OrderSummaryPanel({
             </div>
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">Additional Fees</span>
-              <span>{formatCurrency(additionalFees)}</span>
+              <span>
+                {formatCurrency(additionalFees)}
+                {notes.trim() && ` (${notes.trim()})`}
+              </span>
             </div>
             {layoutFee >= 1 && (
               <div className="flex items-center justify-between text-sm">
