@@ -176,6 +176,7 @@ export function OrderTable({
                 <TableCell>{order.customerName}</TableCell>
                 <TableCell className="text-muted-foreground">
                   {order.items[0]?.productName ?? "—"}
+                  {order.items.length > 1 && ` +${order.items.length - 1} more`}
                 </TableCell>
                 <TableCell className="text-muted-foreground">
                   {order.description || "—"}

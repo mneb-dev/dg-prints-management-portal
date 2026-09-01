@@ -186,6 +186,7 @@ export function ProductFormDialog({
   const { addProduct, updateProduct } = useProductActions()
   const [draft, setDraft] = useState<ProductInput>(emptyDraft)
   const [nameError, setNameError] = useState<string | null>(null)
+  const [descriptionError, setDescriptionError] = useState<string | null>(null)
   const [pricingDialogOpen, setPricingDialogOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -239,6 +240,11 @@ export function ProductFormDialog({
     event.preventDefault()
     if (!draft.name.trim()) {
       setNameError("Product name is required.")
+      return
+    }
+
+    if (draft.description.length > 60) {
+      setDescriptionError("Must be 60 characters or fewer.")
       return
     }
 
@@ -343,21 +349,25 @@ export function ProductFormDialog({
                 </Field>
               </div>
 
-              <Field>
+              <Field data-invalid={!!descriptionError}>
                 <FieldLabel htmlFor="product-description">
                   Description
                 </FieldLabel>
                 <Textarea
                   id="product-description"
                   value={draft.description}
-                  onChange={(event) =>
+                  onChange={(event) => {
                     setDraft((prev) => ({
                       ...prev,
                       description: event.target.value,
                     }))
-                  }
+                    setDescriptionError(null)
+                  }}
                   placeholder="Custom printed sticker labels"
+                  maxLength={60}
+                  aria-invalid={!!descriptionError}
                 />
+                <FieldError>{descriptionError ?? undefined}</FieldError>
               </Field>
             </FieldGroup>
           </div>

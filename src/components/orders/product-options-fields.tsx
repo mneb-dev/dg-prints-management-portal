@@ -13,11 +13,13 @@ export function ProductOptionsFields({
   values,
   onChange,
   excludeOptionIds,
+  idPrefix = "",
 }: {
   product: Product
   values: Record<string, string>
   onChange: (optionId: string, value: string) => void
   excludeOptionIds?: string[]
+  idPrefix?: string
 }) {
   const options = excludeOptionIds
     ? product.options.filter((option) => !excludeOptionIds.includes(option.id))
@@ -29,7 +31,7 @@ export function ProductOptionsFields({
     <>
       {options.map((option) => (
         <Field key={option.id}>
-          <FieldLabel htmlFor={`order-option-${option.id}`}>
+          <FieldLabel htmlFor={`${idPrefix}order-option-${option.id}`}>
             {option.name}
             {option.required && " *"}
           </FieldLabel>
@@ -37,7 +39,7 @@ export function ProductOptionsFields({
             value={values[option.id] ?? ""}
             onValueChange={(value) => onChange(option.id, value as string)}
           >
-            <SelectTrigger id={`order-option-${option.id}`} className="w-full">
+            <SelectTrigger id={`${idPrefix}order-option-${option.id}`} className="w-full">
               <SelectValue placeholder={`Select ${option.name}`} />
             </SelectTrigger>
             <SelectContent>

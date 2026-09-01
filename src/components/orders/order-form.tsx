@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import { PlusIcon } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 import { toast } from "sonner"
 
@@ -13,47 +14,33 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Switch } from "@/components/ui/switch"
-import { Textarea } from "@/components/ui/textarea"
 import { useAuth } from "@/lib/auth"
-import { convertToFeet, type LengthUnit } from "@/lib/length-units"
+import type { LengthUnit } from "@/lib/length-units"
+import {
+  buildOrderItem,
+  computeLineItemPricing,
+  createEmptyLineItemDraft,
+  draftFromOrderItem,
+  type LineItemDraft,
+} from "@/lib/order-line-item"
 import { canEditOrderMetadata, getStatusFlowForCategory, useOrderActions } from "@/lib/orders"
 import type {
   Order,
   OrderAdminEditableFields,
   OrderChannel,
   OrderItem,
-  OrderItemPricing,
   Payment,
   PaymentMethod,
-  SelectedOption,
 } from "@/lib/orders"
-import {
-  CARD_SELECTABLE_PACKAGE_CATEGORIES,
-  computeLineTotal,
-  isManualPricingProduct,
-  resolvePricing,
-} from "@/lib/pricing-resolver"
-import { ALL_VARIANTS, useProductCatalog, type PricingEntry, type Product } from "@/lib/products"
+import { useProductCatalog } from "@/lib/products"
+import type { SintraThickness } from "@/lib/sintra-board-pricing"
+import type { StickerUnit } from "@/lib/sticker-quotation"
 import { useUserOptions } from "@/lib/users"
-import { calculateLaminatedStickerQuotation } from "@/lib/laminated-sticker-quotation"
-import {
-  calculateSintraCustomPrice,
-  describeSintraCustom,
-  parseSintraCustomDescription,
-  type SintraThickness,
-} from "@/lib/sintra-board-pricing"
-import { calculateStickerQuotation, nearestPackageTier, type StickerUnit } from "@/lib/sticker-quotation"
-import { generateId } from "@/lib/utils"
 
-import { LaminatedStickerQuotationFields } from "./laminated-sticker-quotation-fields"
+import { OrderLineItemCard, type LineItemErrorKey } from "./order-line-item-card"
 import { OrderSummaryPanel } from "./order-summary-panel"
 import { PaymentFields } from "./payment-fields"
-import { PricingFields, type SizeUnit } from "./pricing-fields"
-import { ProductOptionsFields } from "./product-options-fields"
 import { ShippingAddressFields } from "./shipping-address-fields"
-import { SintraBoardCustomFields } from "./sintra-board-custom-fields"
-import { StickerQuotationFields } from "./sticker-quotation-fields"
 
 // Converts between an ISO timestamp and the value a `datetime-local` input needs,
 // in the browser's local timezone (the input has no timezone concept of its own).
@@ -69,13 +56,6 @@ function fromDatetimeLocalValue(value: string): string | null {
   if (!value) return null
   const date = new Date(value)
   return Number.isNaN(date.getTime()) ? null : date.toISOString()
-}
-
-// For Sticker Label / Laminated Sticker products, the option named "Package" is the one
-// that drives pricing tier selection — it's replaced by clickable quotation cards instead
-// of a dropdown, so it's looked up by this naming convention rather than rendered generically.
-function findPackageOption(product: Product) {
-  return product.options.find((option) => option.name.trim().toLowerCase() === "package") ?? null
 }
 
 export type OrderFormSeed = {
@@ -110,26 +90,8 @@ export function OrderForm({
 
   const [customerName, setCustomerName] = useState("")
   const [customerPhone, setCustomerPhone] = useState("")
-  const [productId, setProductId] = useState("")
-  const [optionValues, setOptionValues] = useState<Record<string, string>>({})
-  const [packageEntryId, setPackageEntryId] = useState("")
-  const [width, setWidth] = useState("")
-  const [height, setHeight] = useState("")
-  const [sizeUnit, setSizeUnit] = useState<SizeUnit>("in")
-  const [dimensionUnit, setDimensionUnit] = useState<LengthUnit>("ft")
-  const [quantity, setQuantity] = useState("1")
-  const [stickerWidth, setStickerWidth] = useState("")
-  const [stickerHeight, setStickerHeight] = useState("")
-  const [stickerUnit, setStickerUnit] = useState<StickerUnit>("in")
-  const [isCustomSize, setIsCustomSize] = useState(false)
-  const [customWidth, setCustomWidth] = useState("")
-  const [customHeight, setCustomHeight] = useState("")
-  const [customThickness, setCustomThickness] = useState<SintraThickness>("3mm")
-  const [customBackToBack, setCustomBackToBack] = useState(false)
-  const [notes, setNotes] = useState("")
+  const [items, setItems] = useState<LineItemDraft[]>([createEmptyLineItemDraft()])
   const [description, setDescription] = useState("")
-  const [manualProductName, setManualProductName] = useState("")
-  const [manualUnitPrice, setManualUnitPrice] = useState("")
   const [discount, setDiscount] = useState("0")
   const [additionalFees, setAdditionalFees] = useState("0")
   const [layoutFee, setLayoutFee] = useState("0")
@@ -161,80 +123,40 @@ export function OrderForm({
     })
   }
 
-  const existingItem = order?.items[0] ?? null
-  const selectedProduct = products.find((product) => product.id === productId) ?? null
-  const isEditingMissingProduct = !!order && !!existingItem && !selectedProduct
+  function clearAllItemErrors() {
+    setErrors((prev) => {
+      const next: Record<string, string> = {}
+      for (const [key, value] of Object.entries(prev)) {
+        if (!key.startsWith("item-")) next[key] = value
+      }
+      return next
+    })
+  }
+
   const activeProducts = products.filter((product) => product.status === "Active")
 
-  const isCardSelectablePackage =
-    !!selectedProduct && CARD_SELECTABLE_PACKAGE_CATEGORIES.includes(selectedProduct.category)
-  const packageOption =
-    selectedProduct && isCardSelectablePackage ? findPackageOption(selectedProduct) : null
-  const packageCandidates: PricingEntry[] =
-    selectedProduct && isCardSelectablePackage
-      ? selectedProduct.pricing.filter((entry) => entry.pricingType === "Package")
-      : []
+  function updateItemAt(index: number, next: LineItemDraft) {
+    setItems((prev) => prev.map((draft, i) => (i === index ? next : draft)))
+  }
 
-  // A package option with a single possible value has nothing to click — auto-select it so
-  // the required-option validation is satisfied without a dropdown or a no-op click target.
-  useEffect(() => {
-    if (!packageOption || packageOption.values.length !== 1) return
-    const onlyValue = packageOption.values[0]
-    if (optionValues[packageOption.id] === onlyValue) return
-    setOptionValues((prev) => ({ ...prev, [packageOption.id]: onlyValue }))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [packageOption?.id, packageOption?.values.length])
+  function addItem() {
+    setItems((prev) => [...prev, createEmptyLineItemDraft()])
+  }
+
+  function removeItemAt(index: number) {
+    setItems((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== index) : prev))
+    clearAllItemErrors()
+  }
 
   useEffect(() => {
     if (!order) return
-    const item = order.items[0]
-    if (!item) return
-
     setCustomerName(order.customerName)
     setCustomerPhone(order.customerPhone)
     setDescription(order.description ?? "")
-    setProductId(item.productId)
-    setOptionValues(
-      Object.fromEntries(item.selectedOptions.map((option) => [option.optionId, option.value]))
-    )
-    setQuantity(String(item.quantity))
-    setNotes(item.notes)
     setDiscount(String(order.discount))
     setAdditionalFees(String(order.additionalFees))
     setLayoutFee(String(order.layoutFee))
-
-    if (item.pricing.pricingType === "Package") {
-      setPackageEntryId(item.pricing.pricingEntryId)
-      if (item.pricing.size) {
-        setWidth(String(item.pricing.size.width))
-        setHeight(String(item.pricing.size.height))
-        setSizeUnit(item.pricing.size.unit)
-      }
-    } else if (item.pricing.pricingType === "Per Unit") {
-      if (item.pricing.width && item.pricing.height) {
-        setWidth(String(item.pricing.width))
-        setHeight(String(item.pricing.height))
-      }
-    } else if (item.pricing.pricingType === "Manual") {
-      setManualProductName(item.pricing.productName)
-      setManualUnitPrice(String(item.pricing.unitPrice))
-    } else if (item.pricing.pricingType === "Custom") {
-      // thickness/back-to-back aren't stored as structured data (the backend
-      // whitelists a fixed set of pricing keys) — recovered from the folded
-      // packageName description instead. See sintra-board-pricing.ts.
-      setIsCustomSize(true)
-      setCustomWidth(String(item.pricing.width))
-      setCustomHeight(String(item.pricing.height))
-      const parsed = parseSintraCustomDescription(item.pricing.packageName)
-      setCustomThickness(parsed.thickness)
-      setCustomBackToBack(parsed.backToBack)
-    }
-
-    if (item.stickerQuotation) {
-      setStickerWidth(String(item.stickerQuotation.width))
-      setStickerHeight(String(item.stickerQuotation.height))
-      setStickerUnit(item.stickerQuotation.unit)
-    }
+    setItems(order.items.length > 0 ? order.items.map(draftFromOrderItem) : [createEmptyLineItemDraft()])
 
     if (order.shippingAddress) {
       setShippingEnabled(true)
@@ -262,267 +184,47 @@ export function OrderForm({
 
   useEffect(() => {
     if (order || !initialValues) return
-    if (initialValues.productId) setProductId(initialValues.productId)
-    if (initialValues.optionValues) setOptionValues(initialValues.optionValues)
-    if (initialValues.width) setWidth(initialValues.width)
-    if (initialValues.height) setHeight(initialValues.height)
-    if (initialValues.dimensionUnit) setDimensionUnit(initialValues.dimensionUnit)
-    if (initialValues.stickerWidth) setStickerWidth(initialValues.stickerWidth)
-    if (initialValues.stickerHeight) setStickerHeight(initialValues.stickerHeight)
-    if (initialValues.stickerUnit) setStickerUnit(initialValues.stickerUnit)
-    if (initialValues.isCustomSize) setIsCustomSize(true)
-    if (initialValues.customWidth) setCustomWidth(initialValues.customWidth)
-    if (initialValues.customHeight) setCustomHeight(initialValues.customHeight)
-    if (initialValues.customThickness) setCustomThickness(initialValues.customThickness)
-    if (initialValues.customBackToBack !== undefined) setCustomBackToBack(initialValues.customBackToBack)
+    setItems((prev) => {
+      const first = prev[0] ?? createEmptyLineItemDraft()
+      const patch: Partial<LineItemDraft> = {}
+      if (initialValues.productId) patch.productId = initialValues.productId
+      if (initialValues.optionValues) patch.optionValues = initialValues.optionValues
+      if (initialValues.width) patch.width = initialValues.width
+      if (initialValues.height) patch.height = initialValues.height
+      if (initialValues.dimensionUnit) patch.dimensionUnit = initialValues.dimensionUnit
+      if (initialValues.stickerWidth) patch.stickerWidth = initialValues.stickerWidth
+      if (initialValues.stickerHeight) patch.stickerHeight = initialValues.stickerHeight
+      if (initialValues.stickerUnit) patch.stickerUnit = initialValues.stickerUnit
+      if (initialValues.isCustomSize) patch.isCustomSize = true
+      if (initialValues.customWidth) patch.customWidth = initialValues.customWidth
+      if (initialValues.customHeight) patch.customHeight = initialValues.customHeight
+      if (initialValues.customThickness) patch.customThickness = initialValues.customThickness
+      if (initialValues.customBackToBack !== undefined) patch.customBackToBack = initialValues.customBackToBack
+      return [{ ...first, ...patch }, ...prev.slice(1)]
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [order, initialValues])
 
-  function handleProductChange(id: string) {
-    setProductId(id)
-    setOptionValues({})
-    setPackageEntryId("")
-    setWidth("")
-    setHeight("")
-    setSizeUnit("in")
-    setDimensionUnit("ft")
-    setQuantity("1")
-    setManualProductName("")
-    setManualUnitPrice("")
-    if (productId) {
-      // Only reset sticker size when switching away from a previously selected product —
-      // preserves a size carried over from the calculator on the first product pick.
-      setStickerWidth("")
-      setStickerHeight("")
-      setStickerUnit("in")
-    }
-    setIsCustomSize(false)
-    setCustomWidth("")
-    setCustomHeight("")
-    setCustomThickness("3mm")
-    setCustomBackToBack(false)
-    clearError("product")
-    clearError("options")
-    clearError("pricing")
-  }
+  const resolvedItems = items.map((draft) => {
+    const product = products.find((candidate) => candidate.id === draft.productId) ?? null
+    const isMissingProduct = !!order && !!draft.productId && !product
+    const computed = computeLineItemPricing(draft, product)
+    const frozenOriginal = isMissingProduct
+      ? order?.items.find((candidate) => candidate.id === draft.originalItemId)
+      : undefined
+    const lineTotal = isMissingProduct ? (frozenOriginal?.lineTotal ?? 0) : computed.lineTotal
+    return { draft, product, computed, isMissingProduct, frozenOriginal, lineTotal }
+  })
 
-  function handleCustomSizeToggle(value: boolean) {
-    setIsCustomSize(value)
-    if (value) setOptionValues({})
-    clearError("pricing")
-    clearError("options")
-  }
-
-  function handleCustomWidthChange(value: string) {
-    setCustomWidth(value)
-    clearError("pricing")
-  }
-
-  function handleCustomHeightChange(value: string) {
-    setCustomHeight(value)
-    clearError("pricing")
-  }
-
-  function handleCustomThicknessChange(value: SintraThickness) {
-    setCustomThickness(value)
-    clearError("pricing")
-  }
-
-  function handleCustomBackToBackChange(value: boolean) {
-    setCustomBackToBack(value)
-    clearError("pricing")
-  }
-
-  function handleWidthChange(value: string) {
-    setWidth(value)
-    clearError("pricing")
-  }
-
-  function handleHeightChange(value: string) {
-    setHeight(value)
-    clearError("pricing")
-  }
-
-  function handlePackageEntryIdChange(value: string) {
-    setPackageEntryId(value)
-    clearError("pricing")
-  }
-
-  // Selecting a quotation card for a card-selectable (Sticker Label / Laminated Sticker)
-  // product writes into optionValues — the value resolvePricing()/buildPricing() actually
-  // read — since these products drive pricing off a "Package" product option, not a
-  // multi-candidate PricingEntry list.
-  function handleSelectPackageOption(entry: PricingEntry) {
-    if (!packageOption) return
-    const value = entry.appliesTo === ALL_VARIANTS ? (packageOption.values[0] ?? entry.appliesTo) : entry.appliesTo
-    setOptionValues((prev) => ({ ...prev, [packageOption.id]: value }))
-    clearError("options")
-    clearError("pricing")
-  }
-
-  function handleQuantityChange(value: string) {
-    setQuantity(value)
-    clearError("pricing")
-  }
-
-  function handleDimensionUnitChange(value: LengthUnit) {
-    setDimensionUnit(value)
-    clearError("pricing")
-  }
-
-  const isManual = selectedProduct ? isManualPricingProduct(selectedProduct) : false
-  const resolution =
-    selectedProduct && !isManual ? resolvePricing(selectedProduct, optionValues) : { kind: "none" as const }
-
-  const selectedPackagePricingEntry =
-    resolution.kind === "package"
-      ? resolution.candidates.find((candidate) => candidate.id === packageEntryId) ?? null
-      : resolution.kind === "auto" && resolution.entry.pricingType === "Package"
-        ? resolution.entry
-        : null
-  const selectedStickerPackage = selectedPackagePricingEntry
-    ? nearestPackageTier(selectedPackagePricingEntry.price)
-    : null
-
-  function buildPricing(): OrderItemPricing | null {
-    if (!selectedProduct) return null
-
-    if (isManual) {
-      const price = Number(manualUnitPrice)
-      if (!manualProductName.trim() || !Number.isFinite(price) || price < 0) return null
-      return { pricingType: "Manual", productName: manualProductName.trim(), unitPrice: price }
-    }
-
-    if (selectedProduct.category === "Sintra Board" && isCustomSize) {
-      const w = Number(customWidth)
-      const h = Number(customHeight)
-      if (!(w > 0) || !(h > 0)) return null
-      return {
-        pricingType: "Custom",
-        unitPrice: calculateSintraCustomPrice({
-          width: w,
-          height: h,
-          thickness: customThickness,
-          backToBack: customBackToBack,
-        }),
-        unit: "in",
-        width: w,
-        height: h,
-        packageName: describeSintraCustom(customThickness, customBackToBack),
-      }
-    }
-
-    if (resolution.kind === "package") {
-      const entry = resolution.candidates.find((candidate) => candidate.id === packageEntryId)
-      if (!entry) return null
-      const w = Number(width)
-      const h = Number(height)
-      const size = w > 0 && h > 0 ? { width: w, height: h, unit: sizeUnit } : undefined
-      return {
-        pricingType: "Package",
-        pricingEntryId: entry.id,
-        packageName: entry.packageName ?? entry.appliesTo,
-        unitPrice: entry.price,
-        unit: entry.unit,
-        size,
-      }
-    }
-
-    if (resolution.kind === "auto") {
-      const entry = resolution.entry
-      if (entry.pricingType === "Package") {
-        const w = Number(width)
-        const h = Number(height)
-        const size = w > 0 && h > 0 ? { width: w, height: h, unit: sizeUnit } : undefined
-        return {
-          pricingType: "Package",
-          pricingEntryId: entry.id,
-          packageName: entry.packageName ?? entry.appliesTo,
-          unitPrice: entry.price,
-          unit: entry.unit,
-          size,
-        }
-      }
-      if (entry.pricingType === "Per Unit") {
-        if (entry.unit === "sq.ft.") {
-          const w = convertToFeet(Number(width), dimensionUnit)
-          const h = convertToFeet(Number(height), dimensionUnit)
-          if (!(w > 0) || !(h > 0)) return null
-          return {
-            pricingType: "Per Unit",
-            pricingEntryId: entry.id,
-            unitPrice: entry.price,
-            unit: entry.unit,
-            width: w,
-            height: h,
-          }
-        }
-        return { pricingType: "Per Unit", pricingEntryId: entry.id, unitPrice: entry.price, unit: entry.unit }
-      }
-      return { pricingType: "Fixed", pricingEntryId: entry.id, unitPrice: entry.price, unit: entry.unit }
-    }
-
-    return null
-  }
-
-  const previewPricing = buildPricing()
-  const quantityNum = Math.max(1, Math.round(Number(quantity) || 1))
-  const previewLineTotal = previewPricing
-    ? computeLineTotal({ pricing: previewPricing, quantity: quantityNum })
-    : 0
+  const subtotal = resolvedItems.reduce((sum, resolved) => sum + resolved.lineTotal, 0)
   const discountNum = Math.max(0, Number(discount) || 0)
   const additionalFeesNum = Math.max(0, Number(additionalFees) || 0)
   const layoutFeeNum = Math.max(0, Number(layoutFee) || 0)
   const shippingFeeNum = shippingEnabled ? Math.max(0, Number(shippingFee) || 0) : 0
-  const previewTotal = isEditingMissingProduct
-    ? Math.max((existingItem?.lineTotal ?? 0) + additionalFeesNum + layoutFeeNum + shippingFeeNum - discountNum, 0)
-    : Math.max(previewLineTotal + additionalFeesNum + layoutFeeNum + shippingFeeNum - discountNum, 0)
-
-  const stickerQuotationPackage =
-    selectedProduct?.category === "Sticker Label" ? selectedStickerPackage : null
-  const isLaminatedSticker = selectedProduct?.category === "Laminated Sticker"
-
-  const stickerWidthNum = Number(stickerWidth)
-  const stickerHeightNum = Number(stickerHeight)
-  const hasValidStickerSize = stickerWidthNum > 0 && stickerHeightNum > 0
-  const stickerQuotation = hasValidStickerSize
-    ? calculateStickerQuotation(stickerWidthNum, stickerHeightNum, stickerUnit)
-    : null
-  const stickerQuotationResult =
-    stickerQuotationPackage && stickerQuotation ? stickerQuotation[stickerQuotationPackage] : null
-
-  const laminatedStickerPrice = selectedPackagePricingEntry?.price ?? null
-  const laminatedStickerQuantity =
-    isLaminatedSticker && hasValidStickerSize && laminatedStickerPrice && laminatedStickerPrice > 0
-      ? calculateLaminatedStickerQuotation(
-          stickerWidthNum,
-          stickerHeightNum,
-          stickerUnit,
-          laminatedStickerPrice
-        )
-      : null
-  const laminatedStickerQuotationResult =
-    laminatedStickerQuantity !== null ? { quantity: laminatedStickerQuantity } : null
-
-  const stickerQuotationSnapshot =
-    stickerQuotationPackage && stickerQuotationResult
-      ? {
-          package: stickerQuotationPackage,
-          width: stickerWidthNum,
-          height: stickerHeightNum,
-          unit: stickerUnit,
-          ...stickerQuotationResult,
-        }
-      : laminatedStickerQuotationResult
-        ? {
-            package: selectedPackagePricingEntry?.packageName ?? null,
-            width: stickerWidthNum,
-            height: stickerHeightNum,
-            unit: stickerUnit,
-            ...laminatedStickerQuotationResult,
-          }
-        : null
-
-  const quotationResult = stickerQuotationResult ?? laminatedStickerQuotationResult
+  const previewTotal = Math.max(
+    subtotal + additionalFeesNum + layoutFeeNum + shippingFeeNum - discountNum,
+    0
+  )
 
   // Only sent when the requester can edit these fields, and only the ones actually
   // changed — never overwrites createdAt with an empty/invalid value.
@@ -572,6 +274,8 @@ export function OrderForm({
 
     if (!customerName.trim()) {
       nextErrors.customerName = "Customer name is required."
+    } else if (customerName.trim().length > 60) {
+      nextErrors.customerName = "Must be 60 characters or fewer."
     }
 
     if (description.length > 20) {
@@ -587,6 +291,10 @@ export function OrderForm({
       const resolvedPhone = samePhone ? customerPhone : shippingPhone
       if (!resolvedName.trim() || !resolvedPhone.trim() || !shippingAddress.trim()) {
         nextErrors.shipping = "Name, phone, and address are required."
+      } else if (resolvedName.trim().length > 60) {
+        nextErrors.shipping = "Name must be 60 characters or fewer."
+      } else if (shippingAddress.trim().length > 250) {
+        nextErrors.shipping = "Address must be 250 characters or fewer."
       }
     }
 
@@ -603,26 +311,32 @@ export function OrderForm({
       }
     }
 
-    const isMissingProductEdit = !!order && isEditingMissingProduct
+    resolvedItems.forEach((resolved, index) => {
+      if (resolved.isMissingProduct) return
 
-    if (!isMissingProductEdit) {
-      if (!selectedProduct) {
-        nextErrors.product = "Select a product."
-      } else if (selectedProduct.status !== "Active") {
-        nextErrors.product = "This product is inactive and can't be used for new or updated orders."
-      } else if (!isManual && !(selectedProduct.category === "Sintra Board" && isCustomSize)) {
-        const missingRequired = selectedProduct.options.some(
-          (option) => option.required && !optionValues[option.id]
+      if (!resolved.product) {
+        nextErrors[`item-${index}-product`] = "Select a product."
+      } else if (resolved.product.status !== "Active") {
+        nextErrors[`item-${index}-product`] =
+          "This product is inactive and can't be used for new or updated orders."
+      } else if (
+        !resolved.computed.isManual &&
+        !(resolved.product.category === "Sintra Board" && resolved.draft.isCustomSize)
+      ) {
+        const missingRequired = resolved.product.options.some(
+          (option) => option.required && !resolved.draft.optionValues[option.id]
         )
-        if (missingRequired) {
-          nextErrors.options = "Select all required options."
-        }
+        if (missingRequired) nextErrors[`item-${index}-options`] = "Select all required options."
       }
 
-      if (selectedProduct && !buildPricing()) {
-        nextErrors.pricing = "Complete the pricing fields for this product."
+      if (resolved.product && !resolved.computed.pricing) {
+        nextErrors[`item-${index}-pricing`] = "Complete the pricing fields for this product."
       }
-    }
+
+      if (resolved.draft.notes.length > 60) {
+        nextErrors[`item-${index}-notes`] = "Must be 60 characters or fewer."
+      }
+    })
 
     if (Object.keys(nextErrors).length > 0) {
       setErrors(nextErrors)
@@ -632,71 +346,34 @@ export function OrderForm({
 
     setIsSubmitting(true)
     try {
-      if (order && isEditingMissingProduct && existingItem) {
-        const total = Math.max(
-          existingItem.lineTotal + additionalFeesNum + layoutFeeNum + shippingFeeNum - discountNum,
-          0
-        )
-        await updateOrder(order.id, {
-          customerName: customerName.trim(),
-          customerPhone: customerPhone.trim(),
-          description: description.trim(),
-          discount: discountNum,
-          additionalFees: additionalFeesNum,
-          layoutFee: layoutFeeNum,
-          total,
-          shippingAddress: resolveShippingAddress(),
-          channel: channel as OrderChannel,
-          payment: resolvePayment(total),
-          ...buildAdminMetadataChanges(),
-        })
-        toast.success("Order updated.")
-        navigate(`/orders/${order.id}`)
-        return
-      }
-
-      if (!selectedProduct) {
-        return
-      }
-
-      const pricing = buildPricing()
-      if (!pricing) {
-        return
-      }
-
-      const selectedOptions: SelectedOption[] = Object.entries(optionValues).map(
-        ([optionId, value]) => {
-          const option = selectedProduct.options.find((candidate) => candidate.id === optionId)
-          return { optionId, optionName: option?.name ?? "", value }
+      const builtItems: OrderItem[] = []
+      for (const resolved of resolvedItems) {
+        if (resolved.isMissingProduct) {
+          if (resolved.frozenOriginal) builtItems.push(resolved.frozenOriginal)
+          continue
         }
+        if (!resolved.product) continue
+        const item = buildOrderItem(resolved.draft, resolved.product, resolved.computed)
+        if (item) builtItems.push(item)
+      }
+
+      const subtotalFinal = builtItems.reduce((sum, item) => sum + item.lineTotal, 0)
+      const total = Math.max(
+        subtotalFinal + additionalFeesNum + layoutFeeNum + shippingFeeNum - discountNum,
+        0
       )
 
-      const item: OrderItem = {
-        id: existingItem?.id ?? generateId(),
-        productId: selectedProduct.id,
-        productName: selectedProduct.name,
-        productCategory: selectedProduct.category,
-        selectedOptions,
-        quantity: quantityNum,
-        notes: notes.trim(),
-        pricing,
-        lineTotal: computeLineTotal({ pricing, quantity: quantityNum }),
-        stickerQuotation: stickerQuotationSnapshot,
-      }
-
-      const subtotal = item.lineTotal
-      const total = Math.max(subtotal + additionalFeesNum + layoutFeeNum + shippingFeeNum - discountNum, 0)
-
       if (order) {
-        const validStatuses = getStatusFlowForCategory(item.productCategory)
+        const firstCategory = builtItems[0]?.productCategory ?? order.items[0]?.productCategory
+        const validStatuses = firstCategory ? getStatusFlowForCategory(firstCategory) : []
         const status = validStatuses.includes(order.status) ? order.status : "pending"
         await updateOrder(order.id, {
           customerName: customerName.trim(),
           customerPhone: customerPhone.trim(),
           description: description.trim(),
           status,
-          items: [item],
-          subtotal,
+          items: builtItems,
+          subtotal: subtotalFinal,
           discount: discountNum,
           additionalFees: additionalFeesNum,
           layoutFee: layoutFeeNum,
@@ -714,8 +391,8 @@ export function OrderForm({
           customerPhone: customerPhone.trim(),
           description: description.trim(),
           status: "pending",
-          items: [item],
-          subtotal,
+          items: builtItems,
+          subtotal: subtotalFinal,
           discount: discountNum,
           additionalFees: additionalFeesNum,
           layoutFee: layoutFeeNum,
@@ -755,6 +432,7 @@ export function OrderForm({
                       clearError("customerName")
                     }}
                     placeholder="Juan Dela Cruz"
+                    maxLength={60}
                     aria-invalid={!!errors.customerName}
                   />
                   <FieldError>{errors.customerName}</FieldError>
@@ -788,201 +466,32 @@ export function OrderForm({
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Product</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <FieldGroup>
-              <Field data-invalid={!!errors.product}>
-                <FieldLabel htmlFor="order-product">Product</FieldLabel>
-                <Select value={productId} onValueChange={(value) => handleProductChange(value as string)}>
-                  <SelectTrigger id="order-product" className="w-full" aria-invalid={!!errors.product}>
-                    <SelectValue placeholder="Select a product">
-                      {(value: string | null) =>
-                        products.find((product) => product.id === value)?.name ?? "Select a product"
-                      }
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {activeProducts.map((product) => (
-                      <SelectItem key={product.id} value={product.id}>
-                        {product.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FieldError>{errors.product}</FieldError>
-              </Field>
+        {resolvedItems.map((resolved, index) => (
+          <OrderLineItemCard
+            key={resolved.draft.id}
+            index={index}
+            products={products}
+            activeProducts={activeProducts}
+            product={resolved.product}
+            draft={resolved.draft}
+            computed={resolved.computed}
+            onChange={(next) => updateItemAt(index, next)}
+            onRemove={items.length > 1 ? () => removeItemAt(index) : undefined}
+            isMissingProduct={resolved.isMissingProduct}
+            errors={{
+              product: errors[`item-${index}-product`],
+              options: errors[`item-${index}-options`],
+              pricing: errors[`item-${index}-pricing`],
+              notes: errors[`item-${index}-notes`],
+            }}
+            onClearError={(key: LineItemErrorKey) => clearError(`item-${index}-${key}`)}
+          />
+        ))}
 
-              {isEditingMissingProduct && (
-                <p className="text-sm text-muted-foreground">
-                  This order's product is no longer in the catalog, so pricing can't be recalculated.
-                  You can still update the customer info, discount, and status.
-                </p>
-              )}
-
-              {selectedProduct && !isEditingMissingProduct && isManual && (
-                <>
-                  <Field data-invalid={!!errors.pricing}>
-                    <FieldLabel htmlFor="order-manual-name">Product Name</FieldLabel>
-                    <Input
-                      id="order-manual-name"
-                      value={manualProductName}
-                      onChange={(event) => {
-                        setManualProductName(event.target.value)
-                        clearError("pricing")
-                      }}
-                      placeholder="Customized Mug"
-                      aria-invalid={!!errors.pricing}
-                    />
-                  </Field>
-                  <div className="grid grid-cols-2 gap-4">
-                    <Field>
-                      <FieldLabel htmlFor="order-quantity">Quantity</FieldLabel>
-                      <Input
-                        id="order-quantity"
-                        type="number"
-                        min={1}
-                        step="1"
-                        value={quantity}
-                        onChange={(event) => handleQuantityChange(event.target.value)}
-                      />
-                    </Field>
-                    <Field data-invalid={!!errors.pricing}>
-                      <FieldLabel htmlFor="order-manual-price">Price</FieldLabel>
-                      <Input
-                        id="order-manual-price"
-                        type="number"
-                        min={0}
-                        step="0.01"
-                        value={manualUnitPrice}
-                        onChange={(event) => {
-                          setManualUnitPrice(event.target.value)
-                          clearError("pricing")
-                        }}
-                        aria-invalid={!!errors.pricing}
-                      />
-                    </Field>
-                  </div>
-                  <FieldError>{errors.pricing}</FieldError>
-                </>
-              )}
-
-              {selectedProduct && !isEditingMissingProduct && !isManual && (
-                <>
-                  {!(selectedProduct.category === "Sintra Board" && isCustomSize) && (
-                    <>
-                      <ProductOptionsFields
-                        product={selectedProduct}
-                        values={optionValues}
-                        onChange={(optionId, value) => {
-                          setOptionValues((prev) => ({ ...prev, [optionId]: value }))
-                          clearError("options")
-                        }}
-                        excludeOptionIds={packageOption ? [packageOption.id] : undefined}
-                      />
-                      <FieldError>{errors.options}</FieldError>
-                    </>
-                  )}
-                  {selectedProduct.category === "Sintra Board" && (
-                    <label className="flex items-center gap-2 text-sm font-medium">
-                      <Switch
-                        checked={isCustomSize}
-                        onCheckedChange={(checked) => handleCustomSizeToggle(!!checked)}
-                      />
-                      Custom size
-                    </label>
-                  )}
-                  {selectedProduct.category === "Sintra Board" && isCustomSize ? (
-                    <SintraBoardCustomFields
-                      width={customWidth}
-                      onWidthChange={handleCustomWidthChange}
-                      height={customHeight}
-                      onHeightChange={handleCustomHeightChange}
-                      thickness={customThickness}
-                      onThicknessChange={handleCustomThicknessChange}
-                      backToBack={customBackToBack}
-                      onBackToBackChange={handleCustomBackToBackChange}
-                      quantity={quantity}
-                      onQuantityChange={handleQuantityChange}
-                    />
-                  ) : (
-                    <PricingFields
-                      resolution={resolution}
-                      packageEntryId={packageEntryId}
-                      onPackageEntryIdChange={handlePackageEntryIdChange}
-                      width={width}
-                      onWidthChange={handleWidthChange}
-                      height={height}
-                      onHeightChange={handleHeightChange}
-                      dimensionUnit={dimensionUnit}
-                      onDimensionUnitChange={handleDimensionUnitChange}
-                      quantity={quantity}
-                      onQuantityChange={handleQuantityChange}
-                      hidePackageSelector={isCardSelectablePackage}
-                      hideQuantity={isCardSelectablePackage}
-                    />
-                  )}
-                  <FieldError>{errors.pricing}</FieldError>
-                </>
-              )}
-
-              {selectedProduct && !isEditingMissingProduct && selectedProduct.category === "Sticker Label" && (
-                <StickerQuotationFields
-                  width={stickerWidth}
-                  onWidthChange={setStickerWidth}
-                  height={stickerHeight}
-                  onHeightChange={setStickerHeight}
-                  unit={stickerUnit}
-                  onUnitChange={setStickerUnit}
-                  selectedPackage={selectedStickerPackage}
-                  candidates={packageCandidates}
-                  onSelectPackage={(entryId) => {
-                    const entry = packageCandidates.find((candidate) => candidate.id === entryId)
-                    if (entry) handleSelectPackageOption(entry)
-                  }}
-                  selectable
-                  selectedEntryId={selectedPackagePricingEntry?.id ?? null}
-                  quantity={quantity}
-                  onQuantityChange={handleQuantityChange}
-                />
-              )}
-
-              {selectedProduct && !isEditingMissingProduct && isLaminatedSticker && (
-                <LaminatedStickerQuotationFields
-                  width={stickerWidth}
-                  onWidthChange={setStickerWidth}
-                  height={stickerHeight}
-                  onHeightChange={setStickerHeight}
-                  unit={stickerUnit}
-                  onUnitChange={setStickerUnit}
-                  candidates={packageCandidates}
-                  selectedEntryId={selectedPackagePricingEntry?.id ?? null}
-                  onSelectPackage={(entryId) => {
-                    const entry = packageCandidates.find((candidate) => candidate.id === entryId)
-                    if (entry) handleSelectPackageOption(entry)
-                  }}
-                  showAmount
-                  quantity={quantity}
-                  onQuantityChange={handleQuantityChange}
-                />
-              )}
-
-              {selectedProduct && !isEditingMissingProduct && (
-                <Field>
-                  <FieldLabel htmlFor="order-notes">Notes</FieldLabel>
-                  <Textarea
-                    id="order-notes"
-                    value={notes}
-                    onChange={(event) => setNotes(event.target.value)}
-                    placeholder="Please use the uploaded design."
-                  />
-                </Field>
-              )}
-            </FieldGroup>
-          </CardContent>
-        </Card>
+        <Button type="button" variant="outline" size="sm" className="self-start" onClick={addItem}>
+          <PlusIcon data-icon="inline-start" />
+          Add another product
+        </Button>
 
         <Card>
           <CardHeader>
@@ -1195,16 +704,18 @@ export function OrderForm({
 
       <div className="lg:sticky lg:top-20 lg:self-start">
         <OrderSummaryPanel
-          product={isEditingMissingProduct ? null : selectedProduct}
-          optionValues={optionValues}
-          pricing={isEditingMissingProduct ? null : previewPricing}
-          quantity={quantityNum}
-          lineTotal={isEditingMissingProduct ? (existingItem?.lineTotal ?? 0) : previewLineTotal}
+          items={resolvedItems.map((resolved) => ({
+            product: resolved.product,
+            optionValues: resolved.draft.optionValues,
+            pricing: resolved.computed.pricing,
+            quantity: Math.max(1, Math.round(Number(resolved.draft.quantity) || 1)),
+            lineTotal: resolved.lineTotal,
+            stickerQuotationResult: resolved.computed.quotationResult,
+          }))}
           discount={discountNum}
           additionalFees={additionalFeesNum}
           layoutFee={layoutFeeNum}
           shippingFee={shippingFeeNum}
-          stickerQuotationResult={isEditingMissingProduct ? null : quotationResult}
         />
       </div>
     </form>

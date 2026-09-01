@@ -10,73 +10,91 @@ import { formatOrderSummaryText } from "@/lib/quote-text"
 import { scaleQuotation } from "@/lib/sticker-quotation"
 import { formatCurrency } from "@/lib/utils"
 
-export function OrderSummaryPanel({
-  product,
-  optionValues,
-  pricing,
-  quantity,
-  lineTotal,
-  discount,
-  additionalFees,
-  layoutFee,
-  shippingFee,
-  stickerQuotationResult,
-}: {
+export type LineItemSummary = {
   product: Product | null
   optionValues: Record<string, string>
   pricing: OrderItemPricing | null
   quantity: number
   lineTotal: number
+  stickerQuotationResult: { quantity: number; free?: number } | null
+}
+
+function pricingLine(pricing: OrderItemPricing): string | null {
+  if (pricing.pricingType === "Package") return pricing.packageName
+  if (pricing.pricingType === "Per Unit") {
+    return (
+      `${formatCurrency(pricing.unitPrice)} / ${pricing.unit}` +
+      (pricing.width && pricing.height ? ` · ${pricing.width} × ${pricing.height} ft` : "")
+    )
+  }
+  if (pricing.pricingType === "Fixed") return `${formatCurrency(pricing.unitPrice)} / ${pricing.unit}`
+  if (pricing.pricingType === "Manual") return pricing.productName
+  if (pricing.pricingType === "Custom") return `${pricing.packageName} · ${pricing.width} × ${pricing.height} in`
+  return null
+}
+
+function itemInfoLines(item: LineItemSummary): string[] {
+  if (!item.product) return []
+  const lines: string[] = []
+
+  for (const option of item.product.options) {
+    if (item.optionValues[option.id]) lines.push(`${option.name}: ${item.optionValues[option.id]}`)
+  }
+
+  if (item.pricing) {
+    const line = pricingLine(item.pricing)
+    if (line) lines.push(line)
+  }
+
+  const totalQuotation = item.stickerQuotationResult
+    ? scaleQuotation(item.stickerQuotationResult, item.quantity)
+    : null
+  if (totalQuotation) {
+    lines.push(
+      `${item.product.category} Quotation: ${totalQuotation.quantity} pcs` +
+        (totalQuotation.free ? ` + ${totalQuotation.free} pcs free` : "")
+    )
+  }
+
+  if (item.pricing) lines.push(`Quantity: ${item.quantity}`)
+
+  return lines
+}
+
+export function OrderSummaryPanel({
+  items,
+  discount,
+  additionalFees,
+  layoutFee,
+  shippingFee,
+}: {
+  items: LineItemSummary[]
   discount: number
   additionalFees: number
   layoutFee: number
   shippingFee: number
-  stickerQuotationResult: { quantity: number; free?: number } | null
 }) {
-  const total = Math.max(lineTotal + additionalFees + layoutFee + shippingFee - discount, 0)
-  const totalQuotation = stickerQuotationResult
-    ? scaleQuotation(stickerQuotationResult, quantity)
-    : null
-
-  const showsQuantity = !!pricing
+  const subtotal = items.reduce((sum, item) => sum + item.lineTotal, 0)
+  const total = Math.max(subtotal + additionalFees + layoutFee + shippingFee - discount, 0)
+  const hasAnyProduct = items.some((item) => item.product)
+  const copyableItems = items.filter((item) => item.product && item.pricing)
 
   function handleCopy() {
-    if (!product || !pricing) return
+    if (copyableItems.length === 0) return
 
-    const infoLines = [product.name]
-
-    for (const option of product.options) {
-      if (optionValues[option.id]) infoLines.push(`${option.name}: ${optionValues[option.id]}`)
-    }
-
-    if (pricing.pricingType === "Package") infoLines.push(pricing.packageName)
-    if (pricing.pricingType === "Per Unit") {
+    const infoLines: string[] = []
+    copyableItems.forEach((item, index) => {
+      if (index > 0) infoLines.push("")
       infoLines.push(
-        `${formatCurrency(pricing.unitPrice)} / ${pricing.unit}` +
-          (pricing.width && pricing.height ? ` · ${pricing.width} × ${pricing.height} ft` : "")
+        copyableItems.length > 1 ? `Item ${index + 1}: ${item.product!.name}` : item.product!.name
       )
-    }
-    if (pricing.pricingType === "Fixed") {
-      infoLines.push(`${formatCurrency(pricing.unitPrice)} / ${pricing.unit}`)
-    }
-    if (pricing.pricingType === "Manual") infoLines.push(pricing.productName)
-    if (pricing.pricingType === "Custom") {
-      infoLines.push(`${pricing.packageName} · ${pricing.width} × ${pricing.height} in`)
-    }
-
-    if (totalQuotation) {
-      infoLines.push(
-        `${product.category} Quotation: ${totalQuotation.quantity} pcs` +
-          (totalQuotation.free ? ` + ${totalQuotation.free} pcs free` : "")
-      )
-    }
-
-    if (showsQuantity) infoLines.push(`Quantity: ${quantity}`)
+      infoLines.push(...itemInfoLines(item))
+    })
 
     copyToClipboard(
       formatOrderSummaryText({
         infoLines,
-        subtotal: lineTotal,
+        subtotal,
         additionalFees,
         layoutFee,
         shippingFee,
@@ -90,7 +108,7 @@ export function OrderSummaryPanel({
     <Card>
       <CardHeader>
         <CardTitle>Order Summary</CardTitle>
-        {product && pricing && (
+        {copyableItems.length > 0 && (
           <CardAction>
             <Button type="button" variant="ghost" size="icon-sm" onClick={handleCopy} aria-label="Copy order summary">
               <CopyIcon />
@@ -99,88 +117,71 @@ export function OrderSummaryPanel({
         )}
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
-        {!product ? (
+        {!hasAnyProduct ? (
           <p className="text-sm text-muted-foreground">Select a product to see a summary.</p>
-        ) : (
+        ) : items.length === 1 ? (
           <>
-            <p className="font-medium">{product.name}</p>
-
-            {product.options.map((option) =>
-              optionValues[option.id] ? (
-                <p key={option.id} className="text-sm text-muted-foreground">
-                  {option.name}: {optionValues[option.id]}
+            <p className="font-medium">{items[0].product!.name}</p>
+            {itemInfoLines(items[0]).map((line) => (
+              <p key={line} className="text-sm text-muted-foreground">
+                {line}
+              </p>
+            ))}
+          </>
+        ) : (
+          items.map((item, index) => (
+            <div key={index} className="flex flex-col gap-1">
+              <div className="flex items-baseline justify-between gap-2">
+                <p className="font-medium">
+                  Item {index + 1}:{" "}
+                  {item.product?.name ?? (item.lineTotal > 0 ? "Product unavailable" : "Select a product")}
                 </p>
-              ) : null
-            )}
+                <span className="shrink-0 text-sm text-muted-foreground">
+                  {formatCurrency(item.lineTotal)}
+                </span>
+              </div>
+              {itemInfoLines(item).map((line) => (
+                <p key={line} className="text-sm text-muted-foreground">
+                  {line}
+                </p>
+              ))}
+              {index < items.length - 1 && <Separator className="mt-2" />}
+            </div>
+          ))
+        )}
 
-            {pricing?.pricingType === "Package" && (
-              <p className="text-sm text-muted-foreground">{pricing.packageName}</p>
+        {hasAnyProduct && (items.length > 1 || !!items[0]?.pricing) && (
+          <>
+            <Separator />
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">Subtotal</span>
+              <span>{formatCurrency(subtotal)}</span>
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">Additional Fees</span>
+              <span>{formatCurrency(additionalFees)}</span>
+            </div>
+            {layoutFee >= 1 && (
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Layout Fee</span>
+                <span>{formatCurrency(layoutFee)}</span>
+              </div>
             )}
-            {pricing?.pricingType === "Per Unit" && (
-              <p className="text-sm text-muted-foreground">
-                {formatCurrency(pricing.unitPrice)} / {pricing.unit}
-                {pricing.width && pricing.height && (
-                  <> · {pricing.width} × {pricing.height} ft</>
-                )}
-              </p>
+            {shippingFee > 0 && (
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Shipping Fee</span>
+                <span>{formatCurrency(shippingFee)}</span>
+              </div>
             )}
-            {pricing?.pricingType === "Fixed" && (
-              <p className="text-sm text-muted-foreground">
-                {formatCurrency(pricing.unitPrice)} / {pricing.unit}
-              </p>
-            )}
-            {pricing?.pricingType === "Manual" && (
-              <p className="text-sm text-muted-foreground">{pricing.productName}</p>
-            )}
-            {pricing?.pricingType === "Custom" && (
-              <p className="text-sm text-muted-foreground">
-                {pricing.packageName} · {pricing.width} × {pricing.height} in
-              </p>
-            )}
-
-            {totalQuotation && (
-              <p className="text-sm text-muted-foreground">
-                {product.category} Quotation: {totalQuotation.quantity} pcs
-                {totalQuotation.free ? ` + ${totalQuotation.free} pcs free` : ""}
-              </p>
-            )}
-
-            {showsQuantity && <p className="text-sm text-muted-foreground">Quantity: {quantity}</p>}
-
-            {pricing && (
-              <>
-                <Separator />
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Subtotal</span>
-                  <span>{formatCurrency(lineTotal)}</span>
-                </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Additional Fees</span>
-                  <span>{formatCurrency(additionalFees)}</span>
-                </div>
-                {layoutFee >= 1 && (
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Layout Fee</span>
-                    <span>{formatCurrency(layoutFee)}</span>
-                  </div>
-                )}
-                {shippingFee > 0 && (
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Shipping Fee</span>
-                    <span>{formatCurrency(shippingFee)}</span>
-                  </div>
-                )}
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Discount</span>
-                  <span>{formatCurrency(discount)}</span>
-                </div>
-                <Separator />
-                <div className="flex items-center justify-between font-medium">
-                  <span>Total</span>
-                  <span>{formatCurrency(total)}</span>
-                </div>
-              </>
-            )}
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">Discount</span>
+              <span>{formatCurrency(discount)}</span>
+            </div>
+            <Separator />
+            <div className="flex items-center justify-between font-medium">
+              <span>Total</span>
+              <span>{formatCurrency(total)}</span>
+            </div>
           </>
         )}
       </CardContent>

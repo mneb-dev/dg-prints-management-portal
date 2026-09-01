@@ -26,6 +26,7 @@ export function SintraBoardCustomFields({
   onBackToBackChange,
   quantity,
   onQuantityChange,
+  idPrefix = "",
 }: {
   width: string
   onWidthChange: (value: string) => void
@@ -37,6 +38,7 @@ export function SintraBoardCustomFields({
   onBackToBackChange: (value: boolean) => void
   quantity?: string
   onQuantityChange?: (value: string) => void
+  idPrefix?: string
 }) {
   const w = Number(width)
   const h = Number(height)
@@ -49,9 +51,9 @@ export function SintraBoardCustomFields({
     <>
       <div className="grid grid-cols-2 gap-4">
         <Field>
-          <FieldLabel htmlFor="sintra-custom-width">Width (in)</FieldLabel>
+          <FieldLabel htmlFor={`${idPrefix}sintra-custom-width`}>Width (in)</FieldLabel>
           <Input
-            id="sintra-custom-width"
+            id={`${idPrefix}sintra-custom-width`}
             type="number"
             min={0}
             step="0.01"
@@ -60,9 +62,9 @@ export function SintraBoardCustomFields({
           />
         </Field>
         <Field>
-          <FieldLabel htmlFor="sintra-custom-height">Height (in)</FieldLabel>
+          <FieldLabel htmlFor={`${idPrefix}sintra-custom-height`}>Height (in)</FieldLabel>
           <Input
-            id="sintra-custom-height"
+            id={`${idPrefix}sintra-custom-height`}
             type="number"
             min={0}
             step="0.01"
@@ -73,9 +75,9 @@ export function SintraBoardCustomFields({
       </div>
 
       <Field>
-        <FieldLabel htmlFor="sintra-custom-thickness">Thickness</FieldLabel>
+        <FieldLabel htmlFor={`${idPrefix}sintra-custom-thickness`}>Thickness</FieldLabel>
         <Select value={thickness} onValueChange={(value) => onThicknessChange(value as SintraThickness)}>
-          <SelectTrigger id="sintra-custom-thickness">
+          <SelectTrigger id={`${idPrefix}sintra-custom-thickness`}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -95,9 +97,9 @@ export function SintraBoardCustomFields({
 
       {quantity !== undefined && onQuantityChange && (
         <Field>
-          <FieldLabel htmlFor="sintra-custom-quantity">Quantity</FieldLabel>
+          <FieldLabel htmlFor={`${idPrefix}sintra-custom-quantity`}>Quantity</FieldLabel>
           <Input
-            id="sintra-custom-quantity"
+            id={`${idPrefix}sintra-custom-quantity`}
             type="number"
             min={1}
             step="1"

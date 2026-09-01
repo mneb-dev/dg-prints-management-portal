@@ -67,6 +67,7 @@ export function ShippingAddressFields({
               onChange={(event) => onNameChange(event.target.value)}
               disabled={sameName}
               placeholder="Recipient name"
+              maxLength={60}
             />
           </Field>
 
@@ -98,6 +99,7 @@ export function ShippingAddressFields({
               value={address}
               onChange={(event) => onAddressChange(event.target.value)}
               placeholder="House/unit no., street, barangay, city, province"
+              maxLength={250}
             />
           </Field>
 
