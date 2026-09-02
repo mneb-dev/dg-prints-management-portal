@@ -1,4 +1,4 @@
-import type { ComponentProps } from "react"
+import type { ComponentProps, MouseEvent } from "react"
 import {
   CalculatorIcon,
   LayoutDashboardIcon,
@@ -11,6 +11,7 @@ import { NavLink, useLocation } from "react-router-dom"
 import dgPrintsLogo from "@/assets/images/dg_prints_logo.jpg"
 import { NavUser } from "@/components/nav-user"
 import { useAuth } from "@/lib/auth"
+import { useNavGuard } from "@/lib/nav-guard"
 import { cn } from "@/lib/utils"
 import {
   Sidebar,
@@ -38,14 +39,25 @@ const navItems = [
 export function AppSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
   const location = useLocation()
   const { role } = useAuth()
+  const { requestNavigation } = useNavGuard()
   const visibleNavItems = navItems.filter((item) => item.title !== "Users" || role !== "staff")
+
+  function guardedNavClick(url: string) {
+    return (event: MouseEvent) => {
+      if (!requestNavigation(url)) event.preventDefault()
+    }
+  }
 
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton size="lg" render={<NavLink to="/dashboard" />}>
+            <SidebarMenuButton
+              size="lg"
+              onClick={guardedNavClick("/dashboard")}
+              render={<NavLink to="/dashboard" />}
+            >
               <div className="flex aspect-square size-8 items-center justify-center overflow-hidden rounded-lg bg-black">
                 <img
                   src={dgPrintsLogo}
@@ -79,6 +91,7 @@ export function AppSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
                         isActive &&
                           "relative after:absolute after:inset-y-1.5 after:left-0 after:w-0.5 after:rounded-full after:bg-primary after:transition-opacity after:duration-150"
                       )}
+                      onClick={guardedNavClick(item.url)}
                       render={<NavLink to={item.url} />}
                     >
                       <item.icon />

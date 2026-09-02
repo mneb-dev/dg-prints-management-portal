@@ -28,6 +28,12 @@ import {
 import { Spinner } from "@/components/ui/spinner"
 import { useAuth } from "@/lib/auth"
 import type { LengthUnit } from "@/lib/length-units"
+import { useNavGuard } from "@/lib/nav-guard"
+import {
+  type OrderDraft,
+  type OrderDraftFields,
+  useOrderDrafts,
+} from "@/lib/order-drafts"
 import {
   buildOrderItem,
   computeLineItemPricing,
@@ -55,9 +61,11 @@ import type { SintraThickness } from "@/lib/sintra-board-pricing"
 import type { StickerUnit } from "@/lib/sticker-quotation"
 import { useUserOptions } from "@/lib/users"
 
+import { DiscardOrderChangesDialog } from "./discard-order-changes-dialog"
 import { OrderLineItemCard, type LineItemErrorKey } from "./order-line-item-card"
 import { OrderSummaryPanel } from "./order-summary-panel"
 import { PaymentFields } from "./payment-fields"
+import { SaveOrderDraftDialog } from "./save-order-draft-dialog"
 import { ShippingAddressFields } from "./shipping-address-fields"
 
 // Converts between an ISO timestamp and the value a `datetime-local` input needs,
@@ -74,6 +82,45 @@ function fromDatetimeLocalValue(value: string): string | null {
   if (!value) return null
   const date = new Date(value)
   return Number.isNaN(date.getTime()) ? null : date.toISOString()
+}
+
+// Line items get a fresh generateId() every time an empty draft is created, so comparing raw
+// LineItemDraft objects would flag an untouched create-mode form as "dirty" from the first render.
+// Identity fields carry no user-visible content, so they're excluded from dirty comparisons.
+function stripItemIdentity({ id: _id, originalItemId: _originalItemId, ...rest }: LineItemDraft) {
+  return rest
+}
+
+function toComparableFields(fields: OrderDraftFields) {
+  return { ...fields, items: fields.items.map(stripItemIdentity) }
+}
+
+// Pure mirror of the order-seeding effect below — used to build the edit-mode dirty baseline.
+function fieldsFromOrder(order: Order): OrderDraftFields {
+  const shipping = order.shippingAddress
+  const paid = order.payment.status !== "unpaid"
+  return {
+    customerName: order.customerName,
+    customerPhone: order.customerPhone,
+    items: order.items.length > 0 ? order.items.map(draftFromOrderItem) : [createEmptyLineItemDraft()],
+    description: order.description ?? "",
+    discount: String(order.discount),
+    additionalFees: String(order.additionalFees),
+    notes: order.notes ?? "",
+    layoutFee: String(order.layoutFee),
+    shippingEnabled: !!shipping,
+    sameName: shipping ? shipping.name === order.customerName : true,
+    samePhone: shipping ? shipping.phone === order.customerPhone : true,
+    shippingName: shipping?.name ?? "",
+    shippingPhone: shipping?.phone ?? "",
+    shippingAddress: shipping?.address ?? "",
+    shippingFee: shipping ? String(shipping.fee ?? 0) : "0",
+    channel: order.channel,
+    markPaid: paid,
+    paymentStatus: paid && order.payment.status !== "paid" ? "partially_paid" : "paid",
+    paymentMethod: paid ? (order.payment.method ?? "") : "",
+    downPayment: paid ? String(order.payment.downPayment) : "",
+  }
 }
 
 export type OrderFormSeed = {
@@ -95,9 +142,11 @@ export type OrderFormSeed = {
 export function OrderForm({
   order,
   initialValues,
+  draftToLoad,
 }: {
   order: Order | null
   initialValues?: OrderFormSeed
+  draftToLoad?: OrderDraft | null
 }) {
   const navigate = useNavigate()
   const { products } = useProductCatalog()
@@ -108,6 +157,8 @@ export function OrderForm({
   const { role } = useAuth()
   const canEditMetadata = !!order && canEditOrderMetadata(role)
   const { users: userOptions } = useUserOptions(canEditMetadata)
+  const { setGuard } = useNavGuard()
+  const { saveDraft, deleteDraft } = useOrderDrafts()
 
   const [customerName, setCustomerName] = useState("")
   const [customerPhone, setCustomerPhone] = useState("")
@@ -135,6 +186,39 @@ export function OrderForm({
   const [createdByValue, setCreatedByValue] = useState("")
   const [statusUpdatedAtLocal, setStatusUpdatedAtLocal] = useState("")
   const [statusUpdatedByValue, setStatusUpdatedByValue] = useState("")
+
+  function buildCurrentFields(): OrderDraftFields {
+    return {
+      customerName,
+      customerPhone,
+      items,
+      description,
+      discount,
+      additionalFees,
+      notes,
+      layoutFee,
+      shippingEnabled,
+      sameName,
+      samePhone,
+      shippingName,
+      shippingPhone,
+      shippingAddress,
+      shippingFee,
+      channel,
+      markPaid,
+      paymentStatus,
+      paymentMethod,
+      downPayment,
+    }
+  }
+
+  const [pendingNav, setPendingNav] = useState<string | number | null>(null)
+  const [loadedDraftId, setLoadedDraftId] = useState<string | null>(null)
+  const [baselineFields, setBaselineFields] = useState<OrderDraftFields>(() => buildCurrentFields())
+
+  const isDirty =
+    JSON.stringify(toComparableFields(buildCurrentFields())) !==
+    JSON.stringify(toComparableFields(baselineFields))
 
   function clearError(key: string) {
     setErrors((prev) => {
@@ -222,6 +306,13 @@ export function OrderForm({
     setStatusUpdatedByValue(order.statusUpdatedBy ?? "")
   }, [order])
 
+  // Resets the edit-mode dirty baseline whenever a (new) order finishes loading, so unsaved-changes
+  // tracking compares against the order's actual saved state rather than the empty create-mode default.
+  useEffect(() => {
+    if (!order) return
+    setBaselineFields(fieldsFromOrder(order))
+  }, [order])
+
   useEffect(() => {
     if (order || !initialValues) return
     setItems((prev) => {
@@ -244,6 +335,44 @@ export function OrderForm({
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [order, initialValues])
+
+  // Loading a saved draft is a later, deliberate user action (a "Load" click), so it's seeded in
+  // its own effect placed after the calculator-handoff seed above and always wins over it.
+  useEffect(() => {
+    if (order || !draftToLoad) return
+    const f = draftToLoad.fields
+    setCustomerName(f.customerName)
+    setCustomerPhone(f.customerPhone)
+    setItems(f.items)
+    setDescription(f.description)
+    setDiscount(f.discount)
+    setAdditionalFees(f.additionalFees)
+    setNotes(f.notes)
+    setLayoutFee(f.layoutFee)
+    setShippingEnabled(f.shippingEnabled)
+    setSameName(f.sameName)
+    setSamePhone(f.samePhone)
+    setShippingName(f.shippingName)
+    setShippingPhone(f.shippingPhone)
+    setShippingAddress(f.shippingAddress)
+    setShippingFee(f.shippingFee)
+    setChannel(f.channel)
+    setMarkPaid(f.markPaid)
+    setPaymentStatus(f.paymentStatus)
+    setPaymentMethod(f.paymentMethod)
+    setDownPayment(f.downPayment)
+    setLoadedDraftId(draftToLoad.id)
+    // The loaded draft becomes the new "nothing to save" baseline — only edits made after loading
+    // it should count as dirty, since the draft itself already reflects this content.
+    setBaselineFields(f)
+  }, [order, draftToLoad])
+
+  // Registers this form with the shared nav-guard so sidebar clicks can intercept navigation while
+  // there are unsaved changes; the app uses a plain BrowserRouter, so there's no useBlocker to lean on.
+  useEffect(() => {
+    setGuard(isDirty ? (targetPath: string) => setPendingNav(targetPath) : null)
+    return () => setGuard(null)
+  }, [isDirty, setGuard])
 
   const resolvedItems = items.map((draft) => {
     const product = products.find((candidate) => candidate.id === draft.productId) ?? null
@@ -450,6 +579,7 @@ export function OrderForm({
           payment: resolvePayment(total),
         })
         toast.success("Order created.")
+        if (loadedDraftId) deleteDraft(loadedDraftId)
         navigate(`/orders/${created.id}`)
       }
     } catch (err) {
@@ -457,6 +587,20 @@ export function OrderForm({
     } finally {
       setIsSubmitting(false)
     }
+  }
+
+  function confirmNavigation() {
+    if (pendingNav === null) return
+    // react-router's navigate() is overloaded on `To | number`, which TS can't dispatch from a
+    // union argument directly — narrowing per-branch resolves to the matching overload.
+    if (typeof pendingNav === "number") navigate(pendingNav)
+    else navigate(pendingNav)
+    setPendingNav(null)
+  }
+
+  function confirmSaveDraftAndLeave() {
+    saveDraft(buildCurrentFields(), loadedDraftId ?? undefined)
+    confirmNavigation()
   }
 
   return (
@@ -785,7 +929,11 @@ export function OrderForm({
         )}
 
         <div className="flex justify-end gap-2">
-          <Button type="button" variant="outline" onClick={() => navigate(-1)}>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => (isDirty ? setPendingNav(-1) : navigate(-1))}
+          >
             Cancel
           </Button>
           <Button type="submit" disabled={isSubmitting}>
@@ -812,6 +960,21 @@ export function OrderForm({
           notes={notes}
         />
       </div>
+
+      {order ? (
+        <DiscardOrderChangesDialog
+          open={pendingNav !== null}
+          onOpenChange={(open) => !open && setPendingNav(null)}
+          onDiscard={confirmNavigation}
+        />
+      ) : (
+        <SaveOrderDraftDialog
+          open={pendingNav !== null}
+          onOpenChange={(open) => !open && setPendingNav(null)}
+          onDiscard={confirmNavigation}
+          onSaveDraft={confirmSaveDraftAndLeave}
+        />
+      )}
     </form>
   )
 }
