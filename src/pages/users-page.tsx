@@ -19,14 +19,20 @@ import { UserFormDialog } from "@/components/users/user-form-dialog"
 import { UserTable } from "@/components/users/user-table"
 import { useAuth } from "@/lib/auth"
 import { useDebouncedValue } from "@/lib/use-debounced-value"
-import { ROLES, useUserActions, useUsers, type User } from "@/lib/users"
+import { ROLES, USER_STATUSES, useUserActions, useUsers, type User } from "@/lib/users"
 
 const ANY_ROLE = "All Roles"
+const ANY_STATUS = "All Statuses"
 
 const ROLE_LABELS: Record<string, string> = {
   staff: "Staff",
   admin: "Admin",
   superadmin: "Super Admin",
+}
+
+const STATUS_LABELS: Record<string, string> = {
+  active: "Active",
+  inactive: "Inactive",
 }
 
 const SORT_OPTIONS = [
@@ -58,12 +64,13 @@ export function UsersPage() {
   const hasActiveFilters =
     params.search !== "" ||
     params.role !== "" ||
+    params.status !== "" ||
     params.sortBy !== "created_at" ||
     params.sortDir !== "asc"
 
   function clearFilters() {
     setSearchInput("")
-    setParams({ search: "", role: "", sortBy: "created_at", sortDir: "asc", page: 1 })
+    setParams({ search: "", role: "", status: "", sortBy: "created_at", sortDir: "asc", page: 1 })
   }
 
   const activeFilters: ActiveFilter[] = [
@@ -79,6 +86,11 @@ export function UsersPage() {
       key: "role",
       label: ROLE_LABELS[params.role] ?? params.role,
       onRemove: () => setParams({ role: "", page: 1 }),
+    },
+    params.status && {
+      key: "status",
+      label: STATUS_LABELS[params.status] ?? params.status,
+      onRemove: () => setParams({ status: "", page: 1 }),
     },
   ].filter((filter): filter is ActiveFilter => Boolean(filter))
 
@@ -144,6 +156,24 @@ export function UsersPage() {
           </SelectContent>
         </Select>
 
+        <Select
+          value={params.status || ANY_STATUS}
+          onValueChange={(value) => setParams({ status: value === ANY_STATUS ? "" : (value ?? ""), page: 1 })}
+          disabled={isLoading || isError}
+        >
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ANY_STATUS}>{ANY_STATUS}</SelectItem>
+            {USER_STATUSES.map((status) => (
+              <SelectItem key={status} value={status}>
+                {STATUS_LABELS[status]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
         <SortControl
           value={params.sortBy}
           direction={params.sortDir}
@@ -191,6 +221,7 @@ export function UsersPage() {
         open={formOpen}
         onOpenChange={setFormOpen}
         user={editingUser}
+        currentUserId={currentUser?.id}
         onSaved={refetch}
       />
 

@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from "react"
-import { PlusIcon } from "lucide-react"
+import { CopyIcon, ExternalLinkIcon, PlusIcon } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 import { toast } from "sonner"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Autocomplete,
   AutocompleteEmpty,
@@ -27,6 +27,8 @@ import {
 } from "@/components/ui/select"
 import { Spinner } from "@/components/ui/spinner"
 import { useAuth } from "@/lib/auth"
+import { copyToClipboard } from "@/lib/clipboard"
+import { isValidPhMobileNumber } from "@/lib/phone"
 import type { LengthUnit } from "@/lib/length-units"
 import { useNavGuard } from "@/lib/nav-guard"
 import {
@@ -256,7 +258,9 @@ export function OrderForm({
     }
   }
 
-  const activeProducts = products.filter((product) => product.status === "Active")
+  const activeProducts = products
+    .filter((product) => product.status === "Active")
+    .sort((a, b) => Number(hotProductIds.has(b.id)) - Number(hotProductIds.has(a.id)))
 
   function updateItemAt(index: number, next: LineItemDraft) {
     setItems((prev) => prev.map((draft, i) => (i === index ? next : draft)))
@@ -426,6 +430,16 @@ export function OrderForm({
     }
   }
 
+  function handleOpenSpx() {
+    window.open("https://spx.ph/spx-admin/single-order/create", "_blank", "noopener,noreferrer")
+  }
+
+  function handleCopyShippingAddress() {
+    const shipping = resolveShippingAddress()
+    if (!shipping) return
+    copyToClipboard(`${shipping.name}\n${shipping.phone}\n${shipping.address}`)
+  }
+
   function resolvePayment(total: number): Payment {
     if (!markPaid) return { status: "unpaid", method: null, downPayment: 0, balance: total }
     const method = channel === "Shopee" ? "Bank Transfer" : (paymentMethod as PaymentMethod)
@@ -445,6 +459,10 @@ export function OrderForm({
       nextErrors.customerName = "Customer name is required."
     } else if (customerName.trim().length > 60) {
       nextErrors.customerName = "Must be 60 characters or fewer."
+    }
+
+    if (customerPhone.trim() && !isValidPhMobileNumber(customerPhone.trim())) {
+      nextErrors.customerPhone = "Enter a valid PH mobile number (e.g. 0917 123 4567)."
     }
 
     if (description.length > 60) {
@@ -470,6 +488,8 @@ export function OrderForm({
         nextErrors.shipping = "Name must be 60 characters or fewer."
       } else if (shippingAddress.trim().length > 250) {
         nextErrors.shipping = "Address must be 250 characters or fewer."
+      } else if (!isValidPhMobileNumber(resolvedPhone.trim())) {
+        nextErrors.shipping = "Phone must be a valid PH mobile number (e.g. 0917 123 4567)."
       }
     }
 
@@ -655,14 +675,19 @@ export function OrderForm({
                   </Autocomplete>
                   <FieldError>{errors.customerName}</FieldError>
                 </Field>
-                <Field>
+                <Field data-invalid={!!errors.customerPhone}>
                   <FieldLabel htmlFor="order-customer-phone">Phone</FieldLabel>
                   <Input
                     id="order-customer-phone"
                     value={customerPhone}
-                    onChange={(event) => setCustomerPhone(event.target.value)}
+                    onChange={(event) => {
+                      setCustomerPhone(event.target.value)
+                      clearError("customerPhone")
+                    }}
                     placeholder="09XX XXX XXXX"
+                    aria-invalid={!!errors.customerPhone}
                   />
+                  <FieldError>{errors.customerPhone}</FieldError>
                 </Field>
               </div>
               <Field data-invalid={!!errors.description}>
@@ -715,6 +740,28 @@ export function OrderForm({
         <Card>
           <CardHeader>
             <CardTitle>Shipping</CardTitle>
+            {shippingEnabled && (
+              <CardAction className="flex gap-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="Open SPX order form"
+                  onClick={handleOpenSpx}
+                >
+                  <ExternalLinkIcon />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="Copy shipping address"
+                  onClick={handleCopyShippingAddress}
+                >
+                  <CopyIcon />
+                </Button>
+              </CardAction>
+            )}
           </CardHeader>
           <CardContent>
             <ShippingAddressFields

@@ -1,4 +1,3 @@
-import { EyeIcon, EyeOffIcon } from "lucide-react"
 import { useId, useState, type SubmitEvent } from "react"
 import { useNavigate } from "react-router-dom"
 
@@ -12,6 +11,7 @@ import {
 } from "@/components/ui/card"
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { PasswordInput } from "@/components/ui/password-input"
 import { Spinner } from "@/components/ui/spinner"
 import { useAuth } from "@/lib/auth"
 
@@ -22,7 +22,6 @@ export function LoginPage() {
   const navigate = useNavigate()
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [showPassword, setShowPassword] = useState(false)
 
   async function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -64,26 +63,12 @@ export function LoginPage() {
               </Field>
               <Field data-invalid={!!error}>
                 <FieldLabel htmlFor={passwordId}>Password</FieldLabel>
-                <div className="relative">
-                  <Input
-                    id={passwordId}
-                    name="password"
-                    type={showPassword ? "text" : "password"}
-                    autoComplete="current-password"
-                    aria-invalid={!!error}
-                    className="pr-8"
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    className="absolute top-0 right-0"
-                    onClick={() => setShowPassword((value) => !value)}
-                    aria-label={showPassword ? "Hide password" : "Show password"}
-                  >
-                    {showPassword ? <EyeOffIcon /> : <EyeIcon />}
-                  </Button>
-                </div>
+                <PasswordInput
+                  id={passwordId}
+                  name="password"
+                  autoComplete="current-password"
+                  aria-invalid={!!error}
+                />
                 <FieldError errors={error ? [{ message: error }] : undefined} />
               </Field>
               <Field>

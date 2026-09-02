@@ -1,7 +1,8 @@
 import { useState } from "react"
+import { UserRoundXIcon } from "lucide-react"
 import { toast } from "sonner"
 
-import { Avatar, AvatarImage } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
   Dialog,
   DialogContent,
@@ -21,12 +22,12 @@ export function AvatarPicker({
   onOpenChange: (open: boolean) => void
 }) {
   const { user, updateProfile } = useAuth()
-  const [savingKey, setSavingKey] = useState<string | null>(null)
+  const [pendingKey, setPendingKey] = useState<string | "none" | null>(null)
 
-  async function handleSelect(key: string) {
-    setSavingKey(key)
+  async function handleSelect(key: string | null) {
+    setPendingKey(key ?? "none")
     const error = await updateProfile({ avatar: key })
-    setSavingKey(null)
+    setPendingKey(null)
     if (error) {
       toast.error(error)
       return
@@ -43,11 +44,26 @@ export function AvatarPicker({
           <DialogDescription>Pick a picture to use across the app.</DialogDescription>
         </DialogHeader>
         <div className="grid grid-cols-6 gap-2">
+          <button
+            type="button"
+            disabled={pendingKey !== null}
+            onClick={() => handleSelect(null)}
+            className={cn(
+              "rounded-full p-0.5 ring-2 ring-transparent transition-all hover:ring-primary/50 disabled:opacity-50",
+              user?.avatar == null && "ring-primary"
+            )}
+          >
+            <Avatar size="lg" className="mx-auto">
+              <AvatarFallback>
+                <UserRoundXIcon className="size-4" />
+              </AvatarFallback>
+            </Avatar>
+          </button>
           {AVATAR_KEYS.map((key) => (
             <button
               key={key}
               type="button"
-              disabled={savingKey !== null}
+              disabled={pendingKey !== null}
               onClick={() => handleSelect(key)}
               className={cn(
                 "rounded-full p-0.5 ring-2 ring-transparent transition-all hover:ring-primary/50 disabled:opacity-50",

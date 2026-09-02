@@ -28,7 +28,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { cn } from "@/lib/utils"
-import { PERMISSION_LABELS, type Role, type User } from "@/lib/users"
+import { PERMISSION_LABELS, type Role, type User, type UserStatus } from "@/lib/users"
 
 const ROLE_BADGE_VARIANT: Record<Role, "default" | "secondary" | "outline"> = {
   superadmin: "default",
@@ -42,7 +42,21 @@ const ROLE_LABELS: Record<Role, string> = {
   superadmin: "Super Admin",
 }
 
+const STATUS_BADGE_VARIANT: Record<UserStatus, "success" | "secondary"> = {
+  active: "success",
+  inactive: "secondary",
+}
+
+const STATUS_LABELS: Record<UserStatus, string> = {
+  active: "Active",
+  inactive: "Inactive",
+}
+
 function canDelete(actorRole: Role, target: User): boolean {
+  return !(actorRole === "admin" && target.role === "superadmin")
+}
+
+function canEdit(actorRole: Role, target: User): boolean {
   return !(actorRole === "admin" && target.role === "superadmin")
 }
 
@@ -84,6 +98,7 @@ export function UserTable({
               <TableHead>Name</TableHead>
               <TableHead>Username</TableHead>
               <TableHead>Role</TableHead>
+              <TableHead>Status</TableHead>
               <TableHead>Permissions</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
@@ -96,6 +111,9 @@ export function UserTable({
                 </TableCell>
                 <TableCell>
                   <Skeleton className="h-4 w-24" />
+                </TableCell>
+                <TableCell>
+                  <Skeleton className="h-5 w-16 rounded-full" />
                 </TableCell>
                 <TableCell>
                   <Skeleton className="h-5 w-16 rounded-full" />
@@ -180,6 +198,7 @@ export function UserTable({
               <TableHead>Name</TableHead>
               <TableHead>Username</TableHead>
               <TableHead>Role</TableHead>
+              <TableHead>Status</TableHead>
               <TableHead>Permissions</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
@@ -188,6 +207,7 @@ export function UserTable({
             {users.map((user) => {
               const isSelf = user.id === currentUserId
               const deletable = !isSelf && (currentUserRole ? canDelete(currentUserRole, user) : false)
+              const editable = currentUserRole ? canEdit(currentUserRole, user) : false
 
               return (
                 <TableRow key={user.id}>
@@ -198,6 +218,11 @@ export function UserTable({
                   <TableCell>
                     <Badge variant={ROLE_BADGE_VARIANT[user.role]}>{ROLE_LABELS[user.role]}</Badge>
                   </TableCell>
+                  <TableCell>
+                    <Badge variant={STATUS_BADGE_VARIANT[user.status]}>
+                      {STATUS_LABELS[user.status]}
+                    </Badge>
+                  </TableCell>
                   <TableCell className="text-muted-foreground">
                     {user.permissions.length > 0
                       ? user.permissions.map((key) => PERMISSION_LABELS[key]).join(", ")
@@ -205,12 +230,14 @@ export function UserTable({
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
-                      <Button variant="ghost" size="icon-sm" onClick={() => onEdit(user)}>
-                        <PencilIcon />
-                        <span className="sr-only">
-                          Edit {user.firstName} {user.lastName}
-                        </span>
-                      </Button>
+                      {editable && (
+                        <Button variant="ghost" size="icon-sm" onClick={() => onEdit(user)}>
+                          <PencilIcon />
+                          <span className="sr-only">
+                            Edit {user.firstName} {user.lastName}
+                          </span>
+                        </Button>
+                      )}
                       {deletable && (
                         <Button variant="ghost" size="icon-sm" onClick={() => onDelete(user)}>
                           <Trash2Icon />

@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { PasswordInput } from "@/components/ui/password-input"
 import { useAuth } from "@/lib/auth"
 import { getAvatarDataUri } from "@/lib/avatars"
 import type { Role } from "@/lib/users-slice"
@@ -200,9 +201,8 @@ export function ProfilePage() {
             <FieldGroup>
               <Field data-invalid={!!passwordErrors.currentPassword}>
                 <FieldLabel htmlFor="profile-current-password">Current Password</FieldLabel>
-                <Input
+                <PasswordInput
                   id="profile-current-password"
-                  type="password"
                   value={currentPassword}
                   onChange={(event) => {
                     setCurrentPassword(event.target.value)
@@ -215,9 +215,8 @@ export function ProfilePage() {
               </Field>
               <Field data-invalid={!!passwordErrors.newPassword}>
                 <FieldLabel htmlFor="profile-new-password">New Password</FieldLabel>
-                <Input
+                <PasswordInput
                   id="profile-new-password"
-                  type="password"
                   value={newPassword}
                   onChange={(event) => {
                     setNewPassword(event.target.value)
@@ -234,9 +233,8 @@ export function ProfilePage() {
               </Field>
               <Field data-invalid={!!passwordErrors.confirmPassword}>
                 <FieldLabel htmlFor="profile-confirm-password">Confirm New Password</FieldLabel>
-                <Input
+                <PasswordInput
                   id="profile-confirm-password"
-                  type="password"
                   value={confirmPassword}
                   onChange={(event) => {
                     setConfirmPassword(event.target.value)
