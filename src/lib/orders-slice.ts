@@ -331,6 +331,36 @@ export const fetchTopCustomersThunk = createAsyncThunk<
   }
 )
 
+export type OrderStats = {
+  byStatus: Record<string, number>
+  byPaymentStatus: Record<string, number>
+  byChannel: Record<string, number>
+  outstandingBalance: number
+  totalOrders: number
+}
+
+/** Whole-dataset order KPI aggregates (status/payment/channel counts, outstanding AR) —
+ * powers the dashboard's stat strip and breakdown cards without the last-100-orders cap
+ * that `fetchRecentOrdersForRankingThunk` is subject to. */
+export const fetchOrderStatsThunk = createAsyncThunk<
+  OrderStats,
+  void,
+  { rejectValue: string; state: RootState }
+>(
+  "orders/fetchStats",
+  async (_arg, { rejectWithValue }) => {
+    try {
+      const { data } = await apiClient.get<OrderStats>("/orders/stats")
+      return data
+    } catch (err) {
+      return rejectWithValue(getErrorMessage(err))
+    }
+  },
+  {
+    condition: (_arg, { getState }) => getState().orders.orderStatsStatus === "idle",
+  }
+)
+
 // Unlike products, order items don't need their ids stripped before POSTing: the
 // server always force-regenerates item ids on create, and reuses client-supplied
 // item ids on update — which is exactly what's wanted so an edited item is upserted
@@ -383,11 +413,15 @@ type OrdersState = {
   currentStatus: "idle" | "loading" | "succeeded" | "failed"
   currentError: string | null
   hotProductIds: string[]
+  recentOrders: Order[]
   rankingStatus: "idle" | "loading" | "succeeded" | "failed"
   rankingError: string | null
   customerRankings: CustomerRanking[]
   customerRankingStatus: "idle" | "loading" | "succeeded" | "failed"
   customerRankingError: string | null
+  orderStats: OrderStats | null
+  orderStatsStatus: "idle" | "loading" | "succeeded" | "failed"
+  orderStatsError: string | null
 }
 
 const initialState: OrdersState = {
@@ -412,11 +446,15 @@ const initialState: OrdersState = {
   currentStatus: "idle",
   currentError: null,
   hotProductIds: [],
+  recentOrders: [],
   rankingStatus: "idle",
   rankingError: null,
   customerRankings: [],
   customerRankingStatus: "idle",
   customerRankingError: null,
+  orderStats: null,
+  orderStatsStatus: "idle",
+  orderStatsError: null,
 }
 
 const ordersSlice = createSlice({
@@ -482,6 +520,7 @@ const ordersSlice = createSlice({
       .addCase(fetchRecentOrdersForRankingThunk.fulfilled, (state, action: PayloadAction<Order[]>) => {
         state.rankingStatus = "succeeded"
         state.hotProductIds = computeHotProductIds(action.payload)
+        state.recentOrders = action.payload.map(normalizeOrder)
       })
       .addCase(fetchRecentOrdersForRankingThunk.rejected, (state, action) => {
         state.rankingStatus = "failed"
@@ -498,6 +537,18 @@ const ordersSlice = createSlice({
       .addCase(fetchTopCustomersThunk.rejected, (state, action) => {
         state.customerRankingStatus = "failed"
         state.customerRankingError = action.payload ?? "Failed to load customer rankings."
+      })
+      .addCase(fetchOrderStatsThunk.pending, (state) => {
+        state.orderStatsStatus = "loading"
+        state.orderStatsError = null
+      })
+      .addCase(fetchOrderStatsThunk.fulfilled, (state, action: PayloadAction<OrderStats>) => {
+        state.orderStatsStatus = "succeeded"
+        state.orderStats = action.payload
+      })
+      .addCase(fetchOrderStatsThunk.rejected, (state, action) => {
+        state.orderStatsStatus = "failed"
+        state.orderStatsError = action.payload ?? "Failed to load order stats."
       })
   },
 })

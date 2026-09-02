@@ -18,3 +18,4 @@ export function PaymentStatusBadge({ status }: { status: PaymentStatus }) {
 }
 
 export { STATUS_LABELS as PAYMENT_STATUS_LABELS }
+export { STATUS_VARIANTS as PAYMENT_STATUS_VARIANTS }

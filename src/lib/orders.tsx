@@ -5,6 +5,7 @@ import {
   createOrderThunk,
   deleteOrderThunk,
   fetchOrderByIdThunk,
+  fetchOrderStatsThunk,
   fetchOrdersThunk,
   fetchRecentOrdersForRankingThunk,
   fetchTopCustomersThunk,
@@ -42,6 +43,7 @@ export type {
   OrderInput,
   OrderItem,
   OrderItemPricing,
+  OrderStats,
   OrderStatus,
   OrdersQueryParams,
   OrderUpdateInput,
@@ -110,6 +112,43 @@ export function useHotProductIds() {
   }, [dispatch])
 
   return { hotProductIds, isLoading: status === "loading" || status === "idle" }
+}
+
+/** The latest 100 orders, fetched once per session (shared with `useHotProductIds`) — for dashboard
+ * widgets that need real recent-order data. Scoped to the last 100 orders, not the full history. */
+export function useRecentOrders() {
+  const recentOrders = useAppSelector((state) => state.orders.recentOrders)
+  const status = useAppSelector((state) => state.orders.rankingStatus)
+  const dispatch = useAppDispatch()
+
+  useEffect(() => {
+    dispatch(fetchRecentOrdersForRankingThunk())
+  }, [dispatch])
+
+  return {
+    recentOrders,
+    isLoading: status === "loading" || status === "idle",
+    isError: status === "failed",
+  }
+}
+
+/** Whole-dataset order KPI aggregates (status/payment/channel counts, outstanding AR),
+ * fetched once per session — for dashboard cards/stat strip that need true totals rather
+ * than a last-100-orders sample. See `useRecentOrders()` for cards that need real row data. */
+export function useOrderStats() {
+  const stats = useAppSelector((state) => state.orders.orderStats)
+  const status = useAppSelector((state) => state.orders.orderStatsStatus)
+  const dispatch = useAppDispatch()
+
+  useEffect(() => {
+    dispatch(fetchOrderStatsThunk())
+  }, [dispatch])
+
+  return {
+    stats,
+    isLoading: status === "loading" || status === "idle",
+    isError: status === "failed",
+  }
 }
 
 /** Customer names ranked by total amount spent within the server's ranking window, fetched once per
@@ -181,5 +220,11 @@ export function useOrderActions() {
     await dispatch(deleteOrderThunk(id)).unwrap()
   }
 
-  return { addOrder, updateOrder, setOrderStatus, deleteOrder }
+  /** Sets the Orders list page's filter params ahead of navigating there — e.g. a dashboard
+   * widget linking to "unpaid orders" first primes the filter, then the caller navigates to /orders. */
+  function setOrdersFilter(patch: Partial<OrdersQueryParams>) {
+    dispatch(setOrdersParams(patch))
+  }
+
+  return { addOrder, updateOrder, setOrderStatus, deleteOrder, setOrdersFilter }
 }

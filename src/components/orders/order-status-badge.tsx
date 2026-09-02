@@ -71,3 +71,4 @@ export function OrderStatusBadge({ status }: { status: OrderStatus }) {
 }
 
 export { STATUS_LABELS as ORDER_STATUS_LABELS }
+export { STATUS_VARIANTS as ORDER_STATUS_VARIANTS, STATUS_ICONS as ORDER_STATUS_ICONS }
