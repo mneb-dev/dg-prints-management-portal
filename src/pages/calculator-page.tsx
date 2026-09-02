@@ -179,9 +179,11 @@ export function CalculatorPage() {
     if (category === "Sticker Label") {
       lines.push(`${stickerWidth} × ${stickerHeight} ${stickerUnit}`)
       const quotation = calculateStickerQuotation(Number(stickerWidth), Number(stickerHeight), stickerUnit)
-      for (const tier of PACKAGE_TIERS) {
+      for (const [index, tier] of PACKAGE_TIERS.entries()) {
         const result = quotation[tier.key]
-        lines.push(`${formatCurrency(tier.price)} package — ${result.quantity} pcs + ${result.free} pcs free`)
+        lines.push(`Package ${index + 1} ${formatCurrency(tier.price)}: `)
+        lines.push(`${result.quantity} pcs + ${result.free} pcs free`)
+        lines.push("")
       }
     } else if (category === "Laminated Sticker") {
       lines.push(`${stickerWidth} × ${stickerHeight} ${stickerUnit}`)
