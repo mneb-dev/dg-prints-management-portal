@@ -170,6 +170,7 @@ export function CalculatorPage() {
         : isSintraCustom
           ? hasValidCustomSize
           : quote !== null
+  
 
   function handleCopyQuote() {
     if (!category || !selectedProduct) return
@@ -177,7 +178,8 @@ export function CalculatorPage() {
     const lines: string[] = [selectedProduct.name]
 
     if (category === "Sticker Label") {
-      lines.push(`${stickerWidth} × ${stickerHeight} ${stickerUnit}`)
+      lines.push(`Size: ${stickerWidth} × ${stickerHeight} ${stickerUnit}`)
+      lines.push("")
       const quotation = calculateStickerQuotation(Number(stickerWidth), Number(stickerHeight), stickerUnit)
       for (const [index, tier] of PACKAGE_TIERS.entries()) {
         const result = quotation[tier.key]
@@ -186,7 +188,7 @@ export function CalculatorPage() {
         lines.push("")
       }
     } else if (category === "Laminated Sticker") {
-      lines.push(`${stickerWidth} × ${stickerHeight} ${stickerUnit}`)
+      lines.push(`Size: ${stickerWidth} × ${stickerHeight} ${stickerUnit}`)
       for (const candidate of laminatedCandidates) {
         const qty = calculateLaminatedStickerQuotation(
           Number(stickerWidth),
@@ -195,7 +197,7 @@ export function CalculatorPage() {
           candidate.price
         )
         lines.push(
-          `${candidate.packageName ?? formatCurrency(candidate.price)} — ${formatCurrency(candidate.price)} — ${qty} pcs`
+          `${formatCurrency(candidate.price)} = ${qty} pcs`
         )
       }
     } else if (isSintraCustom) {
