@@ -93,7 +93,7 @@ function deleteOrderDraft(id: string): void {
   writeAllDrafts(readAllDrafts().filter((draft) => draft.id !== id))
 }
 
-/** Current user's live, non-expired order drafts, newest first — for the Create Order page's draft list. */
+/** Current user's live, non-expired order drafts, newest first — for the New Order page's draft list. */
 export function useOrderDrafts() {
   const { user } = useAuth()
   const [drafts, setDrafts] = useState<OrderDraft[]>([])

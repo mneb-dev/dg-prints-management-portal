@@ -1,4 +1,4 @@
-import { PlusIcon, WalletIcon } from "lucide-react"
+import { PlusIcon } from "lucide-react"
 import { Link, useNavigate } from "react-router-dom"
 
 import { ORDER_STATUS_ICONS } from "@/components/orders/order-status-badge"
@@ -12,23 +12,21 @@ import { StatCard } from "@/components/dashboard/stat-card"
 import { StatusPipelineCard } from "@/components/dashboard/status-pipeline-card"
 import { TopCustomersCard } from "@/components/dashboard/top-customers-card"
 import { useAuth } from "@/lib/auth"
-import { useCustomerRankings, useOrderActions, useOrderStats } from "@/lib/orders"
-import { formatCurrency } from "@/lib/utils"
+import { useOrderActions, useOrderStats } from "@/lib/orders"
 
 export function DashboardPage() {
   const { hasPermission } = useAuth()
   const { stats } = useOrderStats()
-  const { customerNames } = useCustomerRankings()
   const { setOrdersFilter } = useOrderActions()
   const navigate = useNavigate()
 
+  const pendingCount = stats?.byStatus["pending"] ?? 0
   const layoutCount = stats?.byStatus["layout"] ?? 0
   const traceCount = stats?.byStatus["trace"] ?? 0
   const printCount = stats?.byStatus["print"] ?? 0
   const cutCount = stats?.byStatus["cut"] ?? 0
   const packCount = stats?.byStatus["pack"] ?? 0
   const readyForPickupCount = stats?.byStatus["pickup"] ?? 0
-  const unpaidTotal = stats?.outstandingBalance ?? 0
 
   function goToOrders(status: string) {
     setOrdersFilter({ status, page: 1 })
@@ -50,7 +48,13 @@ export function DashboardPage() {
         }
       />
 
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 xl:grid-cols-7">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-7">
+        <StatCard
+          icon={ORDER_STATUS_ICONS.pending}
+          label="Pending"
+          value={pendingCount}
+          onClick={() => goToOrders("pending")}
+        />
         <StatCard
           icon={ORDER_STATUS_ICONS.layout}
           label="Awaiting layout"
@@ -86,13 +90,6 @@ export function DashboardPage() {
           label="Ready for pickup"
           value={readyForPickupCount}
           onClick={() => goToOrders("pickup")}
-        />
-        <StatCard
-          icon={WalletIcon}
-          label="Outstanding balance"
-          value={formatCurrency(unpaidTotal)}
-          tone={unpaidTotal > 0 ? "warning" : "default"}
-          description={`${customerNames.length} tracked customers`}
         />
       </div>
 

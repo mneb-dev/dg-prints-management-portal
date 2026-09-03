@@ -45,12 +45,12 @@ export function RecentOrdersCard() {
             <EmptyDescription>New orders will show up here.</EmptyDescription>
           </Empty>
         ) : (
-          <div className="flex flex-col gap-2">
+          <div className="grid grid-cols-[minmax(0,1fr)_auto_auto_auto] items-center gap-x-3 gap-y-2">
             {orders.map((order) => (
               <Link
                 key={order.id}
                 to={`/orders/${order.id}`}
-                className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2.5 text-sm transition-colors hover:bg-muted/40"
+                className="col-span-full grid grid-cols-subgrid items-center rounded-lg border px-3 py-2.5 text-sm transition-colors hover:bg-muted/40"
               >
                 <div className="flex min-w-0 flex-col gap-0.5">
                   <span className="truncate font-medium">
@@ -60,13 +60,11 @@ export function RecentOrdersCard() {
                     {formatRelativeDate(order.createdAt)} · {order.channel}
                   </span>
                 </div>
-                <div className="flex shrink-0 items-center gap-2">
-                  <OrderStatusBadge status={order.status} />
-                  <PaymentStatusBadge status={order.payment.status} />
-                  <span className="w-20 text-right font-medium tabular-nums">
-                    {formatCurrency(order.total)}
-                  </span>
-                </div>
+                <OrderStatusBadge status={order.status} />
+                <PaymentStatusBadge status={order.payment.status} />
+                <span className="text-right font-medium tabular-nums">
+                  {formatCurrency(order.total)}
+                </span>
               </Link>
             ))}
           </div>

@@ -182,7 +182,7 @@ export function OrderTable({
           <EmptyContent>
             <Button size="sm" onClick={onCreate}>
               <PlusIcon data-icon="inline-start" />
-              Create Order
+              New Order
             </Button>
           </EmptyContent>
         )}

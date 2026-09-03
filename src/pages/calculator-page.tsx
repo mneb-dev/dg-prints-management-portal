@@ -504,7 +504,7 @@ export function CalculatorPage() {
           {canCreateOrder && (
             <Button disabled={!canCreate} onClick={handleCreateOrder}>
               <PlusIcon data-icon="inline-start" />
-              Create order
+              New Order
             </Button>
           )}
         </div>

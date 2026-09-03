@@ -18,7 +18,7 @@ export function CreateOrderPage() {
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
-        title="Create Order"
+        title="New Order"
         actions={
           <Button type="button" variant="outline" onClick={() => setDraftsDialogOpen(true)}>
             <FileTextIcon data-icon="inline-start" />

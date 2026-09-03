@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from "react"
+import { format, parseISO } from "date-fns"
 import { CopyIcon, ExternalLinkIcon, PlusIcon } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 import { toast } from "sonner"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Calendar } from "@/components/ui/calendar"
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Autocomplete,
@@ -18,6 +20,7 @@ import {
 } from "@/components/ui/autocomplete"
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import {
   Select,
   SelectContent,
@@ -84,6 +87,56 @@ function fromDatetimeLocalValue(value: string): string | null {
   if (!value) return null
   const date = new Date(value)
   return Number.isNaN(date.getTime()) ? null : date.toISOString()
+}
+
+// Admin metadata override for a `datetime-local`-shaped value ("YYYY-MM-DDTHH:mm"): a themed
+// Calendar popover for the date part plus a native time input for the time-of-day part.
+function DateTimeField({
+  id,
+  value,
+  onChange,
+  disabled,
+}: {
+  id: string
+  value: string
+  onChange: (value: string) => void
+  disabled?: boolean
+}) {
+  const datePart = value.slice(0, 10)
+  const timePart = value.slice(11, 16)
+
+  return (
+    <div className="flex gap-2">
+      <Popover>
+        <PopoverTrigger
+          id={id}
+          disabled={disabled}
+          render={
+            <Button variant="outline" size="sm" className="flex-1 justify-start font-normal" />
+          }
+        >
+          {datePart ? format(parseISO(datePart), "MMM d, yyyy") : "Select date"}
+        </PopoverTrigger>
+        <PopoverContent className="w-auto p-0" align="start">
+          <Calendar
+            mode="single"
+            selected={datePart ? parseISO(datePart) : undefined}
+            onSelect={(date) =>
+              onChange(date ? `${format(date, "yyyy-MM-dd")}T${timePart || "00:00"}` : "")
+            }
+            autoFocus
+          />
+        </PopoverContent>
+      </Popover>
+      <Input
+        type="time"
+        value={timePart}
+        onChange={(event) => datePart && onChange(`${datePart}T${event.target.value}`)}
+        disabled={disabled || !datePart}
+        className="w-28"
+      />
+    </div>
+  )
 }
 
 // Line items get a fresh generateId() every time an empty draft is created, so comparing raw
@@ -261,6 +314,8 @@ export function OrderForm({
   const activeProducts = products
     .filter((product) => product.status === "Active")
     .sort((a, b) => Number(hotProductIds.has(b.id)) - Number(hotProductIds.has(a.id)))
+
+  const activeUserOptions = userOptions.filter((user) => user.status === "active")
 
   function updateItemAt(index: number, next: LineItemDraft) {
     setItems((prev) => prev.map((draft, i) => (i === index ? next : draft)))
@@ -905,11 +960,10 @@ export function OrderForm({
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <Field>
                     <FieldLabel htmlFor="order-created-at">Created Date</FieldLabel>
-                    <Input
+                    <DateTimeField
                       id="order-created-at"
-                      type="datetime-local"
                       value={createdAtLocal}
-                      onChange={(event) => setCreatedAtLocal(event.target.value)}
+                      onChange={setCreatedAtLocal}
                     />
                   </Field>
                   <Field>
@@ -927,7 +981,7 @@ export function OrderForm({
                         </SelectValue>
                       </SelectTrigger>
                       <SelectContent>
-                        {userOptions.map((u) => (
+                        {activeUserOptions.map((u) => (
                           <SelectItem key={u.id} value={u.id}>
                             {u.firstName} {u.lastName}
                           </SelectItem>
@@ -939,11 +993,10 @@ export function OrderForm({
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <Field>
                     <FieldLabel htmlFor="order-status-updated-at">Status Updated Date</FieldLabel>
-                    <Input
+                    <DateTimeField
                       id="order-status-updated-at"
-                      type="datetime-local"
                       value={statusUpdatedAtLocal}
-                      onChange={(event) => setStatusUpdatedAtLocal(event.target.value)}
+                      onChange={setStatusUpdatedAtLocal}
                     />
                   </Field>
                   <Field>
@@ -961,7 +1014,7 @@ export function OrderForm({
                         </SelectValue>
                       </SelectTrigger>
                       <SelectContent>
-                        {userOptions.map((u) => (
+                        {activeUserOptions.map((u) => (
                           <SelectItem key={u.id} value={u.id}>
                             {u.firstName} {u.lastName}
                           </SelectItem>
@@ -985,7 +1038,7 @@ export function OrderForm({
           </Button>
           <Button type="submit" disabled={isSubmitting}>
             {isSubmitting && <Spinner data-icon="inline-start" />}
-            {isSubmitting ? "Saving..." : order ? "Update Order" : "Create Order"}
+            {isSubmitting ? "Saving..." : order ? "Update Order" : "New Order"}
           </Button>
         </div>
       </div>

@@ -1,3 +1,4 @@
+import { WalletIcon } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 
 import { PAYMENT_STATUS_LABELS } from "@/components/orders/payment-status-badge"
@@ -5,7 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
-import { formatCurrency } from "@/lib/utils"
+import { cn, formatCurrency } from "@/lib/utils"
 import { useOrderActions, useOrderStats } from "@/lib/orders"
 
 export function PaymentSummaryCard() {
@@ -19,6 +20,11 @@ export function PaymentSummaryCard() {
 
   function viewUnpaid() {
     setOrdersFilter({ paymentStatus: "unpaid", page: 1 })
+    navigate("/orders")
+  }
+
+  function viewPartiallyPaid() {
+    setOrdersFilter({ paymentStatus: "partially_paid", page: 1 })
     navigate("/orders")
   }
 
@@ -36,29 +42,63 @@ export function PaymentSummaryCard() {
           </div>
         ) : (
           <>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Badge variant="warning">{PAYMENT_STATUS_LABELS.unpaid}</Badge>
-                <span className="text-sm text-muted-foreground">orders</span>
+            <div
+              className={cn(
+                "flex items-center justify-between gap-3 rounded-lg p-4",
+                outstandingBalance > 0 ? "bg-status-warning/10" : "bg-muted"
+              )}
+            >
+              <div className="flex flex-col gap-1">
+                <span className="text-sm text-muted-foreground">Outstanding balance</span>
+                <span
+                  className={cn(
+                    "text-3xl font-semibold tabular-nums",
+                    outstandingBalance > 0 ? "text-status-warning" : "text-foreground"
+                  )}
+                >
+                  {formatCurrency(outstandingBalance)}
+                </span>
               </div>
-              <span className="text-lg font-semibold tabular-nums">{unpaidCount}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Badge variant="secondary">{PAYMENT_STATUS_LABELS.partially_paid}</Badge>
-                <span className="text-sm text-muted-foreground">orders</span>
+              <div
+                className={cn(
+                  "flex size-10 shrink-0 items-center justify-center rounded-lg",
+                  outstandingBalance > 0
+                    ? "bg-status-warning/15 text-status-warning"
+                    : "bg-background text-muted-foreground"
+                )}
+              >
+                <WalletIcon className="size-5" />
               </div>
-              <span className="text-lg font-semibold tabular-nums">{partiallyPaidCount}</span>
             </div>
-            <div className="flex items-center justify-between border-t pt-3">
-              <span className="text-sm text-muted-foreground">Outstanding balance</span>
-              <span className="text-lg font-semibold tabular-nums">
-                {formatCurrency(outstandingBalance)}
-              </span>
+            <div className="flex flex-col gap-4 border-t pt-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Badge variant="warning">{PAYMENT_STATUS_LABELS.unpaid}</Badge>
+                  <span className="text-sm text-muted-foreground">orders</span>
+                </div>
+                <span className="text-lg font-semibold tabular-nums">{unpaidCount}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Badge variant="secondary">{PAYMENT_STATUS_LABELS.partially_paid}</Badge>
+                  <span className="text-sm text-muted-foreground">orders</span>
+                </div>
+                <span className="text-lg font-semibold tabular-nums">{partiallyPaidCount}</span>
+              </div>
             </div>
-            <Button variant="outline" size="sm" onClick={viewUnpaid} disabled={unpaidCount === 0}>
-              View unpaid orders
-            </Button>
+            <div className="grid grid-cols-2 gap-2">
+              <Button variant="outline" size="sm" onClick={viewUnpaid} disabled={unpaidCount === 0}>
+                View unpaid orders
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={viewPartiallyPaid}
+                disabled={partiallyPaidCount === 0}
+              >
+                View partially paid orders
+              </Button>
+            </div>
           </>
         )}
       </CardContent>
