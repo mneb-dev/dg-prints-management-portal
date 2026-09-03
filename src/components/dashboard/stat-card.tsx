@@ -18,6 +18,7 @@ export function StatCard({
   description,
   tone = "default",
   href,
+  onClick,
 }: {
   icon: LucideIcon
   label: string
@@ -25,9 +26,11 @@ export function StatCard({
   description?: string
   tone?: keyof typeof TONE_CLASSES
   href?: string
+  onClick?: () => void
 }) {
+  const isClickable = Boolean(href || onClick)
   const card = (
-    <Card size="sm" className={cn(href && "h-full transition-colors hover:bg-muted/40")}>
+    <Card size="sm" className={cn(isClickable && "h-full transition-colors hover:bg-muted/40")}>
       <CardContent className="flex items-center gap-3">
         <div
           className={cn(
@@ -48,11 +51,21 @@ export function StatCard({
     </Card>
   )
 
-  return href ? (
-    <Link to={href} className="block">
-      {card}
-    </Link>
-  ) : (
-    card
-  )
+  if (href) {
+    return (
+      <Link to={href} className="block">
+        {card}
+      </Link>
+    )
+  }
+
+  if (onClick) {
+    return (
+      <button type="button" onClick={onClick} className="block w-full text-left">
+        {card}
+      </button>
+    )
+  }
+
+  return card
 }

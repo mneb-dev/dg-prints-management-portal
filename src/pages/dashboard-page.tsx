@@ -1,6 +1,7 @@
-import { BoxIcon, ClockIcon, PlusIcon, TruckIcon, WalletIcon } from "lucide-react"
-import { Link } from "react-router-dom"
+import { PlusIcon, WalletIcon } from "lucide-react"
+import { Link, useNavigate } from "react-router-dom"
 
+import { ORDER_STATUS_ICONS } from "@/components/orders/order-status-badge"
 import { PageHeader } from "@/components/page-header"
 import { Button } from "@/components/ui/button"
 import { ChannelMixCard } from "@/components/dashboard/channel-mix-card"
@@ -11,21 +12,28 @@ import { StatCard } from "@/components/dashboard/stat-card"
 import { StatusPipelineCard } from "@/components/dashboard/status-pipeline-card"
 import { TopCustomersCard } from "@/components/dashboard/top-customers-card"
 import { useAuth } from "@/lib/auth"
-import { useCustomerRankings, useOrderStats } from "@/lib/orders"
+import { useCustomerRankings, useOrderActions, useOrderStats } from "@/lib/orders"
 import { formatCurrency } from "@/lib/utils"
 
 export function DashboardPage() {
   const { hasPermission } = useAuth()
   const { stats } = useOrderStats()
   const { customerNames } = useCustomerRankings()
+  const { setOrdersFilter } = useOrderActions()
+  const navigate = useNavigate()
 
-  const pendingCount = stats?.byStatus["pending"] ?? 0
-  const inProductionCount = ["layout", "trace", "print", "cut", "pack"].reduce(
-    (sum, status) => sum + (stats?.byStatus[status] ?? 0),
-    0
-  )
+  const layoutCount = stats?.byStatus["layout"] ?? 0
+  const traceCount = stats?.byStatus["trace"] ?? 0
+  const printCount = stats?.byStatus["print"] ?? 0
+  const cutCount = stats?.byStatus["cut"] ?? 0
+  const packCount = stats?.byStatus["pack"] ?? 0
   const readyForPickupCount = stats?.byStatus["pickup"] ?? 0
   const unpaidTotal = stats?.outstandingBalance ?? 0
+
+  function goToOrders(status: string) {
+    setOrdersFilter({ status, page: 1 })
+    navigate("/orders")
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -42,16 +50,43 @@ export function DashboardPage() {
         }
       />
 
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 xl:grid-cols-7">
         <StatCard
-          icon={ClockIcon}
+          icon={ORDER_STATUS_ICONS.layout}
           label="Awaiting layout"
-          value={pendingCount}
-          tone={pendingCount > 0 ? "warning" : "default"}
-          href="/orders"
+          value={layoutCount}
+          onClick={() => goToOrders("layout")}
         />
-        <StatCard icon={BoxIcon} label="In production" value={inProductionCount} href="/orders" />
-        <StatCard icon={TruckIcon} label="Ready for pickup" value={readyForPickupCount} href="/orders" />
+        <StatCard
+          icon={ORDER_STATUS_ICONS.trace}
+          label="Awaiting trace"
+          value={traceCount}
+          onClick={() => goToOrders("trace")}
+        />
+        <StatCard
+          icon={ORDER_STATUS_ICONS.print}
+          label="Awaiting print"
+          value={printCount}
+          onClick={() => goToOrders("print")}
+        />
+        <StatCard
+          icon={ORDER_STATUS_ICONS.cut}
+          label="Awaiting cut"
+          value={cutCount}
+          onClick={() => goToOrders("cut")}
+        />
+        <StatCard
+          icon={ORDER_STATUS_ICONS.pack}
+          label="Awaiting pack"
+          value={packCount}
+          onClick={() => goToOrders("pack")}
+        />
+        <StatCard
+          icon={ORDER_STATUS_ICONS.pickup}
+          label="Ready for pickup"
+          value={readyForPickupCount}
+          onClick={() => goToOrders("pickup")}
+        />
         <StatCard
           icon={WalletIcon}
           label="Outstanding balance"
