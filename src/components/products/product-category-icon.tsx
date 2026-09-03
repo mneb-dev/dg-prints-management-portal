@@ -5,13 +5,17 @@ import {
   LayoutPanelLeftIcon,
   PackageIcon,
   StickerIcon,
+  TagIcon,
   type LucideIcon,
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import type { ProductCategory } from "@/lib/products"
 
-const CATEGORY_ICONS: Record<ProductCategory, LucideIcon> = {
+const DEFAULT_CATEGORY_ICON: LucideIcon = TagIcon
+const DEFAULT_CATEGORY_TONE = "bg-muted text-muted-foreground"
+
+const CATEGORY_ICONS: Partial<Record<string, LucideIcon>> = {
   "Sticker Label": StickerIcon,
   "Laminated Sticker": LayersIcon,
   Tarpaulin: FlagIcon,
@@ -20,7 +24,7 @@ const CATEGORY_ICONS: Record<ProductCategory, LucideIcon> = {
   "3D Print": BoxIcon,
 }
 
-const CATEGORY_TONES: Record<ProductCategory, string> = {
+const CATEGORY_TONES: Partial<Record<string, string>> = {
   "Sticker Label": "bg-status-progress/10 text-status-progress",
   "Laminated Sticker": "bg-status-warning/10 text-status-warning",
   Tarpaulin: "bg-status-info/10 text-status-info",
@@ -30,12 +34,12 @@ const CATEGORY_TONES: Record<ProductCategory, string> = {
 }
 
 export function ProductCategoryIcon({ category }: { category: ProductCategory }) {
-  const Icon = CATEGORY_ICONS[category]
+  const Icon = CATEGORY_ICONS[category] ?? DEFAULT_CATEGORY_ICON
   return (
     <div
       className={cn(
         "flex size-8 shrink-0 items-center justify-center rounded-lg",
-        CATEGORY_TONES[category]
+        CATEGORY_TONES[category] ?? DEFAULT_CATEGORY_TONE
       )}
     >
       <Icon className="size-4" />

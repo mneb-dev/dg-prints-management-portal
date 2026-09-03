@@ -18,10 +18,10 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { useAuth } from "@/lib/auth"
+import { useCategories } from "@/lib/categories"
 import { useDebouncedValue } from "@/lib/use-debounced-value"
 import {
   PRICING_TYPES,
-  PRODUCT_CATEGORIES,
   PRODUCT_STATUSES,
   useProductActions,
   useProducts,
@@ -44,6 +44,7 @@ export function ProductsPage() {
   const canManage = hasPermission("manage_products")
   const { products, total, params, setParams, refetch, isLoading, isFetching, isError, error } = useProducts()
   const { deleteProduct } = useProductActions()
+  const { categories } = useCategories()
   const [searchInput, setSearchInput] = useState(params.search)
   const debouncedSearch = useDebouncedValue(searchInput, 400)
 
@@ -164,9 +165,9 @@ export function ProductsPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={ANY_CATEGORY}>{ANY_CATEGORY}</SelectItem>
-            {PRODUCT_CATEGORIES.map((category) => (
-              <SelectItem key={category} value={category}>
-                {category}
+            {categories.map((category) => (
+              <SelectItem key={category.id} value={category.name}>
+                {category.name}
               </SelectItem>
             ))}
           </SelectContent>

@@ -7,10 +7,10 @@ const STATUS_LABELS: Record<PaymentStatus, string> = {
   paid: "Paid",
 }
 
-const STATUS_VARIANTS: Record<PaymentStatus, "warning" | "secondary" | "success"> = {
+const STATUS_VARIANTS: Record<PaymentStatus, "warning" | "secondary" | "info"> = {
   unpaid: "warning",
   partially_paid: "secondary",
-  paid: "success",
+  paid: "info",
 }
 
 export function PaymentStatusBadge({ status }: { status: PaymentStatus }) {

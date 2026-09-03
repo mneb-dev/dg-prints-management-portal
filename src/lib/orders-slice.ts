@@ -210,6 +210,19 @@ export type OrdersQueryParams = {
   sortDir: "asc" | "desc"
 }
 
+export const DEFAULT_ORDERS_PARAMS: OrdersQueryParams = {
+  page: 1,
+  pageSize: 10,
+  search: "",
+  status: "",
+  paymentStatus: "",
+  category: "",
+  dateFrom: "",
+  dateTo: "",
+  sortBy: "created_at",
+  sortDir: "desc",
+}
+
 export type OrdersListResponse = {
   items: Order[]
   total: number
@@ -430,18 +443,7 @@ const initialState: OrdersState = {
   status: "idle",
   error: null,
   latestRequestId: null,
-  params: {
-    page: 1,
-    pageSize: 10,
-    search: "",
-    status: "",
-    paymentStatus: "",
-    category: "",
-    dateFrom: "",
-    dateTo: "",
-    sortBy: "created_at",
-    sortDir: "desc",
-  },
+  params: DEFAULT_ORDERS_PARAMS,
   current: null,
   currentStatus: "idle",
   currentError: null,

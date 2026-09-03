@@ -3,6 +3,7 @@ import { useEffect, useMemo } from "react"
 import { useAppDispatch, useAppSelector } from "@/lib/hooks"
 import {
   createOrderThunk,
+  DEFAULT_ORDERS_PARAMS,
   deleteOrderThunk,
   fetchOrderByIdThunk,
   fetchOrderStatsThunk,
@@ -21,6 +22,7 @@ import type {
 } from "@/lib/orders-slice"
 
 export {
+  DEFAULT_ORDERS_PARAMS,
   ORDER_CHANNELS,
   ORDER_STATUSES,
   PAYMENT_METHODS,
@@ -223,7 +225,7 @@ export function useOrderActions() {
   /** Sets the Orders list page's filter params ahead of navigating there — e.g. a dashboard
    * widget linking to "unpaid orders" first primes the filter, then the caller navigates to /orders. */
   function setOrdersFilter(patch: Partial<OrdersQueryParams>) {
-    dispatch(setOrdersParams(patch))
+    dispatch(setOrdersParams({ ...DEFAULT_ORDERS_PARAMS, ...patch }))
   }
 
   return { addOrder, updateOrder, setOrderStatus, deleteOrder, setOrdersFilter }

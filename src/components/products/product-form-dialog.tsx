@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react"
-import { PlusIcon, Trash2Icon, XIcon } from "lucide-react"
+import { PlusIcon, TagIcon, Trash2Icon, XIcon } from "lucide-react"
 import { toast } from "sonner"
 
+import { ManageCategoriesDialog } from "@/components/categories/manage-categories-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -18,6 +19,7 @@ import {
   Select,
   SelectContent,
   SelectItem,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
@@ -33,14 +35,13 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
+import { useActiveCategories } from "@/lib/categories"
 import {
   ALL_VARIANTS,
-  PRODUCT_CATEGORIES,
   PRODUCT_STATUSES,
   useProductActions,
   type PricingEntry,
   type Product,
-  type ProductCategory,
   type ProductInput,
   type ProductOption,
   type ProductStatus,
@@ -52,7 +53,7 @@ import { PricingDialog } from "./pricing-dialog"
 function emptyDraft(): ProductInput {
   return {
     name: "",
-    category: PRODUCT_CATEGORIES[0],
+    category: "",
     description: "",
     status: "Active",
     options: [],
@@ -194,10 +195,14 @@ export function ProductFormDialog({
   onSaved?: () => void
 }) {
   const { addProduct, updateProduct } = useProductActions()
+  const { categories: activeCategories } = useActiveCategories()
   const [draft, setDraft] = useState<ProductInput>(emptyDraft)
   const [nameError, setNameError] = useState<string | null>(null)
+  const [categoryError, setCategoryError] = useState<string | null>(null)
   const [descriptionError, setDescriptionError] = useState<string | null>(null)
   const [pricingDialogOpen, setPricingDialogOpen] = useState(false)
+  const [categorySelectOpen, setCategorySelectOpen] = useState(false)
+  const [manageCategoriesOpen, setManageCategoriesOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isSinglePrice, setIsSinglePrice] = useState(true)
   const [singlePrice, setSinglePrice] = useState("")
@@ -207,6 +212,7 @@ export function ProductFormDialog({
     if (!open) return
     setDraft(product ? draftFromProduct(product) : emptyDraft())
     setNameError(null)
+    setCategoryError(null)
     setDescriptionError(null)
     if (product) {
       setIsSinglePrice(isSinglePriceProduct(product))
@@ -222,6 +228,13 @@ export function ProductFormDialog({
     ALL_VARIANTS,
     ...new Set(draft.options.flatMap((option) => option.values)),
   ]
+
+  // Include the currently-assigned category even if it's since been deactivated,
+  // so editing an existing product doesn't silently drop its category.
+  const categoryOptions =
+    draft.category && !activeCategories.some((c) => c.name === draft.category)
+      ? [...activeCategories.map((c) => c.name), draft.category]
+      : activeCategories.map((c) => c.name)
 
   function addOption() {
     setDraft((prev) => ({
@@ -262,6 +275,11 @@ export function ProductFormDialog({
     event.preventDefault()
     if (!draft.name.trim()) {
       setNameError("Product name is required.")
+      return
+    }
+
+    if (!draft.category) {
+      setCategoryError("Category is required.")
       return
     }
 
@@ -346,28 +364,46 @@ export function ProductFormDialog({
               </Field>
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <Field>
+                <Field data-invalid={!!categoryError}>
                   <FieldLabel htmlFor="product-category">Category</FieldLabel>
                   <Select
-                    value={draft.category}
-                    onValueChange={(value) =>
-                      setDraft((prev) => ({
-                        ...prev,
-                        category: value as ProductCategory,
-                      }))
-                    }
+                    value={draft.category || undefined}
+                    onValueChange={(value) => {
+                      setDraft((prev) => ({ ...prev, category: value ?? "" }))
+                      setCategoryError(null)
+                    }}
+                    open={categorySelectOpen}
+                    onOpenChange={setCategorySelectOpen}
                   >
-                    <SelectTrigger id="product-category" className="w-full">
-                      <SelectValue />
+                    <SelectTrigger id="product-category" className="w-full" aria-invalid={!!categoryError}>
+                      <SelectValue placeholder="Select a category" />
                     </SelectTrigger>
-                    <SelectContent>
-                      {PRODUCT_CATEGORIES.map((category) => (
+                    <SelectContent
+                      footer={
+                        <>
+                          <SelectSeparator />
+                          <button
+                            type="button"
+                            className="flex w-full cursor-default items-center gap-1.5 rounded-md py-1 px-1.5 text-sm outline-hidden select-none hover:bg-accent hover:text-accent-foreground"
+                            onClick={() => {
+                              setCategorySelectOpen(false)
+                              setManageCategoriesOpen(true)
+                            }}
+                          >
+                            <TagIcon className="size-4" />
+                            Manage Categories
+                          </button>
+                        </>
+                      }
+                    >
+                      {categoryOptions.map((category) => (
                         <SelectItem key={category} value={category}>
                           {category}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
+                  <FieldError>{categoryError}</FieldError>
                 </Field>
 
                 <Field>
@@ -574,6 +610,8 @@ export function ProductFormDialog({
         appliesToOptions={appliesToOptions}
         onAdd={addPricingEntry}
       />
+
+      <ManageCategoriesDialog open={manageCategoriesOpen} onOpenChange={setManageCategoriesOpen} />
     </Dialog>
   )
 }

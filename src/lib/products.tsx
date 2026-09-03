@@ -13,9 +13,9 @@ import type { ProductInput, ProductsQueryParams } from "@/lib/products-slice"
 
 export {
   ALL_VARIANTS,
+  KNOWN_PRODUCT_CATEGORIES,
   PRICING_TYPES,
   PRICING_UNITS,
-  PRODUCT_CATEGORIES,
   PRODUCT_STATUSES,
   summarizePricing,
 } from "@/lib/products-slice"

@@ -4,7 +4,12 @@ import { apiClient } from "@/lib/api-client"
 import { getErrorMessage } from "@/lib/api-error"
 import type { RootState } from "@/lib/store"
 
-export const PRODUCT_CATEGORIES = [
+/**
+ * The categories originally hardcoded here, before categories became an
+ * admin-managed entity (see @/lib/categories). Kept only as the key-set for
+ * the default icon/tone/status-flow lookups — not used to populate pickers.
+ */
+export const KNOWN_PRODUCT_CATEGORIES = [
   "Sticker Label",
   "Laminated Sticker",
   "Tarpaulin",
@@ -12,7 +17,7 @@ export const PRODUCT_CATEGORIES = [
   "General Merchandise",
   "3D Print",
 ] as const
-export type ProductCategory = (typeof PRODUCT_CATEGORIES)[number]
+export type ProductCategory = string
 
 export const PRODUCT_STATUSES = ["Active", "Inactive"] as const
 export type ProductStatus = (typeof PRODUCT_STATUSES)[number]

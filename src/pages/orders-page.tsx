@@ -26,8 +26,10 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { useAuth } from "@/lib/auth"
+import { useCategories } from "@/lib/categories"
 import { useDebouncedValue } from "@/lib/use-debounced-value"
 import {
+  DEFAULT_ORDERS_PARAMS,
   ORDER_STATUSES,
   PAYMENT_STATUSES,
   useOrderActions,
@@ -36,7 +38,6 @@ import {
   type OrderStatus,
   type PaymentStatus,
 } from "@/lib/orders"
-import { PRODUCT_CATEGORIES } from "@/lib/products"
 
 const ANY_STATUS = "All Statuses"
 const ANY_PAYMENT_STATUS = "All Payment Statuses"
@@ -54,6 +55,7 @@ export function OrdersPage() {
   const { hasPermission, role } = useAuth()
   const canManage = hasPermission("manage_orders")
   const { orders, total, params, setParams, refetch, isLoading, isFetching, isError, error } = useOrders()
+  const { categories } = useCategories()
   const { setOrderStatus, deleteOrder } = useOrderActions()
   const [searchInput, setSearchInput] = useState(params.search)
   const debouncedSearch = useDebouncedValue(searchInput, 400)
@@ -125,17 +127,7 @@ export function OrdersPage() {
 
   function clearFilters() {
     setSearchInput("")
-    setParams({
-      search: "",
-      status: "",
-      paymentStatus: "",
-      category: "",
-      dateFrom: "",
-      dateTo: "",
-      sortBy: "created_at",
-      sortDir: "desc",
-      page: 1,
-    })
+    setParams(DEFAULT_ORDERS_PARAMS)
   }
 
   const activeFilters: ActiveFilter[] = [
@@ -257,9 +249,9 @@ export function OrdersPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={ANY_CATEGORY}>{ANY_CATEGORY}</SelectItem>
-            {PRODUCT_CATEGORIES.map((category) => (
-              <SelectItem key={category} value={category}>
-                {category}
+            {categories.map((category) => (
+              <SelectItem key={category.id} value={category.name}>
+                {category.name}
               </SelectItem>
             ))}
           </SelectContent>

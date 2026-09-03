@@ -4,7 +4,9 @@ import type { Role } from "@/lib/users-slice"
 
 export const ORDER_TERMINAL_STATUSES: OrderStatus[] = ["cancelled", "refunded"]
 
-const CATEGORY_STATUS_FLOWS: Record<ProductCategory, OrderStatus[]> = {
+const DEFAULT_STATUS_FLOW: OrderStatus[] = ["pending", "layout", "released"]
+
+const CATEGORY_STATUS_FLOWS: Partial<Record<string, OrderStatus[]>> = {
   "Sticker Label": ["pending", "layout", "trace", "print", "cut", "pack", "pickup", "released"],
   "Laminated Sticker": ["pending", "layout", "trace", "print", "cut", "pack", "pickup", "released"],
   Tarpaulin: ["pending", "layout", "print", "pickup", "released"],
@@ -14,7 +16,7 @@ const CATEGORY_STATUS_FLOWS: Record<ProductCategory, OrderStatus[]> = {
 }
 
 export function getStatusFlowForCategory(category: ProductCategory): OrderStatus[] {
-  return CATEGORY_STATUS_FLOWS[category]
+  return CATEGORY_STATUS_FLOWS[category] ?? DEFAULT_STATUS_FLOW
 }
 
 export function isTerminalStatus(status: OrderStatus): boolean {
