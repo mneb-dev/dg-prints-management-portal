@@ -20,6 +20,8 @@ export {
   summarizePricing,
 } from "@/lib/products-slice"
 export type {
+  AppliesTo,
+  AppliesToCondition,
   PricingEntry,
   PricingType,
   PricingUnit,

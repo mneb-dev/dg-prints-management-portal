@@ -26,29 +26,21 @@ import {
 import { Separator } from "@/components/ui/separator"
 import { Spinner } from "@/components/ui/spinner"
 import { Switch } from "@/components/ui/switch"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
 import { useActiveCategories } from "@/lib/categories"
 import {
   ALL_VARIANTS,
   PRODUCT_STATUSES,
   useProductActions,
-  type PricingEntry,
   type Product,
   type ProductInput,
   type ProductOption,
   type ProductStatus,
 } from "@/lib/products"
-import { formatCurrency, generateId } from "@/lib/utils"
+import { generateId } from "@/lib/utils"
+import { cartesianOptionCombinations, combinationsMatch } from "@/lib/variant-matrix"
 
-import { PricingDialog } from "./pricing-dialog"
+import { VariantPricingTable } from "./variant-pricing-table"
 
 function emptyDraft(): ProductInput {
   return {
@@ -200,7 +192,7 @@ export function ProductFormDialog({
   const [nameError, setNameError] = useState<string | null>(null)
   const [categoryError, setCategoryError] = useState<string | null>(null)
   const [descriptionError, setDescriptionError] = useState<string | null>(null)
-  const [pricingDialogOpen, setPricingDialogOpen] = useState(false)
+  const [pricingError, setPricingError] = useState<string | null>(null)
   const [categorySelectOpen, setCategorySelectOpen] = useState(false)
   const [manageCategoriesOpen, setManageCategoriesOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -214,6 +206,7 @@ export function ProductFormDialog({
     setNameError(null)
     setCategoryError(null)
     setDescriptionError(null)
+    setPricingError(null)
     if (product) {
       setIsSinglePrice(isSinglePriceProduct(product))
       setSinglePrice(isSinglePriceProduct(product) ? String(product.pricing[0].price) : "")
@@ -223,11 +216,6 @@ export function ProductFormDialog({
     }
     setSinglePriceError(null)
   }, [open, product])
-
-  const appliesToOptions = [
-    ALL_VARIANTS,
-    ...new Set(draft.options.flatMap((option) => option.values)),
-  ]
 
   // Include the currently-assigned category even if it's since been deactivated,
   // so editing an existing product doesn't silently drop its category.
@@ -260,17 +248,6 @@ export function ProductFormDialog({
     }))
   }
 
-  function addPricingEntry(entry: PricingEntry) {
-    setDraft((prev) => ({ ...prev, pricing: [...prev.pricing, entry] }))
-  }
-
-  function removePricingEntry(id: string) {
-    setDraft((prev) => ({
-      ...prev,
-      pricing: prev.pricing.filter((entry) => entry.id !== id),
-    }))
-  }
-
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!draft.name.trim()) {
@@ -291,7 +268,7 @@ export function ProductFormDialog({
     let payload = draft
     if (isSinglePrice) {
       const numericPrice = Number(singlePrice)
-      if (!Number.isFinite(numericPrice) || numericPrice < 0) {
+      if (!singlePrice.trim() || !Number.isFinite(numericPrice) || numericPrice < 0) {
         setSinglePriceError("Enter a valid price.")
         return
       }
@@ -310,6 +287,23 @@ export function ProductFormDialog({
           },
         ],
       }
+    } else {
+      const combinations = cartesianOptionCombinations(draft.options)
+      if (combinations.length === 0) {
+        setPricingError("Add at least one variation with values.")
+        return
+      }
+      const hasUnpriced = combinations.some((combination) => {
+        const entry = draft.pricing.find(
+          (candidate) => candidate.appliesTo !== ALL_VARIANTS && combinationsMatch(candidate.appliesTo, combination)
+        )
+        return !entry || entry.price <= 0
+      })
+      if (hasUnpriced) {
+        setPricingError("Enter a price for every variant combination.")
+        return
+      }
+      setPricingError(null)
     }
 
     setIsSubmitting(true)
@@ -533,61 +527,23 @@ export function ProductFormDialog({
 
               <Separator />
 
-              <div className="flex flex-col gap-3">
-                <h3 className="text-sm font-medium">Pricing</h3>
+              <div className="flex flex-col gap-3" data-invalid={!!pricingError}>
+                <div>
+                  <h3 className="text-sm font-medium">Pricing</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Set a price for every combination of the variations above.
+                  </p>
+                </div>
 
-                {draft.pricing.length > 0 && (
-                  <div className="rounded-lg border">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Condition</TableHead>
-                          <TableHead>Pricing Type</TableHead>
-                          <TableHead>Package</TableHead>
-                          <TableHead>Price</TableHead>
-                          <TableHead className="text-right">
-                            <span className="sr-only">Remove</span>
-                          </TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {draft.pricing.map((entry) => (
-                          <TableRow key={entry.id}>
-                            <TableCell>{entry.appliesTo}</TableCell>
-                            <TableCell>{entry.pricingType}</TableCell>
-                            <TableCell>{entry.packageName ?? "—"}</TableCell>
-                            <TableCell>
-                              {formatCurrency(entry.price)}
-                              {entry.pricingType === "Per Unit" && ` / ${entry.unit}`}
-                            </TableCell>
-                            <TableCell className="text-right">
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon-sm"
-                                onClick={() => removePricingEntry(entry.id)}
-                              >
-                                <Trash2Icon />
-                                <span className="sr-only">Remove pricing row</span>
-                              </Button>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                )}
-
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="self-start"
-                  onClick={() => setPricingDialogOpen(true)}
-                >
-                  <PlusIcon data-icon="inline-start" />
-                  Add Pricing
-                </Button>
+                <VariantPricingTable
+                  options={draft.options}
+                  pricing={draft.pricing}
+                  onChange={(pricing) => {
+                    setDraft((prev) => ({ ...prev, pricing }))
+                    setPricingError(null)
+                  }}
+                />
+                <FieldError>{pricingError ?? undefined}</FieldError>
               </div>
             </>
           )}
@@ -603,13 +559,6 @@ export function ProductFormDialog({
           </Button>
         </DialogFooter>
       </DialogContent>
-
-      <PricingDialog
-        open={pricingDialogOpen}
-        onOpenChange={setPricingDialogOpen}
-        appliesToOptions={appliesToOptions}
-        onAdd={addPricingEntry}
-      />
 
       <ManageCategoriesDialog open={manageCategoriesOpen} onOpenChange={setManageCategoriesOpen} />
     </Dialog>

@@ -38,9 +38,18 @@ export type ProductOption = {
   values: string[]
 }
 
+/** One `{ option, value }` condition within a combination match — all conditions on an entry must
+ *  match the customer's selected option values for that entry to apply. */
+export type AppliesToCondition = {
+  optionId: string
+  value: string
+}
+
+export type AppliesTo = typeof ALL_VARIANTS | AppliesToCondition[]
+
 export type PricingEntry = {
   id: string
-  appliesTo: string
+  appliesTo: AppliesTo
   pricingType: PricingType
   packageName?: string
   price: number
@@ -74,14 +83,6 @@ export function summarizePricing(pricing: PricingEntry[]): string {
   }
 
   return type
-}
-
-function toProductPayload(input: ProductInput) {
-  return {
-    ...input,
-    options: input.options.map(({ id: _id, ...rest }) => rest),
-    pricing: input.pricing.map(({ id: _id, ...rest }) => rest),
-  }
 }
 
 export type ProductsQueryParams = {
@@ -147,7 +148,7 @@ export const createProductThunk = createAsyncThunk<Product, ProductInput, { reje
   "products/create",
   async (input, { rejectWithValue }) => {
     try {
-      const { data } = await apiClient.post<Product>("/products", toProductPayload(input))
+      const { data } = await apiClient.post<Product>("/products", input)
       return data
     } catch (err) {
       return rejectWithValue(getErrorMessage(err))
@@ -161,7 +162,7 @@ export const updateProductThunk = createAsyncThunk<
   { rejectValue: string }
 >("products/update", async ({ id, input }, { rejectWithValue }) => {
   try {
-    const { data } = await apiClient.put<Product>(`/products/${id}`, toProductPayload(input))
+    const { data } = await apiClient.put<Product>(`/products/${id}`, input)
     return data
   } catch (err) {
     return rejectWithValue(getErrorMessage(err))

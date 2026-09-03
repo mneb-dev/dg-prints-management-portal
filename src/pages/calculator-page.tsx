@@ -33,10 +33,10 @@ import { useAuth } from "@/lib/auth"
 import { copyToClipboard } from "@/lib/clipboard"
 import { calculateLaminatedStickerQuotation } from "@/lib/laminated-sticker-quotation"
 import { convertToFeet, LENGTH_UNITS, type LengthUnit } from "@/lib/length-units"
-import { resolvePricing } from "@/lib/pricing-resolver"
+import { isPackageOptionName, previewPackageCandidates, resolvePricingPreview } from "@/lib/pricing-resolver"
 import { useProductCatalog, type ProductCategory } from "@/lib/products"
 import { calculateSintraCustomPrice, type SintraThickness } from "@/lib/sintra-board-pricing"
-import { calculateStickerQuotation, PACKAGE_TIERS, type StickerUnit } from "@/lib/sticker-quotation"
+import { calculateStickerPackageResult, parsePackageNumber, type StickerUnit } from "@/lib/sticker-quotation"
 import { formatCurrency } from "@/lib/utils"
 
 const CATEGORIES: { category: ProductCategory; label: string; icon: LucideIcon }[] = [
@@ -108,11 +108,13 @@ export function CalculatorPage() {
   }
 
   const selectedProduct = categoryProducts.find((product) => product.id === productId) ?? null
-  const resolution = selectedProduct ? resolvePricing(selectedProduct, optionValues) : null
+  const resolution = selectedProduct ? resolvePricingPreview(selectedProduct, optionValues) : null
   const showsDimensions = resolution?.kind === "auto" && resolution.entry.unit === "sq.ft."
-  const stickerCandidates = resolution?.kind === "package" ? resolution.candidates : []
-  const laminatedCandidates =
-    resolution?.kind === "auto" && resolution.entry.pricingType === "Package" ? [resolution.entry] : []
+  const packageOption = selectedProduct?.options.find((option) => isPackageOptionName(option.name)) ?? null
+  const packageCandidates =
+    selectedProduct && packageOption ? previewPackageCandidates(selectedProduct, packageOption.id) : []
+  const stickerCandidates = category === "Sticker Label" ? packageCandidates : []
+  const laminatedCandidates = category === "Laminated Sticker" ? packageCandidates : []
   const width_ = Number(width)
   const height_ = Number(height)
   const hasValidSize = width_ > 0 && height_ > 0
@@ -180,10 +182,17 @@ export function CalculatorPage() {
     if (category === "Sticker Label") {
       lines.push(`Size: ${stickerWidth} × ${stickerHeight} ${stickerUnit}`)
       lines.push("")
-      const quotation = calculateStickerQuotation(Number(stickerWidth), Number(stickerHeight), stickerUnit)
-      for (const [index, tier] of PACKAGE_TIERS.entries()) {
-        const result = quotation[tier.key]
-        lines.push(`Package ${index + 1} ${formatCurrency(tier.price)}: `)
+      for (const candidate of stickerCandidates) {
+        const result = calculateStickerPackageResult(
+          Number(stickerWidth),
+          Number(stickerHeight),
+          stickerUnit,
+          candidate.price,
+          candidate.packageName
+        )
+        const packageNumber = parsePackageNumber(candidate.packageName)
+        const label = packageNumber !== null ? `Package ${packageNumber}` : (candidate.packageName ?? formatCurrency(candidate.price))
+        lines.push(`${label}: ${formatCurrency(candidate.price)}`)
         lines.push(`${result.quantity} pcs + ${result.free} pcs free`)
         lines.push("")
       }
@@ -288,7 +297,6 @@ export function CalculatorPage() {
                   onHeightChange={setStickerHeight}
                   unit={stickerUnit}
                   onUnitChange={setStickerUnit}
-                  selectedPackage={null}
                   candidates={stickerCandidates}
                 />
               </>
@@ -426,36 +434,33 @@ export function CalculatorPage() {
                 ) : (
                   <>
                     {selectedProduct && showsDimensions && (
-                      <div className="grid grid-cols-3 gap-4">
-                        <Field>
-                          <FieldLabel htmlFor="calculator-width">Width</FieldLabel>
+                      <Field>
+                        <FieldLabel>Size</FieldLabel>
+                        <div className="flex items-center gap-2">
                           <Input
-                            id="calculator-width"
                             type="number"
                             min={0}
                             step="0.01"
                             value={width}
                             onChange={(event) => setWidth(event.target.value)}
+                            placeholder="Width"
+                            className="w-20"
                           />
-                        </Field>
-                        <Field>
-                          <FieldLabel htmlFor="calculator-height">Height</FieldLabel>
+                          <span className="text-sm text-muted-foreground">×</span>
                           <Input
-                            id="calculator-height"
                             type="number"
                             min={0}
                             step="0.01"
                             value={height}
                             onChange={(event) => setHeight(event.target.value)}
+                            placeholder="Height"
+                            className="w-20"
                           />
-                        </Field>
-                        <Field>
-                          <FieldLabel htmlFor="calculator-unit">Unit</FieldLabel>
                           <Select
                             value={dimensionUnit}
                             onValueChange={(value) => setDimensionUnit(value as LengthUnit)}
                           >
-                            <SelectTrigger id="calculator-unit">
+                            <SelectTrigger className="w-24">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -466,8 +471,8 @@ export function CalculatorPage() {
                               ))}
                             </SelectContent>
                           </Select>
-                        </Field>
-                      </div>
+                        </div>
+                      </Field>
                     )}
 
                     {selectedProduct && resolution?.kind === "none" && (

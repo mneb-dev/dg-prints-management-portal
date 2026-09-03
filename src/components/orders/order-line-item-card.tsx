@@ -21,6 +21,7 @@ import { Textarea } from "@/components/ui/textarea"
 import type { LengthUnit } from "@/lib/length-units"
 import type { LineItemComputed, LineItemDraft } from "@/lib/order-line-item"
 import { resetDraftForProduct } from "@/lib/order-line-item"
+import { valueForOption } from "@/lib/pricing-resolver"
 import { ALL_VARIANTS, type PricingEntry, type Product } from "@/lib/products"
 import type { SintraThickness } from "@/lib/sintra-board-pricing"
 import type { StickerUnit } from "@/lib/sticker-quotation"
@@ -138,7 +139,7 @@ export function OrderLineItemCard({
   function handleSelectPackageOption(entry: PricingEntry) {
     if (!computed.packageOption) return
     const value =
-      entry.appliesTo === ALL_VARIANTS ? (computed.packageOption.values[0] ?? entry.appliesTo) : entry.appliesTo
+      valueForOption(entry.appliesTo, computed.packageOption.id) ?? computed.packageOption.values[0] ?? ALL_VARIANTS
     onChange({ ...draft, optionValues: { ...draft.optionValues, [computed.packageOption.id]: value } })
     onClearError("options")
     onClearError("pricing")
@@ -328,14 +329,12 @@ export function OrderLineItemCard({
               onHeightChange={(value: string) => onChange({ ...draft, stickerHeight: value })}
               unit={draft.stickerUnit}
               onUnitChange={(value: StickerUnit) => onChange({ ...draft, stickerUnit: value })}
-              selectedPackage={computed.selectedStickerPackage}
               candidates={computed.packageCandidates}
               onSelectPackage={(entryId) => {
                 const entry = computed.packageCandidates.find((candidate) => candidate.id === entryId)
                 if (entry) handleSelectPackageOption(entry)
               }}
-              selectable
-              selectedEntryId={computed.selectedPackagePricingEntry?.id ?? null}
+              selectedEntryId={computed.selectedPackageCandidateId}
               quantity={draft.quantity}
               onQuantityChange={handleQuantityChange}
             />
@@ -350,7 +349,7 @@ export function OrderLineItemCard({
               unit={draft.stickerUnit}
               onUnitChange={(value: StickerUnit) => onChange({ ...draft, stickerUnit: value })}
               candidates={computed.packageCandidates}
-              selectedEntryId={computed.selectedPackagePricingEntry?.id ?? null}
+              selectedEntryId={computed.selectedPackageCandidateId}
               onSelectPackage={(entryId) => {
                 const entry = computed.packageCandidates.find((candidate) => candidate.id === entryId)
                 if (entry) handleSelectPackageOption(entry)
