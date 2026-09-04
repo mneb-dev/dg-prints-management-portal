@@ -14,7 +14,6 @@ export type { CurrentUser, ProfileInput } from "@/lib/auth-slice"
 export function useAuth() {
   const isAuthenticated = useAppSelector((state) => state.auth.isAuthenticated)
   const user = useAppSelector((state) => state.auth.user)
-  const token = useAppSelector((state) => state.auth.token)
   const dispatch = useAppDispatch()
 
   async function login(username: string, password: string): Promise<string | null> {
@@ -59,7 +58,6 @@ export function useAuth() {
   return {
     isAuthenticated,
     user,
-    token,
     role: user?.role ?? null,
     permissions: user?.permissions ?? [],
     hasPermission,

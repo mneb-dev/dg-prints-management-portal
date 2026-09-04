@@ -17,7 +17,6 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 import { useAuth } from "@/lib/auth"
 import { getBreadcrumbSegments } from "@/lib/breadcrumbs"
 import { NavGuardProvider } from "@/lib/nav-guard"
-import { useOrdersRealtime } from "@/lib/orders"
 
 export function AppLayout() {
   const location = useLocation()
@@ -28,8 +27,6 @@ export function AppLayout() {
     refreshCurrentUser()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-
-  useOrdersRealtime()
 
   return (
     <TooltipProvider>
