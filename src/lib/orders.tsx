@@ -1,5 +1,6 @@
-import { useEffect, useMemo } from "react"
+import { useEffect, useMemo, useRef } from "react"
 
+import { useAuth } from "@/lib/auth"
 import { useAppDispatch, useAppSelector } from "@/lib/hooks"
 import {
   createOrderThunk,
@@ -13,6 +14,7 @@ import {
   setOrdersParams,
   updateOrderThunk,
 } from "@/lib/orders-slice"
+import { connectRealtimeSocket, disconnectRealtimeSocket } from "@/lib/realtime-socket"
 import type {
   Order,
   OrderInput,
@@ -229,4 +231,63 @@ export function useOrderActions() {
   }
 
   return { addOrder, updateOrder, setOrderStatus, deleteOrder, setOrdersFilter }
+}
+
+const REALTIME_REFETCH_DEBOUNCE_MS = 400
+
+/** Connects a Socket.io session while authenticated and refetches whatever's already mounted
+ * (orders list, dashboard aggregates, the open order detail page) whenever another user creates,
+ * updates, or deletes an order — including on reconnect, to catch up on events missed while
+ * offline. Mount once at the app-shell level; every page keeps working off its existing hooks. */
+export function useOrdersRealtime() {
+  const { isAuthenticated, token } = useAuth()
+  const dispatch = useAppDispatch()
+  const params = useAppSelector((state) => state.orders.params)
+  const currentId = useAppSelector((state) => state.orders.current?.id)
+
+  const paramsRef = useRef(params)
+  paramsRef.current = params
+  const currentIdRef = useRef(currentId)
+  currentIdRef.current = currentId
+
+  useEffect(() => {
+    if (!isAuthenticated || !token) {
+      disconnectRealtimeSocket()
+      return
+    }
+
+    const socket = connectRealtimeSocket(token)
+    let debounceTimer: ReturnType<typeof setTimeout> | undefined
+
+    function refetchAll() {
+      dispatch(fetchOrdersThunk(paramsRef.current))
+      dispatch(fetchOrderStatsThunk())
+      dispatch(fetchRecentOrdersForRankingThunk())
+      dispatch(fetchTopCustomersThunk())
+    }
+
+    function scheduleRefetch(orderId?: string) {
+      if (debounceTimer) clearTimeout(debounceTimer)
+      debounceTimer = setTimeout(refetchAll, REALTIME_REFETCH_DEBOUNCE_MS)
+
+      if (orderId && currentIdRef.current === orderId) {
+        dispatch(fetchOrderByIdThunk(orderId))
+      }
+    }
+
+    socket.on("connect", () => scheduleRefetch())
+    socket.on("order:created", () => scheduleRefetch())
+    socket.on("order:updated", (order: Order) => scheduleRefetch(order.id))
+    socket.on("order:deleted", (orderId: string) => scheduleRefetch(orderId))
+
+    return () => {
+      if (debounceTimer) clearTimeout(debounceTimer)
+      socket.off("connect")
+      socket.off("order:created")
+      socket.off("order:updated")
+      socket.off("order:deleted")
+      disconnectRealtimeSocket()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, token, dispatch])
 }
