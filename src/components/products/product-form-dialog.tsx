@@ -87,7 +87,10 @@ function OptionRow({
 
   function commitValue() {
     const trimmed = valueDraft.trim()
-    if (trimmed) {
+    const isDuplicate = option.values.some(
+      (value) => value.toLowerCase() === trimmed.toLowerCase()
+    )
+    if (trimmed && !isDuplicate) {
       onChange({ ...option, values: [...option.values, trimmed] })
     }
     setValueDraft("")
@@ -268,7 +271,7 @@ export function ProductFormDialog({
     let payload = draft
     if (isSinglePrice) {
       const numericPrice = Number(singlePrice)
-      if (!singlePrice.trim() || !Number.isFinite(numericPrice) || numericPrice < 0) {
+      if (!singlePrice.trim() || !Number.isFinite(numericPrice) || numericPrice <= 0) {
         setSinglePriceError("Enter a valid price.")
         return
       }

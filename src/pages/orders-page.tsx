@@ -30,7 +30,7 @@ import {
 } from "@/components/ui/select"
 import { useAuth } from "@/lib/auth"
 import { useCategories } from "@/lib/categories"
-import { SPX_ADMIN_CREATE_ORDER_URL, copyToClipboard } from "@/lib/clipboard"
+import { SPX_ADMIN_CREATE_ORDER_URL } from "@/lib/clipboard"
 import { useDebouncedValue } from "@/lib/use-debounced-value"
 import {
   DEFAULT_ORDERS_PARAMS,
@@ -96,10 +96,7 @@ export function OrdersPage() {
     }
   }
 
-  function handleConfirmArrange(order: Order) {
-    const shipping = order.shippingAddress
-    if (!shipping) return
-    copyToClipboard(`${shipping.name}\n${shipping.phone}\n${shipping.address}`)
+  function handleConfirmArrange(_order: Order) {
     window.open(SPX_ADMIN_CREATE_ORDER_URL, "_blank", "noopener,noreferrer")
     setArrangingOrder(null)
   }
