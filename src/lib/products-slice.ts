@@ -10,10 +10,10 @@ import type { RootState } from "@/lib/store"
  * the default icon/tone/status-flow lookups — not used to populate pickers.
  */
 export const KNOWN_PRODUCT_CATEGORIES = [
-  "Sticker Label",
+  "Sticker",
   "Laminated Sticker",
   "Tarpaulin",
-  "Sintra Board",
+  "Sintra",
   "General Merchandise",
   "3D Print",
 ] as const

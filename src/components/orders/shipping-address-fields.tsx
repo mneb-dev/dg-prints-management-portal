@@ -49,7 +49,7 @@ export function ShippingAddressFields({
 
       {enabled && (
         <div className="flex flex-col gap-3 rounded-lg border p-3">
-          <Field>
+          <Field className={sameName ? "opacity-70" : undefined}>
             <div className="flex items-center justify-between">
               <FieldLabel htmlFor="shipping-name">Name</FieldLabel>
               <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -71,7 +71,7 @@ export function ShippingAddressFields({
             />
           </Field>
 
-          <Field>
+          <Field className={samePhone ? "opacity-70" : undefined}>
             <div className="flex items-center justify-between">
               <FieldLabel htmlFor="shipping-phone">Phone</FieldLabel>
               <label className="flex items-center gap-1.5 text-xs text-muted-foreground">

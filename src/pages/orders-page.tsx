@@ -4,15 +4,18 @@ import { PlusIcon } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 import { toast } from "sonner"
 
+import { ArrangeOrderDialog } from "@/components/orders/arrange-order-dialog"
 import { CancelOrderDialog } from "@/components/orders/cancel-order-dialog"
 import { DeleteOrderDialog } from "@/components/orders/delete-order-dialog"
 import { ORDER_STATUS_LABELS } from "@/components/orders/order-status-badge"
 import { OrderTable } from "@/components/orders/order-table"
 import { PAYMENT_STATUS_LABELS } from "@/components/orders/payment-status-badge"
+import { RecordPaymentDialog } from "@/components/orders/record-payment-dialog"
 import { RefundOrderDialog } from "@/components/orders/refund-order-dialog"
 import { ActiveFilterChips, FilterSearchInput, FilterToolbar, type ActiveFilter } from "@/components/filter-toolbar"
 import { PageHeader } from "@/components/page-header"
 import { PaginationBar } from "@/components/pagination-bar"
+import { RefreshButton } from "@/components/refresh-button"
 import { SortControl } from "@/components/sort-control"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
@@ -27,6 +30,7 @@ import {
 } from "@/components/ui/select"
 import { useAuth } from "@/lib/auth"
 import { useCategories } from "@/lib/categories"
+import { SPX_ADMIN_CREATE_ORDER_URL, copyToClipboard } from "@/lib/clipboard"
 import { useDebouncedValue } from "@/lib/use-debounced-value"
 import {
   DEFAULT_ORDERS_PARAMS,
@@ -36,6 +40,7 @@ import {
   useOrders,
   type Order,
   type OrderStatus,
+  type Payment,
   type PaymentStatus,
 } from "@/lib/orders"
 
@@ -56,15 +61,19 @@ export function OrdersPage() {
   const canManage = hasPermission("manage_orders")
   const { orders, total, params, setParams, refetch, isLoading, isFetching, isError, error } = useOrders()
   const { categories } = useCategories()
-  const { setOrderStatus, deleteOrder } = useOrderActions()
+  const { setOrderStatus, updateOrder, deleteOrder } = useOrderActions()
   const [searchInput, setSearchInput] = useState(params.search)
   const debouncedSearch = useDebouncedValue(searchInput, 400)
   const [cancellingOrder, setCancellingOrder] = useState<Order | null>(null)
+  const [arrangingOrder, setArrangingOrder] = useState<Order | null>(null)
   const [refundingOrder, setRefundingOrder] = useState<Order | null>(null)
   const [deletingOrder, setDeletingOrder] = useState<Order | null>(null)
+  const [payingOrder, setPayingOrder] = useState<Order | null>(null)
+  const [payingTargetStatus, setPayingTargetStatus] = useState<"paid" | "partially_paid" | null>(null)
   const [isCancelling, setIsCancelling] = useState(false)
   const [isRefunding, setIsRefunding] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [isPaying, setIsPaying] = useState(false)
 
   useEffect(() => {
     if (debouncedSearch !== params.search) {
@@ -87,6 +96,14 @@ export function OrdersPage() {
     }
   }
 
+  function handleConfirmArrange(order: Order) {
+    const shipping = order.shippingAddress
+    if (!shipping) return
+    copyToClipboard(`${shipping.name}\n${shipping.phone}\n${shipping.address}`)
+    window.open(SPX_ADMIN_CREATE_ORDER_URL, "_blank", "noopener,noreferrer")
+    setArrangingOrder(null)
+  }
+
   async function handleConfirmRefund(order: Order) {
     setIsRefunding(true)
     try {
@@ -98,6 +115,21 @@ export function OrdersPage() {
       toast.error(typeof err === "string" ? err : "Failed to refund order.")
     } finally {
       setIsRefunding(false)
+    }
+  }
+
+  async function handleConfirmPayment(order: Order, payment: Payment) {
+    setIsPaying(true)
+    try {
+      await updateOrder(order.id, { payment })
+      toast.success("Payment updated.")
+      setPayingOrder(null)
+      setPayingTargetStatus(null)
+      refetch()
+    } catch (err) {
+      toast.error(typeof err === "string" ? err : "Failed to update payment.")
+    } finally {
+      setIsPaying(false)
     }
   }
 
@@ -172,12 +204,15 @@ export function OrdersPage() {
         title="Orders"
         description="Manage customer orders"
         actions={
-          canManage ? (
-            <Button onClick={() => navigate("/orders/new")}>
-              <PlusIcon data-icon="inline-start" />
-              New Order
-            </Button>
-          ) : undefined
+          <>
+            <RefreshButton onRefresh={refetch} isRefreshing={isFetching} />
+            {canManage ? (
+              <Button onClick={() => navigate("/orders/new")}>
+                <PlusIcon data-icon="inline-start" />
+                New Order
+              </Button>
+            ) : undefined}
+          </>
         }
       />
 
@@ -185,7 +220,7 @@ export function OrdersPage() {
         <FilterSearchInput
           value={searchInput}
           onChange={setSearchInput}
-          placeholder="Search order #, customer, description..."
+          placeholder="Search order #, customer..."
           disabled={isLoading || isError}
         />
 
@@ -359,6 +394,11 @@ export function OrdersPage() {
         onCancel={setCancellingOrder}
         onRefund={setRefundingOrder}
         onDelete={setDeletingOrder}
+        onArrange={setArrangingOrder}
+        onRequestPayment={(order, targetStatus) => {
+          setPayingOrder(order)
+          setPayingTargetStatus(targetStatus)
+        }}
       />
 
       {total > 0 && (
@@ -380,6 +420,12 @@ export function OrdersPage() {
         onConfirm={handleConfirmCancel}
       />
 
+      <ArrangeOrderDialog
+        order={arrangingOrder}
+        onOpenChange={(open) => !open && setArrangingOrder(null)}
+        onConfirm={handleConfirmArrange}
+      />
+
       <RefundOrderDialog
         order={refundingOrder}
         isPending={isRefunding}
@@ -392,6 +438,19 @@ export function OrdersPage() {
         isDeleting={isDeleting}
         onOpenChange={(open) => !open && setDeletingOrder(null)}
         onConfirm={handleConfirmDelete}
+      />
+
+      <RecordPaymentDialog
+        order={payingOrder}
+        targetStatus={payingTargetStatus}
+        isPending={isPaying}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPayingOrder(null)
+            setPayingTargetStatus(null)
+          }
+        }}
+        onConfirm={handleConfirmPayment}
       />
     </div>
   )

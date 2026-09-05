@@ -122,7 +122,13 @@ export function draftFromOrderItem(item: OrderItem): LineItemDraft {
       draft.sizeUnit = item.pricing.size.unit
     }
   } else if (item.pricing.pricingType === "Per Unit") {
-    if (item.pricing.width && item.pricing.height) {
+    if (item.pricing.displaySize) {
+      draft.width = String(item.pricing.displaySize.width)
+      draft.height = String(item.pricing.displaySize.height)
+      draft.dimensionUnit = item.pricing.displaySize.unit
+    } else if (item.pricing.width && item.pricing.height) {
+      // Orders saved before `displaySize` existed — the original unit is unrecoverable,
+      // so fall back to the feet value that's actually stored.
       draft.width = String(item.pricing.width)
       draft.height = String(item.pricing.height)
     }
@@ -165,7 +171,7 @@ export type LineItemComputed = {
   lineTotal: number
 }
 
-// For Sticker Label / Laminated Sticker products, the option named "Package" is the one
+// For Sticker / Laminated Sticker products, the option named "Package" is the one
 // that drives pricing tier selection — it's replaced by clickable quotation cards instead
 // of a dropdown, so it's looked up by this naming convention rather than rendered generically.
 function findPackageOption(product: Product) {
@@ -207,7 +213,7 @@ export function computeLineItemPricing(draft: LineItemDraft, product: Product | 
           (candidate) => valueForOption(candidate.appliesTo, packageOption.id) === selectedPackageValue
         )?.id ?? null)
       : null)
-  const isStickerLabel = product?.category === "Sticker Label"
+  const isStickerLabel = product?.category === "Sticker"
   const isLaminatedSticker = product?.category === "Laminated Sticker"
 
   const stickerWidthNum = Number(draft.stickerWidth)
@@ -267,7 +273,7 @@ export function computeLineItemPricing(draft: LineItemDraft, product: Product | 
       return { pricingType: "Manual", productName: draft.manualProductName.trim(), unitPrice: price }
     }
 
-    if (product.category === "Sintra Board" && draft.isCustomSize) {
+    if (product.category === "Sintra" && draft.isCustomSize) {
       const w = Number(draft.customWidth)
       const h = Number(draft.customHeight)
       if (!(w > 0) || !(h > 0)) return null
@@ -319,8 +325,10 @@ export function computeLineItemPricing(draft: LineItemDraft, product: Product | 
       }
       if (entry.pricingType === "Per Unit") {
         if (entry.unit === "sq.ft.") {
-          const w = convertToFeet(Number(draft.width), draft.dimensionUnit)
-          const h = convertToFeet(Number(draft.height), draft.dimensionUnit)
+          const rawW = Number(draft.width)
+          const rawH = Number(draft.height)
+          const w = convertToFeet(rawW, draft.dimensionUnit)
+          const h = convertToFeet(rawH, draft.dimensionUnit)
           if (!(w > 0) || !(h > 0)) return null
           return {
             pricingType: "Per Unit",
@@ -329,6 +337,7 @@ export function computeLineItemPricing(draft: LineItemDraft, product: Product | 
             unit: entry.unit,
             width: w,
             height: h,
+            displaySize: { width: rawW, height: rawH, unit: draft.dimensionUnit },
           }
         }
         return { pricingType: "Per Unit", pricingEntryId: entry.id, unitPrice: entry.price, unit: entry.unit }
@@ -384,4 +393,18 @@ export function buildOrderItem(
     lineTotal: computed.lineTotal,
     stickerQuotation: computed.stickerQuotationSnapshot,
   }
+}
+
+/** The size to show a user for a "Per Unit" (sq.ft.) line item — the value + unit they actually
+ * entered in the quotation form, not the feet-converted number pricing math uses internally.
+ * Falls back to the stored feet value for orders saved before `displaySize` existed, since their
+ * original unit is unrecoverable. Returns null for non-dimensioned Per Unit pricing (e.g. per
+ * "piece"/"A4" sheet) or any other pricing type. */
+export function perUnitDisplayDimensions(
+  pricing: OrderItemPricing
+): { width: number; height: number; unit: LengthUnit } | null {
+  if (pricing.pricingType !== "Per Unit") return null
+  if (pricing.displaySize) return pricing.displaySize
+  if (pricing.width && pricing.height) return { width: pricing.width, height: pricing.height, unit: "ft" }
+  return null
 }

@@ -9,7 +9,6 @@ export type OrderDraftFields = {
   customerName: string
   customerPhone: string
   items: LineItemDraft[]
-  description: string
   discount: string
   additionalFees: string
   notes: string

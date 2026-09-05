@@ -1,4 +1,4 @@
-import { CopyIcon } from "lucide-react"
+import { CopyIcon, ReceiptTextIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -6,8 +6,7 @@ import { Separator } from "@/components/ui/separator"
 import { copyToClipboard } from "@/lib/clipboard"
 import type { OrderItem, OrderItemPricing } from "@/lib/orders"
 import type { Product } from "@/lib/products"
-import { formatOrderSummaryText } from "@/lib/quote-text"
-import { scaleQuotation } from "@/lib/sticker-quotation"
+import { buildCopyableOrderText, buildLineItemInfoLines, formatOrderSummaryText } from "@/lib/quote-text"
 import { formatCurrency } from "@/lib/utils"
 
 export type LineItemSummary = {
@@ -19,57 +18,19 @@ export type LineItemSummary = {
   stickerQuotation: OrderItem["stickerQuotation"]
 }
 
-function pricingLine(pricing: OrderItemPricing): string | null {
-  if (pricing.pricingType === "Package") return `Package: ${pricing.packageName}`
-  if (pricing.pricingType === "Per Unit") {
-    return pricing.width && pricing.height ? `Size: ${pricing.width} × ${pricing.height} ft` : null
-  }
-  if (pricing.pricingType === "Fixed") return `${formatCurrency(pricing.unitPrice)} / ${pricing.unit}`
-  if (pricing.pricingType === "Manual") return pricing.productName
-  if (pricing.pricingType === "Custom") return `${pricing.packageName} · ${pricing.width} × ${pricing.height} in`
-  return null
-}
-
 function itemInfoLines(item: LineItemSummary): string[] {
   if (!item.product) return []
-  const lines: string[] = []
 
-  for (const option of item.product.options) {
-    if (item.optionValues[option.id]) lines.push(`${option.name}: ${item.optionValues[option.id]}`)
-  }
-
-  if (item.pricing) {
-    const line = pricingLine(item.pricing)
-    if (line) lines.push(line)
-    if (item.pricing.pricingType === "Package" && item.stickerQuotation) {
-      lines.push(
-        `Size: ${item.stickerQuotation.width} × ${item.stickerQuotation.height} ${item.stickerQuotation.unit}`
-      )
-    }
-  }
-
-  if (item.stickerQuotation) {
-    lines.push(
-      `Base Quote: ${item.stickerQuotation.quantity} pcs` +
-        (item.stickerQuotation.free ? ` + ${item.stickerQuotation.free} pcs free` : "")
-    )
-  }
-
-  if (item.pricing) lines.push(`Qty: ${item.quantity}`)
-
-  const totalQuotation = item.stickerQuotation
-    ? scaleQuotation(item.stickerQuotation, item.quantity)
-    : null
-  if (totalQuotation) {
-    lines.push(
-      `To receive: ${totalQuotation.quantity} pcs` +
-        (totalQuotation.free ? ` + ${totalQuotation.free} pcs free` : "")
-    )
-  }
-
-  if (item.pricing) lines.push(`Amount: ${formatCurrency(item.lineTotal)}`)
-
-  return lines
+  return buildLineItemInfoLines({
+    options: item.product.options.map((option) => ({
+      name: option.name,
+      value: item.optionValues[option.id] ?? "",
+    })),
+    pricing: item.pricing,
+    stickerQuotation: item.stickerQuotation,
+    quantity: item.quantity,
+    lineTotal: item.lineTotal,
+  })
 }
 
 export function OrderSummaryPanel({
@@ -95,16 +56,12 @@ export function OrderSummaryPanel({
   function handleCopy() {
     if (copyableItems.length === 0) return
 
-    const infoLines: string[] = []
-    copyableItems.forEach((item, index) => {
-      if (index > 0) infoLines.push("-----")
-      infoLines.push(
-        copyableItems.length > 1 ? `Item ${index + 1}: ${item.product!.name}` : item.product!.name
-      )
-      infoLines.push(...itemInfoLines(item))
-
-      if (index + 1 === copyableItems.length) infoLines.push("=====")
-    })
+    const infoLines = buildCopyableOrderText(
+      copyableItems.map((item) => ({
+        name: item.product!.name,
+        lines: itemInfoLines(item),
+      }))
+    )
 
     copyToClipboard(
       formatOrderSummaryText({
@@ -121,9 +78,12 @@ export function OrderSummaryPanel({
   }
 
   return (
-    <Card>
+    <Card className="shadow-xs">
       <CardHeader>
-        <CardTitle>Order Summary</CardTitle>
+        <CardTitle className="flex items-center gap-2">
+          <ReceiptTextIcon className="size-4 text-muted-foreground" />
+          Order Summary
+        </CardTitle>
         {copyableItems.length > 0 && (
           <CardAction>
             <Button type="button" variant="ghost" size="icon-sm" onClick={handleCopy} aria-label="Copy order summary">

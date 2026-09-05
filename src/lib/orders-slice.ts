@@ -2,6 +2,7 @@ import { createAsyncThunk, createSlice, type PayloadAction } from "@reduxjs/tool
 
 import { apiClient } from "@/lib/api-client"
 import { getErrorMessage } from "@/lib/api-error"
+import type { LengthUnit } from "@/lib/length-units"
 import type { PricingUnit, ProductCategory } from "@/lib/products"
 import type { RootState } from "@/lib/store"
 import type { StickerUnit } from "@/lib/sticker-quotation"
@@ -49,8 +50,12 @@ export type OrderItemPricing =
       unit: PricingUnit
       // Only present when `unit` is area-based (e.g. "sq.ft."). Other per-unit pricing
       // (e.g. per "A4" sheet, per "piece") has no dimensions — total is just price × quantity.
+      // Always in feet — this is what pricing math uses, not what the user typed.
       width?: number
       height?: number
+      // The value + unit the user actually entered in the quotation form, before conversion
+      // to feet for pricing math. Absent on orders saved before this field existed.
+      displaySize?: { width: number; height: number; unit: LengthUnit }
     }
   | {
       pricingType: "Fixed"
@@ -64,7 +69,7 @@ export type OrderItemPricing =
       unitPrice: number
     }
   | {
-      // Sintra Board "Custom size" mode — a form-level override that bypasses the
+      // Sintra "Custom size" mode — a form-level override that bypasses the
       // product's configured pricing entirely. thickness/back-to-back aren't stored
       // structurally (the backend whitelists a fixed set of pricing keys); they're
       // folded into `packageName` as a human-readable description instead — see
@@ -133,7 +138,6 @@ export type Order = {
   layoutFee: number
   total: number
   notes: string
-  description: string
   shippingAddress: ShippingAddress | null
   channel: OrderChannel
   payment: Payment
@@ -466,6 +470,14 @@ const ordersSlice = createSlice({
     setOrdersParams(state, action: PayloadAction<Partial<OrdersQueryParams>>) {
       state.params = { ...state.params, ...action.payload }
     },
+    /** Resets the three "fetch once per session" dashboard query statuses back to "idle" so their
+     * thunks' `condition` (which skips re-fetching once a status leaves "idle") allows a re-fetch —
+     * for the Dashboard page's manual refresh button. */
+    markDashboardStale(state) {
+      state.orderStatsStatus = "idle"
+      state.rankingStatus = "idle"
+      state.customerRankingStatus = "idle"
+    },
   },
   extraReducers(builder) {
     builder
@@ -555,6 +567,6 @@ const ordersSlice = createSlice({
   },
 })
 
-export const { setOrdersParams } = ordersSlice.actions
+export const { setOrdersParams, markDashboardStale } = ordersSlice.actions
 export default ordersSlice.reducer
 export type { OrdersState }

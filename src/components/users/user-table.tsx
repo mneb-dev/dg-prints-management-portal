@@ -8,6 +8,7 @@ import {
   XIcon,
 } from "lucide-react"
 
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -27,6 +28,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { getAvatarDataUri } from "@/lib/avatars"
 import { cn } from "@/lib/utils"
 import { PERMISSION_LABELS, type Role, type User, type UserStatus } from "@/lib/users"
 
@@ -50,6 +52,10 @@ const STATUS_BADGE_VARIANT: Record<UserStatus, "success" | "secondary"> = {
 const STATUS_LABELS: Record<UserStatus, string> = {
   active: "Active",
   inactive: "Inactive",
+}
+
+function initials(user: User): string {
+  return `${user.firstName[0] ?? ""}${user.lastName[0] ?? ""}`.toUpperCase() || "?"
 }
 
 function canDelete(actorRole: Role, target: User): boolean {
@@ -107,7 +113,10 @@ export function UserTable({
             {Array.from({ length: 10 }).map((_, index) => (
               <TableRow key={index}>
                 <TableCell>
-                  <Skeleton className="h-4 w-32" />
+                  <div className="flex items-center gap-2">
+                    <Skeleton className="size-6 rounded-full" />
+                    <Skeleton className="h-4 w-32" />
+                  </div>
                 </TableCell>
                 <TableCell>
                   <Skeleton className="h-4 w-24" />
@@ -212,7 +221,20 @@ export function UserTable({
               return (
                 <TableRow key={user.id}>
                   <TableCell className="font-medium">
-                    {user.firstName} {user.lastName}
+                    <div className="flex items-center gap-2">
+                      <Avatar size="sm">
+                        {user.avatar && (
+                          <AvatarImage
+                            src={getAvatarDataUri(user.avatar)}
+                            alt={`${user.firstName} ${user.lastName}`}
+                          />
+                        )}
+                        <AvatarFallback>{initials(user)}</AvatarFallback>
+                      </Avatar>
+                      <span>
+                        {user.firstName} {user.lastName}
+                      </span>
+                    </div>
                   </TableCell>
                   <TableCell className="text-muted-foreground">{user.username}</TableCell>
                   <TableCell>

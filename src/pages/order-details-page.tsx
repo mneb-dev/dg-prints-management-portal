@@ -4,7 +4,6 @@ import {
   CheckCircle2Icon,
   CopyIcon,
   FileWarningIcon,
-  Loader2Icon,
   PencilIcon,
   RotateCcwIcon,
   TriangleAlertIcon,
@@ -14,8 +13,13 @@ import { Link, useParams } from "react-router-dom"
 import { toast } from "sonner"
 
 import { CancelOrderDialog } from "@/components/orders/cancel-order-dialog"
-import { ORDER_STATUS_LABELS, OrderStatusBadge } from "@/components/orders/order-status-badge"
+import { OrderItemSummary } from "@/components/orders/order-item-summary"
+import { OrderStatusBadge } from "@/components/orders/order-status-badge"
+import { OrderStatusMenu } from "@/components/orders/order-status-menu"
+import { OrderStatusStepper } from "@/components/orders/order-status-stepper"
 import { PaymentStatusBadge } from "@/components/orders/payment-status-badge"
+import { PaymentStatusMenu } from "@/components/orders/payment-status-menu"
+import { RecordPaymentDialog } from "@/components/orders/record-payment-dialog"
 import { RefundOrderDialog } from "@/components/orders/refund-order-dialog"
 import { Button } from "@/components/ui/button"
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -27,53 +31,139 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty"
 import { Separator } from "@/components/ui/separator"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useAuth } from "@/lib/auth"
 import { copyToClipboard } from "@/lib/clipboard"
-import { formatOrderSummaryText } from "@/lib/quote-text"
-import { scaleQuotation } from "@/lib/sticker-quotation"
+import { buildCopyableOrderText, buildLineItemInfoLines, formatOrderSummaryText } from "@/lib/quote-text"
 import {
-  ORDER_STATUSES,
-  canReleaseOrder,
-  canRefundOrder,
-  getStatusFlowForCategory,
+  getOrderStatusOptions,
   isReleaseLockedForRole,
   isTerminalStatus,
   useOrder,
   useOrderActions,
+  useOrderStatusUpdate,
 } from "@/lib/orders"
-import type { Order, OrderItem, OrderStatus } from "@/lib/orders"
+import type { Order, OrderStatus, Payment } from "@/lib/orders"
 import { formatCurrency, formatDate, formatRelativeDate } from "@/lib/utils"
 
 export function OrderDetailsPage() {
   const { id } = useParams<{ id: string }>()
   const { order, isLoading, isError, error } = useOrder(id)
-  const { setOrderStatus } = useOrderActions()
-  const { role } = useAuth()
+  const { setOrderStatus, updateOrder } = useOrderActions()
+  const { updateStatus, isUpdating: isUpdatingStatus } = useOrderStatusUpdate()
+  const { role, hasPermission } = useAuth()
+  const canManage = hasPermission("manage_orders")
   const [cancelling, setCancelling] = useState(false)
   const [refunding, setRefunding] = useState(false)
   const [isCancelling, setIsCancelling] = useState(false)
   const [isRefunding, setIsRefunding] = useState(false)
   const [optimisticStatus, setOptimisticStatus] = useState<OrderStatus | null>(null)
-  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false)
+  const [payingTargetStatus, setPayingTargetStatus] = useState<"paid" | "partially_paid" | null>(null)
+  const [isPaying, setIsPaying] = useState(false)
 
   if (isLoading) {
     return (
-      <Empty className="border">
-        <EmptyHeader>
-          <EmptyMedia variant="icon">
-            <Loader2Icon className="animate-spin" />
-          </EmptyMedia>
-          <EmptyTitle>Loading order…</EmptyTitle>
-        </EmptyHeader>
-      </Empty>
+      <div className="flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Skeleton className="size-8 rounded-md" />
+            <Skeleton className="h-8 w-40" />
+            <Skeleton className="h-5 w-20 rounded-full" />
+          </div>
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-8 w-20" />
+            <Skeleton className="h-8 w-20" />
+            <Skeleton className="h-8 w-20" />
+            <Skeleton className="h-8 w-28" />
+          </div>
+        </div>
+
+        <Card>
+          <CardContent className="flex items-center gap-3">
+            {Array.from({ length: 4 }).flatMap((_, index) => [
+              <Skeleton key={`chip-${index}`} className="size-9 shrink-0 rounded-full" />,
+              index < 3 && <Skeleton key={`line-${index}`} className="h-0.5 flex-1" />,
+            ])}
+          </CardContent>
+        </Card>
+
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+          <div className="flex flex-col gap-4 lg:col-span-2">
+            <Card>
+              <CardHeader>
+                <Skeleton className="h-5 w-20" />
+              </CardHeader>
+              <CardContent className="flex flex-col gap-4">
+                {Array.from({ length: 2 }).map((_, index) => (
+                  <div key={index} className="flex flex-col gap-2">
+                    <Skeleton className="h-4 w-48" />
+                    <Skeleton className="h-4 w-full" />
+                    <Skeleton className="h-4 w-full" />
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <Skeleton className="h-5 w-16" />
+              </CardHeader>
+              <CardContent className="flex flex-col gap-2">
+                {Array.from({ length: 6 }).map((_, index) => (
+                  <Skeleton key={index} className="h-4 w-full" />
+                ))}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <Skeleton className="h-5 w-16" />
+              </CardHeader>
+              <CardContent className="flex flex-col gap-2">
+                {Array.from({ length: 3 }).map((_, index) => (
+                  <Skeleton key={index} className="h-4 w-full" />
+                ))}
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="flex flex-col gap-4 lg:col-span-1">
+            <Card>
+              <CardHeader>
+                <Skeleton className="h-5 w-20" />
+              </CardHeader>
+              <CardContent className="flex flex-col gap-1">
+                <Skeleton className="h-4 w-32" />
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-4 w-40" />
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <Skeleton className="h-5 w-32" />
+              </CardHeader>
+              <CardContent className="flex flex-col gap-2">
+                {Array.from({ length: 4 }).map((_, index) => (
+                  <Skeleton key={index} className="h-4 w-full" />
+                ))}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <Skeleton className="h-5 w-14" />
+              </CardHeader>
+              <CardContent className="flex flex-col gap-3">
+                <Skeleton className="h-8 w-48" />
+                <Skeleton className="h-4 w-40" />
+                <Skeleton className="h-4 w-40" />
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </div>
     )
   }
 
@@ -106,79 +196,31 @@ export function OrderDetailsPage() {
   }
 
   const items = order.items
-  const firstItem = items[0]
-  const statusOptions = firstItem ? getStatusFlowForCategory(firstItem.productCategory) : ORDER_STATUSES
+  const statusOptions = getOrderStatusOptions(order)
+  const releaseOption = statusOptions.find((option) => option.value === "released")
+  const refundOption = statusOptions.find((option) => option.value === "refunded")
   const isReleaseLocked = isReleaseLockedForRole(order.status, role)
   const canCancel = !isTerminalStatus(order.status) && !isReleaseLocked
-  const canRefund = canRefundOrder(order.status, order.payment.status)
-  const canRelease = canReleaseOrder(order.status, order.payment.status)
+  const canRefund = Boolean(refundOption && !refundOption.disabled)
+  const canRelease = Boolean(releaseOption && !releaseOption.disabled)
   const canEditOrder = !isReleaseLocked
   const displayStatus = optimisticStatus ?? order.status
-
-  function itemQuotation(item: OrderItem) {
-    return item.stickerQuotation ? scaleQuotation(item.stickerQuotation, item.quantity) : null
-  }
-
-  function itemPackageSize(item: OrderItem) {
-    if (item.pricing.pricingType !== "Package") return null
-    return item.pricing.size ?? item.stickerQuotation
-  }
-
-  function itemInfoLines(item: OrderItem): string[] {
-    const lines = [item.productName]
-
-    for (const option of item.selectedOptions) {
-      lines.push(`${option.optionName}: ${option.value}`)
-    }
-
-    if (item.pricing.pricingType === "Package") {
-      lines.push(`Package: ${item.pricing.packageName}`)
-      const packageSize = itemPackageSize(item)
-      if (packageSize) {
-        lines.push(`Size: ${packageSize.width} × ${packageSize.height} ${packageSize.unit}`)
-      }
-    }
-    if (item.pricing.pricingType === "Per Unit" && item.pricing.width && item.pricing.height) {
-      lines.push(`Size: ${item.pricing.width} × ${item.pricing.height} ft`)
-    }
-    if (item.pricing.pricingType === "Custom") {
-      lines.push(`Custom Size: ${item.pricing.packageName}`)
-      lines.push(`Size: ${item.pricing.width} × ${item.pricing.height} in`)
-    }
-
-    if (item.stickerQuotation) {
-      lines.push(
-        `Package Quotation: ${item.stickerQuotation.quantity} pcs` +
-          (item.stickerQuotation.free ? ` + ${item.stickerQuotation.free} pcs free` : "")
-      )
-    }
-
-    lines.push(`Quantity: ${item.quantity}`)
-
-    const totalQuotation = itemQuotation(item)
-    if (totalQuotation) {
-      lines.push(
-        `To be received: ${totalQuotation.quantity} pcs` +
-          (totalQuotation.free ? ` + ${totalQuotation.free} pcs free` : "")
-      )
-    }
-
-    lines.push(`Amount: ${formatCurrency(item.lineTotal)}`)
-
-    if (item.notes) lines.push(`Notes: ${item.notes}`)
-
-    return lines
-  }
 
   function handleCopySummary() {
     if (items.length === 0 || !order) return
 
-    const infoLines: string[] = []
-    items.forEach((item, index) => {
-      if (index > 0) infoLines.push("")
-      if (items.length > 1) infoLines.push(`Item ${index + 1}:`)
-      infoLines.push(...itemInfoLines(item))
-    })
+    const infoLines = buildCopyableOrderText(
+      items.map((item) => ({
+        name: item.productName,
+        lines: buildLineItemInfoLines({
+          options: item.selectedOptions.map((option) => ({ name: option.optionName, value: option.value })),
+          pricing: item.pricing,
+          stickerQuotation: item.stickerQuotation,
+          quantity: item.quantity,
+          lineTotal: item.lineTotal,
+        }),
+      }))
+    )
 
     copyToClipboard(
       formatOrderSummaryText({
@@ -196,18 +238,11 @@ export function OrderDetailsPage() {
 
   async function handleStatusChange(value: string | null) {
     if (!order || !value || value === order.status) return
+    if (value === "cancelled") return setCancelling(true)
+    if (value === "refunded") return setRefunding(true)
     setOptimisticStatus(value as OrderStatus)
-    setIsUpdatingStatus(true)
-    try {
-      await setOrderStatus(order.id, value as OrderStatus)
-      toast.success("Status updated.")
-    } catch (err) {
-      setOptimisticStatus(null)
-      toast.error(typeof err === "string" ? err : "Failed to update status.")
-    } finally {
-      setIsUpdatingStatus(false)
-      setOptimisticStatus(null)
-    }
+    await updateStatus(order, value as OrderStatus)
+    setOptimisticStatus(null)
   }
 
   async function handleConfirmCancel(target: Order) {
@@ -233,6 +268,19 @@ export function OrderDetailsPage() {
       toast.error(typeof err === "string" ? err : "Failed to refund order.")
     } finally {
       setIsRefunding(false)
+    }
+  }
+
+  async function handleConfirmPayment(target: Order, payment: Payment) {
+    setIsPaying(true)
+    try {
+      await updateOrder(target.id, { payment })
+      toast.success("Payment updated.")
+      setPayingTargetStatus(null)
+    } catch (err) {
+      toast.error(typeof err === "string" ? err : "Failed to update payment.")
+    } finally {
+      setIsPaying(false)
     }
   }
 
@@ -286,303 +334,214 @@ export function OrderDetailsPage() {
         onConfirm={handleConfirmRefund}
       />
 
+      <RecordPaymentDialog
+        order={payingTargetStatus ? order : null}
+        targetStatus={payingTargetStatus}
+        isPending={isPaying}
+        onOpenChange={(open) => !open && setPayingTargetStatus(null)}
+        onConfirm={handleConfirmPayment}
+      />
+
       <Card>
-        <CardHeader>
-          <CardTitle>Customer</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-1">
-          <p>{order.customerName}</p>
-          {order.customerPhone && (
-            <p className="text-sm text-muted-foreground">{order.customerPhone}</p>
-          )}
-          {order.description && (
-            <p className="text-sm text-muted-foreground">{order.description}</p>
-          )}
+        <CardContent>
+          <OrderStatusStepper order={order} />
         </CardContent>
       </Card>
 
-      {items.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Product</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            {items.map((orderItem, index) => {
-              const totalQuotation = itemQuotation(orderItem)
-              const packageSize = itemPackageSize(orderItem)
-              return (
-                <div key={orderItem.id} className="flex flex-col gap-2">
-                  <p className="font-medium">
-                    {items.length > 1 ? `Item ${index + 1}: ${orderItem.productName}` : orderItem.productName}
-                  </p>
-
-                  {orderItem.selectedOptions.map((option) => (
-                    <div key={option.optionId} className="flex items-center justify-between text-sm">
-                      <span className="text-muted-foreground">{option.optionName}</span>
-                      <span>{option.value}</span>
-                    </div>
-                  ))}
-
-                  {orderItem.pricing.pricingType === "Package" && (
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-muted-foreground">Package</span>
-                      <span>{orderItem.pricing.packageName}</span>
-                    </div>
-                  )}
-
-                  {orderItem.pricing.pricingType === "Package" && packageSize && (
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-muted-foreground">Size</span>
-                      <span>
-                        {packageSize.width} × {packageSize.height} {packageSize.unit}
-                      </span>
-                    </div>
-                  )}
-                  {orderItem.pricing.pricingType === "Per Unit" &&
-                    orderItem.pricing.width &&
-                    orderItem.pricing.height && (
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">Size</span>
-                        <span>
-                          {orderItem.pricing.width} × {orderItem.pricing.height} ft
-                        </span>
-                      </div>
-                    )}
-
-                  {orderItem.pricing.pricingType === "Custom" && (
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-muted-foreground">Custom Size</span>
-                      <span>{orderItem.pricing.packageName}</span>
-                    </div>
-                  )}
-                  {orderItem.pricing.pricingType === "Custom" && (
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-muted-foreground">Size</span>
-                      <span>
-                        {orderItem.pricing.width} × {orderItem.pricing.height} in
-                      </span>
-                    </div>
-                  )}
-
-                  {orderItem.stickerQuotation && (
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-muted-foreground">{orderItem.productCategory} Quotation</span>
-                      <span>
-                        {orderItem.stickerQuotation.quantity} pcs
-                        {orderItem.stickerQuotation.free ? ` + ${orderItem.stickerQuotation.free} pcs free` : ""}
-                      </span>
-                    </div>
-                  )}
-
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Quantity</span>
-                    <span>{orderItem.quantity}</span>
-                  </div>
-
-                  {totalQuotation && (
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-muted-foreground">Total to received</span>
-                      <span>
-                        {totalQuotation.quantity} pcs
-                        {totalQuotation.free ? ` + ${totalQuotation.free} pcs free` : ""}
-                      </span>
-                    </div>
-                  )}
-
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Amount</span>
-                    <span>{formatCurrency(orderItem.lineTotal)}</span>
-                  </div>
-
-                  {orderItem.notes && (
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-muted-foreground">Notes</span>
-                      <span>{orderItem.notes}</span>
-                    </div>
-                  )}
-
-                  {index < items.length - 1 && <Separator />}
-                </div>
-              )
-            })}
-          </CardContent>
-        </Card>
-      )}
-
-      {order.shippingAddress && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Shipping Address</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-2">
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Name</span>
-              <span>{order.shippingAddress.name}</span>
-            </div>
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Phone</span>
-              <span>{order.shippingAddress.phone}</span>
-            </div>
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Address</span>
-              <span className="text-right">{order.shippingAddress.address}</span>
-            </div>
-            {order.shippingAddress.fee > 0 && (
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Shipping Fee</span>
-                <span>{formatCurrency(order.shippingAddress.fee)}</span>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Pricing</CardTitle>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <div className="flex flex-col gap-4 lg:col-span-2">
           {items.length > 0 && (
-            <CardAction>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                onClick={handleCopySummary}
-                aria-label="Copy order summary"
-              >
-                <CopyIcon />
-              </Button>
-            </CardAction>
-          )}
-        </CardHeader>
-        <CardContent className="flex flex-col gap-2">
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">Subtotal</span>
-            <span>{formatCurrency(order.subtotal)}</span>
-          </div>
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">Additional Fees</span>
-            <span>
-              {formatCurrency(order.additionalFees)}
-              {order.notes.trim() && ` (${order.notes.trim()})`}
-            </span>
-          </div>
-          {order.layoutFee >= 1 && (
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Layout Fee</span>
-              <span>{formatCurrency(order.layoutFee)}</span>
-            </div>
-          )}
-          {!!order.shippingAddress?.fee && (
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Shipping Fee</span>
-              <span>{formatCurrency(order.shippingAddress.fee)}</span>
-            </div>
-          )}
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">Discount</span>
-            <span>{formatCurrency(order.discount)}</span>
-          </div>
-          <Separator />
-          <div className="flex items-center justify-between font-medium">
-            <span>Total</span>
-            <span>{formatCurrency(order.total)}</span>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Payment</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-2">
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">Channel</span>
-            <span>{order.channel}</span>
-          </div>
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">Status</span>
-            <PaymentStatusBadge status={order.payment.status} />
-          </div>
-          {order.payment.status !== "unpaid" && (
-            <>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Method</span>
-                <span>{order.payment.method}</span>
-              </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Down Payment</span>
-                <span>{formatCurrency(order.payment.downPayment)}</span>
-              </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Balance</span>
-                <span>{formatCurrency(order.payment.balance)}</span>
-              </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Status</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-3">
-          <div className="flex items-center gap-2">
-            <Select
-              value={displayStatus}
-              onValueChange={handleStatusChange}
-              disabled={isUpdatingStatus || isReleaseLocked}
-            >
-              <SelectTrigger className="w-48">
-                <SelectValue>
-                  {(value: string | null) => (value ? ORDER_STATUS_LABELS[value as OrderStatus] : "")}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {statusOptions.map((status) => (
-                  <SelectItem
-                    key={status}
-                    value={status}
-                    disabled={
-                      (status === "released" && !canRelease) ||
-                      (status === "refunded" && !canRefund)
-                    }
-                  >
-                    {ORDER_STATUS_LABELS[status]}
-                  </SelectItem>
+            <Card>
+              <CardHeader>
+                <CardTitle>Product</CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-3">
+                {items.map((orderItem, index) => (
+                  <OrderItemSummary
+                    key={orderItem.id}
+                    item={orderItem}
+                    index={index}
+                    showIndex={items.length > 1}
+                    defaultOpen={items.length === 1}
+                  />
                 ))}
-              </SelectContent>
-            </Select>
-            {isUpdatingStatus && (
-              <Loader2Icon className="size-4 animate-spin text-muted-foreground animate-in fade-in-0 duration-200" />
-            )}
-          </div>
-          <p className="text-sm text-muted-foreground">
-            Created by{" "}
-            <span >{order.createdByName || "Unknown user"}</span>{" "}
-            {" "}
-            <Tooltip>
-              <TooltipTrigger className="font-medium text-foreground">
-                {formatRelativeDate(order.createdAt)}
-              </TooltipTrigger>
-              <TooltipContent >{formatDate(order.createdAt)}</TooltipContent>
-            </Tooltip>
-          </p>
-          {order.statusUpdatedAt && (
-            <p className="text-sm text-muted-foreground">
-              Status updated by{" "}
-              <span >{order.statusUpdatedByName || "Unknown user"}</span>{" "}
-              {" "}
-              <Tooltip>
-                <TooltipTrigger className="font-medium text-foreground">
-                  {formatRelativeDate(order.statusUpdatedAt)}
-                </TooltipTrigger>
-                <TooltipContent>{formatDate(order.statusUpdatedAt)}</TooltipContent>
-              </Tooltip>
-            </p>
+              </CardContent>
+            </Card>
           )}
-        </CardContent>
-      </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Pricing</CardTitle>
+              {items.length > 0 && (
+                <CardAction>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={handleCopySummary}
+                    aria-label="Copy order summary"
+                  >
+                    <CopyIcon />
+                  </Button>
+                </CardAction>
+              )}
+            </CardHeader>
+            <CardContent className="grid grid-cols-[max-content_1fr] items-baseline gap-x-6 gap-y-2 text-sm">
+              <span className="text-muted-foreground">Subtotal</span>
+              <span className="justify-self-end">{formatCurrency(order.subtotal)}</span>
+
+              <span className="text-muted-foreground">Additional Fees</span>
+              <span className="justify-self-end">
+                {formatCurrency(order.additionalFees)}
+                {order.notes.trim() && ` (${order.notes.trim()})`}
+              </span>
+
+              {order.layoutFee >= 1 && (
+                <>
+                  <span className="text-muted-foreground">Layout Fee</span>
+                  <span className="justify-self-end">{formatCurrency(order.layoutFee)}</span>
+                </>
+              )}
+
+              {!!order.shippingAddress?.fee && (
+                <>
+                  <span className="text-muted-foreground">Shipping Fee</span>
+                  <span className="justify-self-end">{formatCurrency(order.shippingAddress.fee)}</span>
+                </>
+              )}
+
+              <span className="text-muted-foreground">Discount</span>
+              <span className="justify-self-end">{formatCurrency(order.discount)}</span>
+
+              <Separator className="col-span-2" />
+
+              <span className="font-medium">Total</span>
+              <span className="justify-self-end font-medium">{formatCurrency(order.total)}</span>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Payment</CardTitle>
+            </CardHeader>
+            <CardContent className="grid grid-cols-[max-content_1fr] items-baseline gap-x-6 gap-y-2 text-sm">
+              <span className="text-muted-foreground">Channel</span>
+              <span className="justify-self-end">{order.channel}</span>
+
+              <span className="text-muted-foreground">Status</span>
+              <span className="justify-self-end">
+                {canManage && !isReleaseLocked ? (
+                  <PaymentStatusMenu
+                    order={order}
+                    onRequestPayment={(_order, targetStatus) => setPayingTargetStatus(targetStatus)}
+                  />
+                ) : (
+                  <PaymentStatusBadge status={order.payment.status} />
+                )}
+              </span>
+
+              {order.payment.status !== "unpaid" && (
+                <>
+                  <span className="text-muted-foreground">Method</span>
+                  <span className="justify-self-end">{order.payment.method}</span>
+
+                  <span className="text-muted-foreground">Down Payment</span>
+                  <span className="justify-self-end">{formatCurrency(order.payment.downPayment)}</span>
+
+                  <span className="text-muted-foreground">Balance</span>
+                  <span className="justify-self-end">{formatCurrency(order.payment.balance)}</span>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="flex flex-col gap-4 lg:sticky lg:top-4 lg:col-span-1 lg:self-start">
+          <Card>
+            <CardHeader>
+              <CardTitle>Customer</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-1">
+              <p>{order.customerName}</p>
+              {order.customerPhone && (
+                <p className="text-sm text-muted-foreground">{order.customerPhone}</p>
+              )}
+            </CardContent>
+          </Card>
+
+          {order.shippingAddress && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Shipping Address</CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-2">
+                <div className="flex items-baseline gap-1.5 text-sm">
+                  <span className="text-muted-foreground">Name:</span>
+                  <span>{order.shippingAddress.name}</span>
+                </div>
+                <div className="flex items-baseline gap-1.5 text-sm">
+                  <span className="text-muted-foreground">Phone:</span>
+                  <span>{order.shippingAddress.phone}</span>
+                </div>
+                <div className="flex items-baseline gap-1.5 text-sm">
+                  <span className="shrink-0 text-muted-foreground">Address:</span>
+                  <span>{order.shippingAddress.address}</span>
+                </div>
+                {order.shippingAddress.fee > 0 && (
+                  <div className="flex items-baseline gap-1.5 text-sm">
+                    <span className="text-muted-foreground">Shipping Fee:</span>
+                    <span>{formatCurrency(order.shippingAddress.fee)}</span>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Status</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-3">
+              <div className="flex items-center gap-2">
+                {isReleaseLocked ? (
+                  <OrderStatusBadge status={order.status} />
+                ) : (
+                  <OrderStatusMenu
+                    order={order}
+                    onCancel={() => setCancelling(true)}
+                    onRefund={() => setRefunding(true)}
+                    onOptimisticChange={setOptimisticStatus}
+                  />
+                )}
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Created by{" "}
+                <span >{order.createdByName || "Unknown user"}</span>{" "}
+                {" "}
+                <Tooltip>
+                  <TooltipTrigger className="font-medium text-foreground">
+                    {formatRelativeDate(order.createdAt)}
+                  </TooltipTrigger>
+                  <TooltipContent >{formatDate(order.createdAt)}</TooltipContent>
+                </Tooltip>
+              </p>
+              {order.statusUpdatedAt && (
+                <p className="text-sm text-muted-foreground">
+                  Status updated by{" "}
+                  <span >{order.statusUpdatedByName || "Unknown user"}</span>{" "}
+                  {" "}
+                  <Tooltip>
+                    <TooltipTrigger className="font-medium text-foreground">
+                      {formatRelativeDate(order.statusUpdatedAt)}
+                    </TooltipTrigger>
+                    <TooltipContent>{formatDate(order.statusUpdatedAt)}</TooltipContent>
+                  </Tooltip>
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </div>
   )
 }

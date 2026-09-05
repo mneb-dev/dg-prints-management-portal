@@ -40,10 +40,10 @@ import { calculateStickerPackageResult, parsePackageNumber, type StickerUnit } f
 import { formatCurrency } from "@/lib/utils"
 
 const CATEGORIES: { category: ProductCategory; label: string; icon: LucideIcon }[] = [
-  { category: "Sticker Label", label: "Sticker", icon: StickerIcon },
+  { category: "Sticker", label: "Sticker", icon: StickerIcon },
   { category: "Laminated Sticker", label: "Laminated", icon: LayersIcon },
   { category: "Tarpaulin", label: "Tarpaulin", icon: FlagIcon },
-  { category: "Sintra Board", label: "Sintra", icon: LayoutPanelLeftIcon },
+  { category: "Sintra", label: "Sintra", icon: LayoutPanelLeftIcon },
 ]
 
 export function CalculatorPage() {
@@ -113,13 +113,13 @@ export function CalculatorPage() {
   const packageOption = selectedProduct?.options.find((option) => isPackageOptionName(option.name)) ?? null
   const packageCandidates =
     selectedProduct && packageOption ? previewPackageCandidates(selectedProduct, packageOption.id) : []
-  const stickerCandidates = category === "Sticker Label" ? packageCandidates : []
+  const stickerCandidates = category === "Sticker" ? packageCandidates : []
   const laminatedCandidates = category === "Laminated Sticker" ? packageCandidates : []
   const width_ = Number(width)
   const height_ = Number(height)
   const hasValidSize = width_ > 0 && height_ > 0
 
-  const isSintraCustom = category === "Sintra Board" && isCustomSize
+  const isSintraCustom = category === "Sintra" && isCustomSize
   const customWidthNum = Number(customWidth)
   const customHeightNum = Number(customHeight)
   const hasValidCustomSize = customWidthNum > 0 && customHeightNum > 0
@@ -141,7 +141,7 @@ export function CalculatorPage() {
 
   function handleCreateOrder() {
     const seed: OrderFormSeed =
-      category === "Sticker Label" || category === "Laminated Sticker"
+      category === "Sticker" || category === "Laminated Sticker"
         ? { productId, stickerWidth, stickerHeight, stickerUnit }
         : isSintraCustom
           ? {
@@ -158,14 +158,14 @@ export function CalculatorPage() {
   }
 
   const canCreate =
-    category === "Sticker Label" || category === "Laminated Sticker"
+    category === "Sticker" || category === "Laminated Sticker"
       ? !!productId && Number(stickerWidth) > 0 && Number(stickerHeight) > 0
       : isSintraCustom
         ? !!productId && hasValidCustomSize
         : !!productId
 
   const hasQuote =
-    category === "Sticker Label"
+    category === "Sticker"
       ? !!productId && Number(stickerWidth) > 0 && Number(stickerHeight) > 0
       : category === "Laminated Sticker"
         ? Number(stickerWidth) > 0 && Number(stickerHeight) > 0 && laminatedCandidates.length > 0
@@ -179,7 +179,7 @@ export function CalculatorPage() {
 
     const lines: string[] = [selectedProduct.name]
 
-    if (category === "Sticker Label") {
+    if (category === "Sticker") {
       lines.push(`Size: ${stickerWidth} × ${stickerHeight} ${stickerUnit}`)
       lines.push("")
       for (const candidate of stickerCandidates) {
@@ -252,7 +252,7 @@ export function CalculatorPage() {
         </CardContent>
       </Card>
 
-      {category === "Sticker Label" && (
+      {category === "Sticker" && (
         <Card>
           <CardHeader>
             <CardTitle>Sticker Quotation</CardTitle>
@@ -359,7 +359,7 @@ export function CalculatorPage() {
         </Card>
       )}
 
-      {(category === "Tarpaulin" || category === "Sintra Board") && (
+      {(category === "Tarpaulin" || category === "Sintra") && (
         <Card>
           <CardHeader>
             <CardTitle>{category} Quotation</CardTitle>
@@ -407,7 +407,7 @@ export function CalculatorPage() {
                   />
                 )}
 
-                {selectedProduct && category === "Sintra Board" && (
+                {selectedProduct && category === "Sintra" && (
                   <label className="flex items-center gap-2 text-sm font-medium">
                     <Switch
                       checked={isCustomSize}

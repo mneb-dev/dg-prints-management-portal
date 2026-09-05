@@ -8,10 +8,10 @@ import {
 } from "@/lib/products"
 
 /** Categories whose package tiers are picked via clickable quotation cards instead of a dropdown. */
-export const CARD_SELECTABLE_PACKAGE_CATEGORIES: ProductCategory[] = ["Sticker Label", "Laminated Sticker"]
+export const CARD_SELECTABLE_PACKAGE_CATEGORIES: ProductCategory[] = ["Sticker", "Laminated Sticker"]
 
 /** True for an option name that identifies the package-tier option for card-selectable categories
- *  (Sticker Label / Laminated Sticker) — tolerant of "Package" vs "Packages", since pluralizing it is
+ *  (Sticker / Laminated Sticker) — tolerant of "Package" vs "Packages", since pluralizing it is
  *  an easy, natural thing for an admin to type and previously broke package-tier detection silently. */
 export function isPackageOptionName(name: string): boolean {
   return /^packages?$/.test(name.trim().toLowerCase())
@@ -93,7 +93,7 @@ export function resolvePricingPreview(product: Product, selectedValues: Record<s
 }
 
 /**
- * Package-tier candidates for a card-selectable product (Sticker Label / Laminated Sticker)
+ * Package-tier candidates for a card-selectable product (Sticker / Laminated Sticker)
  * whose Package value hasn't been picked yet — matches every *other* selected option (e.g.
  * Type) but ignores whatever is currently in `selectedValues[packageOptionId]`, since that's
  * exactly the value the customer is about to choose from these candidates.

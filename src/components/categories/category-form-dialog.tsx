@@ -101,7 +101,7 @@ export function CategoryFormDialog({
                   setNameError(null)
                 }}
                 aria-invalid={!!nameError}
-                placeholder="e.g. Sticker Label"
+                placeholder="e.g. Sticker"
               />
               <FieldError>{nameError}</FieldError>
             </Field>

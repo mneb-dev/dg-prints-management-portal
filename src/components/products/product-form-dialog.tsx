@@ -352,7 +352,7 @@ export function ProductFormDialog({
                     setNameError(null)
                   }}
                   aria-invalid={!!nameError}
-                  placeholder="Sticker Label"
+                  placeholder="Sticker"
                 />
                 <FieldError>{nameError ?? undefined}</FieldError>
               </Field>

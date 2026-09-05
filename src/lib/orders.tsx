@@ -1,4 +1,5 @@
-import { useEffect, useMemo } from "react"
+import { useEffect, useMemo, useState } from "react"
+import { toast } from "sonner"
 
 import { useAppDispatch, useAppSelector } from "@/lib/hooks"
 import {
@@ -10,6 +11,7 @@ import {
   fetchOrdersThunk,
   fetchRecentOrdersForRankingThunk,
   fetchTopCustomersThunk,
+  markDashboardStale,
   setOrdersParams,
   updateOrderThunk,
 } from "@/lib/orders-slice"
@@ -19,6 +21,7 @@ import type {
   OrderStatus,
   OrdersQueryParams,
   OrderUpdateInput,
+  Payment,
 } from "@/lib/orders-slice"
 
 export {
@@ -33,10 +36,13 @@ export {
   canEditOrderMetadata,
   canReleaseOrder,
   canRefundOrder,
+  getOrderStatusOptions,
+  getOrderWorkflowStatuses,
   getStatusFlowForCategory,
   isReleaseLockedForRole,
   isTerminalStatus,
 } from "@/lib/order-status"
+export type { OrderStatusOption } from "@/lib/order-status"
 export type {
   CustomerRanking,
   Order,
@@ -183,6 +189,31 @@ export function useCustomerRankings() {
   }
 }
 
+/** Re-runs the three "fetch once per session" dashboard queries (stats, recent-order ranking,
+ * top customers) together — for the Dashboard page's manual refresh button. */
+export function useDashboardRefresh() {
+  const dispatch = useAppDispatch()
+  const [isRefreshing, setIsRefreshing] = useState(false)
+
+  async function refresh() {
+    setIsRefreshing(true)
+    dispatch(markDashboardStale())
+    try {
+      await Promise.all([
+        dispatch(fetchOrderStatsThunk()).unwrap(),
+        dispatch(fetchRecentOrdersForRankingThunk()).unwrap(),
+        dispatch(fetchTopCustomersThunk()).unwrap(),
+      ])
+    } catch (err) {
+      toast.error(typeof err === "string" ? err : "Failed to refresh dashboard.")
+    } finally {
+      setIsRefreshing(false)
+    }
+  }
+
+  return { refresh, isRefreshing }
+}
+
 /** Fetches a single order by id — for the Order detail/edit pages. */
 export function useOrder(id: string | undefined) {
   const dispatch = useAppDispatch()
@@ -229,4 +260,53 @@ export function useOrderActions() {
   }
 
   return { addOrder, updateOrder, setOrderStatus, deleteOrder, setOrdersFilter }
+}
+
+/** Shared optimistic-update + toast behavior for changing an order's status — used by the
+ * order details page and the orders table's inline status menu so both surfaces fail/succeed
+ * the same way. Returns whether the update succeeded so callers can roll back local state. */
+export function useOrderStatusUpdate() {
+  const { setOrderStatus } = useOrderActions()
+  const [isUpdating, setIsUpdating] = useState(false)
+
+  async function updateStatus(order: Order, status: OrderStatus): Promise<boolean> {
+    setIsUpdating(true)
+    try {
+      await setOrderStatus(order.id, status)
+      toast.success("Status updated.")
+      return true
+    } catch (err) {
+      toast.error(typeof err === "string" ? err : "Failed to update status.")
+      return false
+    } finally {
+      setIsUpdating(false)
+    }
+  }
+
+  return { updateStatus, isUpdating }
+}
+
+/** Shared toast behavior for changing an order's payment — used by the orders table's inline
+ * payment menu for updates that don't need a confirmation dialog first (see `RecordPaymentDialog`
+ * for the `partially_paid`/method-unknown cases, which collect input before calling `updateOrder`
+ * directly). */
+export function usePaymentStatusUpdate() {
+  const { updateOrder } = useOrderActions()
+  const [isUpdating, setIsUpdating] = useState(false)
+
+  async function updatePayment(order: Order, payment: Payment): Promise<boolean> {
+    setIsUpdating(true)
+    try {
+      await updateOrder(order.id, { payment })
+      toast.success("Payment updated.")
+      return true
+    } catch (err) {
+      toast.error(typeof err === "string" ? err : "Failed to update payment.")
+      return false
+    } finally {
+      setIsUpdating(false)
+    }
+  }
+
+  return { updatePayment, isUpdating }
 }

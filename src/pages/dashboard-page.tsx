@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom"
 
 import { ORDER_STATUS_ICONS } from "@/components/orders/order-status-badge"
 import { PageHeader } from "@/components/page-header"
+import { RefreshButton } from "@/components/refresh-button"
 import { Button } from "@/components/ui/button"
 import { ChannelMixCard } from "@/components/dashboard/channel-mix-card"
 import { HotProductsCard } from "@/components/dashboard/hot-products-card"
@@ -12,12 +13,13 @@ import { StatCard } from "@/components/dashboard/stat-card"
 import { StatusPipelineCard } from "@/components/dashboard/status-pipeline-card"
 import { TopCustomersCard } from "@/components/dashboard/top-customers-card"
 import { useAuth } from "@/lib/auth"
-import { useOrderActions, useOrderStats } from "@/lib/orders"
+import { useDashboardRefresh, useOrderActions, useOrderStats } from "@/lib/orders"
 
 export function DashboardPage() {
   const { hasPermission } = useAuth()
   const { stats } = useOrderStats()
   const { setOrdersFilter } = useOrderActions()
+  const { refresh, isRefreshing } = useDashboardRefresh()
   const navigate = useNavigate()
 
   const pendingCount = stats?.byStatus["pending"] ?? 0
@@ -39,12 +41,15 @@ export function DashboardPage() {
         title="Dashboard"
         description="Snapshot of orders, payments, and demand."
         actions={
-          hasPermission("manage_orders") ? (
-            <Button render={<Link to="/orders/new" />} nativeButton={false}>
-              <PlusIcon data-icon="inline-start" />
-              New Order
-            </Button>
-          ) : undefined
+          <>
+            <RefreshButton onRefresh={refresh} isRefreshing={isRefreshing} />
+            {hasPermission("manage_orders") ? (
+              <Button render={<Link to="/orders/new" />} nativeButton={false}>
+                <PlusIcon data-icon="inline-start" />
+                New Order
+              </Button>
+            ) : undefined}
+          </>
         }
       />
 

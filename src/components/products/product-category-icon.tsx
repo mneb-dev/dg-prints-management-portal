@@ -16,19 +16,19 @@ const DEFAULT_CATEGORY_ICON: LucideIcon = TagIcon
 const DEFAULT_CATEGORY_TONE = "bg-muted text-muted-foreground"
 
 const CATEGORY_ICONS: Partial<Record<string, LucideIcon>> = {
-  "Sticker Label": StickerIcon,
+  "Sticker": StickerIcon,
   "Laminated Sticker": LayersIcon,
   Tarpaulin: FlagIcon,
-  "Sintra Board": LayoutPanelLeftIcon,
+  "Sintra": LayoutPanelLeftIcon,
   "General Merchandise": PackageIcon,
   "3D Print": BoxIcon,
 }
 
 const CATEGORY_TONES: Partial<Record<string, string>> = {
-  "Sticker Label": "bg-status-progress/10 text-status-progress",
+  "Sticker": "bg-status-progress/10 text-status-progress",
   "Laminated Sticker": "bg-status-warning/10 text-status-warning",
   Tarpaulin: "bg-status-info/10 text-status-info",
-  "Sintra Board": "bg-status-ready/10 text-status-ready",
+  "Sintra": "bg-status-ready/10 text-status-ready",
   "General Merchandise": "bg-muted text-muted-foreground",
   "3D Print": "bg-primary/10 text-primary",
 }

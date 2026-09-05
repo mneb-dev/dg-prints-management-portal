@@ -7,6 +7,7 @@ import {
   XIcon,
 } from "lucide-react"
 
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -31,13 +32,21 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { canRefundOrder, isReleaseLockedForRole, isTerminalStatus } from "@/lib/orders"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import {
+  describeOrderItemFull,
+  describeOrderItemParts,
+  notedItems,
+} from "@/lib/order-item-description"
+import { canEditOrderMetadata, isReleaseLockedForRole } from "@/lib/orders"
 import type { Order } from "@/lib/orders"
 import type { Role } from "@/lib/users"
 import { cn, formatCurrency, formatDate } from "@/lib/utils"
 
 import { OrderStatusBadge } from "./order-status-badge"
+import { OrderStatusMenu } from "./order-status-menu"
 import { PaymentStatusBadge } from "./payment-status-badge"
+import { PaymentStatusMenu } from "./payment-status-menu"
 
 export function OrderTable({
   orders,
@@ -56,6 +65,8 @@ export function OrderTable({
   onCancel,
   onRefund,
   onDelete,
+  onRequestPayment,
+  onArrange,
 }: {
   orders: Order[]
   isLoading?: boolean
@@ -73,7 +84,11 @@ export function OrderTable({
   onCancel: (order: Order) => void
   onRefund: (order: Order) => void
   onDelete: (order: Order) => void
+  onRequestPayment: (order: Order, targetStatus: "paid" | "partially_paid") => void
+  onArrange: (order: Order) => void
 }) {
+  const isAdminTier = canEditOrderMetadata(role)
+
   if (isLoading) {
     return (
       <div className="rounded-lg border">
@@ -83,7 +98,7 @@ export function OrderTable({
               <TableHead className="sticky left-0 bg-background">Order</TableHead>
               <TableHead>Customer</TableHead>
               <TableHead>Product</TableHead>
-              <TableHead>Order description</TableHead>
+              <TableHead>Notes</TableHead>
               <TableHead>Total</TableHead>
               <TableHead>Created</TableHead>
               <TableHead>Status</TableHead>
@@ -106,7 +121,7 @@ export function OrderTable({
                   <Skeleton className="h-4 w-28" />
                 </TableCell>
                 <TableCell>
-                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="h-4 w-20" />
                 </TableCell>
                 <TableCell>
                   <Skeleton className="h-4 w-16" />
@@ -199,7 +214,7 @@ export function OrderTable({
             <TableHead className="sticky left-0 bg-background">Order</TableHead>
             <TableHead>Customer</TableHead>
             <TableHead>Product</TableHead>
-            <TableHead>Order description</TableHead>
+            <TableHead>Notes</TableHead>
             <TableHead>Total</TableHead>
             <TableHead>Created</TableHead>
             <TableHead>Status</TableHead>
@@ -212,8 +227,6 @@ export function OrderTable({
         <TableBody>
           {orders.map((order) => {
             const isReleaseLocked = isReleaseLockedForRole(order.status, role)
-            const canCancel = !isTerminalStatus(order.status) && !isReleaseLocked
-            const canRefund = canRefundOrder(order.status, order.payment.status)
             return (
               <TableRow key={order.id}>
                 <TableCell className="sticky left-0 bg-background font-medium">
@@ -222,20 +235,74 @@ export function OrderTable({
                 <TableCell>{order.customerName}</TableCell>
                 <TableCell className="text-muted-foreground">
                   {order.items[0]?.productName ?? "—"}
-                  {order.items.length > 1 && ` +${order.items.length - 1} more`}
+                  {order.items.length > 1 && (
+                    <Badge variant="secondary" className="ml-1.5">
+                      +{order.items.length - 1} more
+                    </Badge>
+                  )}
                 </TableCell>
                 <TableCell className="text-muted-foreground">
-                  {order.description || "—"}
+                  {(() => {
+                    const withNotes = notedItems(order.items)
+                    const item = withNotes[0]
+                    const parts = item ? describeOrderItemParts(item) : null
+                    if (!item || !parts?.notes) return "—"
+                    return (
+                      <Tooltip>
+                        <TooltipTrigger
+                          render={
+                            <button
+                              type="button"
+                              className="inline-flex cursor-default items-center gap-1.5"
+                            />
+                          }
+                        >
+                          <span
+                            className={cn(
+                              "text-foreground",
+                              "underline decoration-muted-foreground/50 decoration-dotted underline-offset-2"
+                            )}
+                          >
+                            {parts.notes}
+                            {parts.notesTruncated ? "… " : " "}
+                            {parts.size && parts.size}
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-sm text-[11px]">
+                          <div className="flex flex-col gap-0.5">
+                            {withNotes.map((noted) => {
+                              const full = describeOrderItemFull(noted)
+                              return (
+                                <div key={noted.id}>
+                                  <span className="font-medium">{noted.productName}:</span>{" "}
+                                  {full.notes}
+                                  {full.size && ` (${full.size})`}
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </TooltipContent>
+                      </Tooltip>
+                    )
+                  })()}
                 </TableCell>
                 <TableCell>{formatCurrency(order.total)}</TableCell>
                 <TableCell className="text-muted-foreground">
                   {formatDate(order.createdAt)}
                 </TableCell>
                 <TableCell>
-                  <OrderStatusBadge status={order.status} />
+                  {canManage && !isReleaseLocked ? (
+                    <OrderStatusMenu order={order} onCancel={onCancel} onRefund={onRefund} />
+                  ) : (
+                    <OrderStatusBadge status={order.status} />
+                  )}
                 </TableCell>
                 <TableCell>
-                  <PaymentStatusBadge status={order.payment.status} />
+                  {canManage && !isReleaseLocked ? (
+                    <PaymentStatusMenu order={order} onRequestPayment={onRequestPayment} />
+                  ) : (
+                    <PaymentStatusBadge status={order.payment.status} />
+                  )}
                 </TableCell>
                 <TableCell className="text-right">
                   <DropdownMenu>
@@ -245,16 +312,18 @@ export function OrderTable({
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                       <DropdownMenuItem onClick={() => onView(order)}>View</DropdownMenuItem>
+                      {isAdminTier && (
+                        <DropdownMenuItem
+                          disabled={!order.shippingAddress}
+                          onClick={() => onArrange(order)}
+                        >
+                          Arrange
+                        </DropdownMenuItem>
+                      )}
                       {canManage && (
                         <>
                           <DropdownMenuItem disabled={isReleaseLocked} onClick={() => onEdit(order)}>
                             Edit
-                          </DropdownMenuItem>
-                          <DropdownMenuItem disabled={!canCancel} onClick={() => onCancel(order)}>
-                            Cancel
-                          </DropdownMenuItem>
-                          <DropdownMenuItem disabled={!canRefund} onClick={() => onRefund(order)}>
-                            Refund
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             variant="destructive"
