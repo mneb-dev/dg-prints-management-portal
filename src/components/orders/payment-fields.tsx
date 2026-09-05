@@ -64,6 +64,11 @@ export function PaymentFields({
   const [targetStatus, setTargetStatus] = useState<"paid" | "partially_paid" | null>(null)
   const StatusIcon = PAYMENT_STATUS_ICONS[currentStatus]
   const paymentError = errors?.paymentMethod || errors?.downPayment
+  // What's already been paid/still owed right now, before this update — passed to the dialog so
+  // marking "paid" after a prior partial payment shows the real outstanding amount instead of the
+  // post-save 0.
+  const existingDownPayment = markPaid && paymentStatus === "partially_paid" ? Number(downPayment) || 0 : 0
+  const existingBalance = Math.max(total - existingDownPayment, 0)
 
   function handleSelect(status: PaymentStatus) {
     if (status === currentStatus) return
@@ -179,6 +184,8 @@ export function PaymentFields({
         downPayment={downPayment}
         currentPaymentStatus={paymentStatus}
         total={total}
+        existingDownPayment={existingDownPayment}
+        existingBalance={existingBalance}
         onOpenChange={(open) => !open && setTargetStatus(null)}
         onConfirm={(method, downPaymentInput) => {
           if (!targetStatus) return
@@ -207,6 +214,8 @@ function PaymentAmountDialog({
   downPayment,
   currentPaymentStatus,
   total,
+  existingDownPayment,
+  existingBalance,
   onOpenChange,
   onConfirm,
 }: {
@@ -216,6 +225,8 @@ function PaymentAmountDialog({
   downPayment: string
   currentPaymentStatus: "paid" | "partially_paid"
   total: number
+  existingDownPayment: number
+  existingBalance: number
   onOpenChange: (open: boolean) => void
   onConfirm: (method: PaymentMethod, downPaymentInput: string) => void
 }) {
@@ -235,8 +246,7 @@ function PaymentAmountDialog({
   }, [targetStatus, isShopee, paymentMethod, downPayment, currentPaymentStatus])
 
   const effectiveMethod = isShopee ? "Bank Transfer" : method
-  const previewDownPayment = targetStatus === "partially_paid" ? Number(downPaymentInput) || 0 : total
-  const previewBalance = Math.max(total - previewDownPayment, 0)
+  const previewBalance = Math.max(total - (Number(downPaymentInput) || 0), 0)
 
   function handleSave() {
     const nextErrors: { method?: string; downPayment?: string } = {}
@@ -319,9 +329,20 @@ function PaymentAmountDialog({
             </Field>
           )}
 
+          {targetStatus === "paid" && existingDownPayment > 0 && (
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">Down Payment</span>
+              <span>{formatCurrency(existingDownPayment)}</span>
+            </div>
+          )}
+
           <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">Remaining Balance</span>
-            <span>{formatCurrency(previewBalance)}</span>
+            <span className="text-muted-foreground">
+              {targetStatus === "paid" ? "Amount Due" : "Remaining Balance"}
+            </span>
+            <span>
+              {formatCurrency(targetStatus === "paid" ? existingBalance : previewBalance)}
+            </span>
           </div>
         </div>
 

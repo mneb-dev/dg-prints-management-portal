@@ -62,6 +62,11 @@ export function RecordPaymentDialog({
   const effectiveMethod = isShopee ? "Bank Transfer" : method
   const previewDownPayment = targetStatus === "partially_paid" ? Number(downPayment) || 0 : total
   const previewBalance = Math.max(total - previewDownPayment, 0)
+  // What's actually already paid/still owed right now, before this update — shown instead of
+  // the post-save preview above when marking "paid", so a prior partial payment (e.g. 100 of
+  // 200) doesn't get hidden behind a misleading "Remaining Balance: 0".
+  const existingDownPayment = order?.payment.downPayment ?? 0
+  const existingBalance = order?.payment.balance ?? 0
 
   function handleConfirm(target: Order, status: "paid" | "partially_paid") {
     const nextErrors: { method?: string; downPayment?: string } = {}
@@ -147,9 +152,20 @@ export function RecordPaymentDialog({
             </Field>
           )}
 
+          {targetStatus === "paid" && existingDownPayment > 0 && (
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">Down Payment</span>
+              <span>{formatCurrency(existingDownPayment)}</span>
+            </div>
+          )}
+
           <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">Remaining Balance</span>
-            <span>{formatCurrency(previewBalance)}</span>
+            <span className="text-muted-foreground">
+              {targetStatus === "paid" ? "Amount Due" : "Remaining Balance"}
+            </span>
+            <span>
+              {formatCurrency(targetStatus === "paid" ? existingBalance : previewBalance)}
+            </span>
           </div>
         </div>
 
