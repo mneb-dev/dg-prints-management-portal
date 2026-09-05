@@ -39,8 +39,8 @@ import {
 } from "@/components/ui/select"
 import { Spinner } from "@/components/ui/spinner"
 import { useAuth } from "@/lib/auth"
+import { useCategories } from "@/lib/categories"
 import { SPX_ADMIN_CREATE_ORDER_URL, copyToClipboard } from "@/lib/clipboard"
-import { isValidPhMobileNumber } from "@/lib/phone"
 import type { LengthUnit } from "@/lib/length-units"
 import { useNavGuard } from "@/lib/nav-guard"
 import {
@@ -74,6 +74,17 @@ import { useProductCatalog } from "@/lib/products"
 import type { SintraThickness } from "@/lib/sintra-board-pricing"
 import type { StickerUnit } from "@/lib/sticker-quotation"
 import { useUserOptions } from "@/lib/users"
+import {
+  isValidPhMobileNumber,
+  maxLengthMessage,
+  NOTES_REQUIRED_WHEN_FEES_MESSAGE,
+  PHONE_FORMAT_MESSAGE,
+  PRICING_INCOMPLETE_MESSAGE,
+  PRODUCT_INACTIVE_MESSAGE,
+  REQUIRED_OPTIONS_MESSAGE,
+  requiredMessage,
+  validatePaymentAmount,
+} from "@/lib/validation"
 
 import { DiscardOrderChangesDialog } from "./discard-order-changes-dialog"
 import { OrderFormSectionNav, type OrderFormSection } from "./order-form-section-nav"
@@ -181,7 +192,12 @@ function fieldsFromOrder(order: Order): OrderDraftFields {
     shippingFee: shipping ? String(shipping.fee ?? 0) : "0",
     channel: order.channel,
     markPaid: paid,
-    paymentStatus: paid && order.payment.status !== "paid" ? "partially_paid" : "paid",
+    paymentStatus:
+      order.payment.status === "refunded"
+        ? "refunded"
+        : paid && order.payment.status !== "paid"
+          ? "partially_paid"
+          : "paid",
     paymentMethod: paid ? (order.payment.method ?? "") : "",
     downPayment: paid ? String(order.payment.downPayment) : "",
   }
@@ -218,6 +234,7 @@ export function OrderForm({
   const hotProductIds = useMemo(() => new Set(hotProductIdList), [hotProductIdList])
   const { customerNames, topCustomerNames, customerDetailsByName } = useCustomerRankings()
   const { addOrder, updateOrder } = useOrderActions()
+  const { categories } = useCategories()
   const { role } = useAuth()
   const canEditMetadata = !!order && canEditOrderMetadata(role)
   const { users: userOptions } = useUserOptions(canEditMetadata)
@@ -246,7 +263,7 @@ export function OrderForm({
   const [shippingFee, setShippingFee] = useState("0")
   const [channel, setChannel] = useState<OrderChannel | "">("")
   const [markPaid, setMarkPaid] = useState(false)
-  const [paymentStatus, setPaymentStatus] = useState<"paid" | "partially_paid">("paid")
+  const [paymentStatus, setPaymentStatus] = useState<"paid" | "partially_paid" | "refunded">("paid")
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | "">("")
   const [downPayment, setDownPayment] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -373,7 +390,13 @@ export function OrderForm({
     setChannel(order.channel)
     if (order.payment.status !== "unpaid") {
       setMarkPaid(true)
-      setPaymentStatus(order.payment.status === "paid" ? "paid" : "partially_paid")
+      setPaymentStatus(
+        order.payment.status === "paid"
+          ? "paid"
+          : order.payment.status === "refunded"
+            ? "refunded"
+            : "partially_paid"
+      )
       setPaymentMethod(order.payment.method ?? "")
       setDownPayment(String(order.payment.downPayment))
     }
@@ -516,6 +539,7 @@ export function OrderForm({
 
   function resolvePayment(total: number): Payment {
     if (!markPaid) return { status: "unpaid", method: null, downPayment: 0, balance: total }
+    if (paymentStatus === "refunded") return { status: "refunded", method: null, downPayment: 0, balance: 0 }
     const method = channel === "Shopee" ? "Bank Transfer" : (paymentMethod as PaymentMethod)
     if (paymentStatus === "paid") {
       return { status: "paid", method, downPayment: total, balance: 0 }
@@ -530,60 +554,67 @@ export function OrderForm({
     const nextErrors: Record<string, string> = {}
 
     if (!customerName.trim()) {
-      nextErrors.customerName = "Customer name is required."
+      nextErrors.customerName = requiredMessage("Customer name")
     } else if (customerName.trim().length > 60) {
-      nextErrors.customerName = "Must be 60 characters or fewer."
+      nextErrors.customerName = maxLengthMessage("Customer name", 60)
     }
 
     if (customerPhone.trim() && !isValidPhMobileNumber(customerPhone.trim())) {
-      nextErrors.customerPhone = "Enter a valid PH mobile number (e.g. 0917 123 4567)."
+      nextErrors.customerPhone = PHONE_FORMAT_MESSAGE
     }
 
     if (notes.length > 20) {
-      nextErrors.notes = "Must be 20 characters or fewer."
+      nextErrors.notes = maxLengthMessage("Notes", 20)
     } else if (additionalFeesNum > 0 && !notes.trim()) {
-      nextErrors.notes = "Notes is required when Additional Fees is greater than 0."
+      nextErrors.notes = NOTES_REQUIRED_WHEN_FEES_MESSAGE
     }
 
     if (!channel) {
-      nextErrors.channel = "Order channel is required."
+      nextErrors.channel = requiredMessage("Order channel")
     }
 
     if (shippingEnabled) {
       const resolvedName = sameName ? customerName : shippingName
       const resolvedPhone = samePhone ? customerPhone : shippingPhone
-      if (!resolvedName.trim() || !resolvedPhone.trim() || !shippingAddress.trim()) {
-        nextErrors.shipping = "Name, phone, and address are required."
+
+      if (!resolvedName.trim()) {
+        nextErrors.shippingName = requiredMessage("Recipient name")
       } else if (resolvedName.trim().length > 60) {
-        nextErrors.shipping = "Name must be 60 characters or fewer."
-      } else if (shippingAddress.trim().length > 250) {
-        nextErrors.shipping = "Address must be 250 characters or fewer."
+        nextErrors.shippingName = maxLengthMessage("Recipient name", 60)
+      }
+
+      if (!resolvedPhone.trim()) {
+        nextErrors.shippingPhone = requiredMessage("Recipient phone")
       } else if (!isValidPhMobileNumber(resolvedPhone.trim())) {
-        nextErrors.shipping = "Phone must be a valid PH mobile number (e.g. 0917 123 4567)."
+        nextErrors.shippingPhone = PHONE_FORMAT_MESSAGE
+      }
+
+      if (!shippingAddress.trim()) {
+        nextErrors.shippingAddress = requiredMessage("Address")
+      } else if (shippingAddress.trim().length > 250) {
+        nextErrors.shippingAddress = maxLengthMessage("Address", 250)
       }
     }
 
-    if (markPaid) {
+    if (markPaid && paymentStatus !== "refunded") {
       const effectiveMethod = channel === "Shopee" ? "Bank Transfer" : paymentMethod
-      if (!effectiveMethod) {
-        nextErrors.paymentMethod = "Select a payment method."
-      }
-      if (paymentStatus === "partially_paid") {
-        const dp = Number(downPayment)
-        if (!Number.isFinite(dp) || dp <= 0 || dp >= previewTotal) {
-          nextErrors.downPayment = "Must be greater than 0 and less than the total."
-        }
-      }
+      const paymentErrors = validatePaymentAmount({
+        effectiveMethod,
+        downPaymentInput: downPayment,
+        targetStatus: paymentStatus === "partially_paid" ? "partially_paid" : "paid",
+        total: previewTotal,
+      })
+      if (paymentErrors.method) nextErrors.paymentMethod = paymentErrors.method
+      if (paymentErrors.downPayment) nextErrors.downPayment = paymentErrors.downPayment
     }
 
     resolvedItems.forEach((resolved, index) => {
       if (resolved.isMissingProduct) return
 
       if (!resolved.product) {
-        nextErrors[`item-${index}-product`] = "Select a product."
+        nextErrors[`item-${index}-product`] = requiredMessage("Product")
       } else if (resolved.product.status !== "Active") {
-        nextErrors[`item-${index}-product`] =
-          "This product is inactive and can't be used for new or updated orders."
+        nextErrors[`item-${index}-product`] = PRODUCT_INACTIVE_MESSAGE
       } else if (
         !resolved.computed.isManual &&
         !(resolved.product.category === "Sintra" && resolved.draft.isCustomSize)
@@ -591,15 +622,15 @@ export function OrderForm({
         const missingRequired = resolved.product.options.some(
           (option) => option.required && !resolved.draft.optionValues[option.id]
         )
-        if (missingRequired) nextErrors[`item-${index}-options`] = "Select all required options."
+        if (missingRequired) nextErrors[`item-${index}-options`] = REQUIRED_OPTIONS_MESSAGE
       }
 
       if (resolved.product && !resolved.computed.pricing) {
-        nextErrors[`item-${index}-pricing`] = "Complete the pricing fields for this product."
+        nextErrors[`item-${index}-pricing`] = PRICING_INCOMPLETE_MESSAGE
       }
 
       if (resolved.draft.notes.length > 60) {
-        nextErrors[`item-${index}-notes`] = "Must be 60 characters or fewer."
+        nextErrors[`item-${index}-notes`] = maxLengthMessage("Notes", 60)
       }
     })
 
@@ -641,7 +672,7 @@ export function OrderForm({
 
       if (order) {
         const firstCategory = builtItems[0]?.productCategory ?? order.items[0]?.productCategory
-        const validStatuses = firstCategory ? getStatusFlowForCategory(firstCategory) : []
+        const validStatuses = firstCategory ? getStatusFlowForCategory(firstCategory, categories) : []
         const status = validStatuses.includes(order.status) ? order.status : "pending"
         await updateOrder(order.id, {
           customerName: customerName.trim(),
@@ -859,7 +890,9 @@ export function OrderForm({
               enabled={shippingEnabled}
               onEnabledChange={(value) => {
                 setShippingEnabled(value)
-                clearError("shipping")
+                clearError("shippingName")
+                clearError("shippingPhone")
+                clearError("shippingAddress")
               }}
               customerName={customerName}
               customerPhone={customerPhone}
@@ -870,21 +903,25 @@ export function OrderForm({
               name={shippingName}
               onNameChange={(value) => {
                 setShippingName(value)
-                clearError("shipping")
+                clearError("shippingName")
               }}
               phone={shippingPhone}
               onPhoneChange={(value) => {
                 setShippingPhone(value)
-                clearError("shipping")
+                clearError("shippingPhone")
               }}
               address={shippingAddress}
               onAddressChange={(value) => {
                 setShippingAddress(value)
-                clearError("shipping")
+                clearError("shippingAddress")
               }}
               fee={shippingFee}
               onFeeChange={setShippingFee}
-              error={errors.shipping}
+              errors={{
+                name: errors.shippingName,
+                phone: errors.shippingPhone,
+                address: errors.shippingAddress,
+              }}
             />
           </CardContent>
         </Card>
@@ -1098,6 +1135,7 @@ export function OrderForm({
             quantity: Math.max(1, Math.round(Number(resolved.draft.quantity) || 1)),
             lineTotal: resolved.lineTotal,
             stickerQuotation: resolved.computed.stickerQuotationSnapshot,
+            notes: resolved.draft.notes,
           }))}
           discount={discountNum}
           additionalFees={additionalFeesNum}

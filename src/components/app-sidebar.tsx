@@ -3,6 +3,7 @@ import {
   CalculatorIcon,
   LayoutDashboardIcon,
   PackageIcon,
+  ReceiptTextIcon,
   ShoppingCartIcon,
   UsersIcon,
 } from "lucide-react"
@@ -32,6 +33,7 @@ const navItems = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboardIcon },
   { title: "Orders", url: "/orders", icon: ShoppingCartIcon },
   { title: "Products", url: "/products", icon: PackageIcon },
+  { title: "Expenses", url: "/expenses", icon: ReceiptTextIcon },
   { title: "Calculator", url: "/calculator", icon: CalculatorIcon },
   { title: "Users", url: "/users", icon: UsersIcon },
 ]

@@ -25,6 +25,7 @@ import { ToggleGroup } from "@/components/ui/toggle-group"
 import { ORDER_CHANNELS, PAYMENT_METHODS, PAYMENT_STATUSES } from "@/lib/orders"
 import type { OrderChannel, PaymentMethod, PaymentStatus } from "@/lib/orders"
 import { cn, formatCurrency } from "@/lib/utils"
+import { validatePaymentAmount } from "@/lib/validation"
 
 import {
   PAYMENT_STATUS_ICONS,
@@ -50,8 +51,8 @@ export function PaymentFields({
   onChannelChange: (value: OrderChannel) => void
   markPaid: boolean
   onMarkPaidChange: (value: boolean) => void
-  paymentStatus: "paid" | "partially_paid"
-  onPaymentStatusChange: (value: "paid" | "partially_paid") => void
+  paymentStatus: "paid" | "partially_paid" | "refunded"
+  onPaymentStatusChange: (value: "paid" | "partially_paid" | "refunded") => void
   paymentMethod: PaymentMethod | ""
   onPaymentMethodChange: (value: PaymentMethod | "") => void
   downPayment: string
@@ -82,6 +83,13 @@ export function PaymentFields({
 
     if (status === "unpaid") {
       onMarkPaidChange(false)
+      return
+    }
+
+    if (status === "refunded") {
+      onPaymentMethodChange("")
+      onMarkPaidChange(true)
+      onPaymentStatusChange("refunded")
       return
     }
 
@@ -120,14 +128,14 @@ export function PaymentFields({
                   type="button"
                   className={cn(
                     badgeVariants({ variant: PAYMENT_STATUS_VARIANTS[currentStatus] }),
-                    "cursor-pointer pr-1.5 transition-opacity hover:opacity-80"
+                    "h-8 cursor-pointer gap-1.5 px-3 text-sm transition-opacity hover:opacity-80 [&>svg]:size-4!"
                   )}
                 />
               }
             >
               <StatusIcon data-icon="inline-start" />
               {PAYMENT_STATUS_LABELS[currentStatus]}
-              <ChevronDownIcon className="size-3 opacity-70" />
+              <ChevronDownIcon className="size-4 opacity-70" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start">
               {PAYMENT_STATUSES.map((status) => {
@@ -150,7 +158,7 @@ export function PaymentFields({
         <FieldError>{paymentError}</FieldError>
       </Field>
 
-      {markPaid && (
+      {markPaid && paymentStatus !== "refunded" && (
         <div className="flex flex-col gap-2 text-sm">
           <div className="flex items-center justify-between">
             <span className="text-muted-foreground">Method</span>
@@ -223,7 +231,7 @@ function PaymentAmountDialog({
   isShopee: boolean
   paymentMethod: PaymentMethod | ""
   downPayment: string
-  currentPaymentStatus: "paid" | "partially_paid"
+  currentPaymentStatus: "paid" | "partially_paid" | "refunded"
   total: number
   existingDownPayment: number
   existingBalance: number
@@ -249,14 +257,12 @@ function PaymentAmountDialog({
   const previewBalance = Math.max(total - (Number(downPaymentInput) || 0), 0)
 
   function handleSave() {
-    const nextErrors: { method?: string; downPayment?: string } = {}
-    if (!effectiveMethod) nextErrors.method = "Select a payment method."
-    if (targetStatus === "partially_paid") {
-      const value = Number(downPaymentInput)
-      if (!Number.isFinite(value) || value <= 0 || value >= total) {
-        nextErrors.downPayment = "Must be greater than 0 and less than the total."
-      }
-    }
+    const nextErrors = validatePaymentAmount({
+      effectiveMethod,
+      downPaymentInput,
+      targetStatus: targetStatus === "partially_paid" ? "partially_paid" : "paid",
+      total,
+    })
     if (Object.keys(nextErrors).length > 0) {
       setErrors(nextErrors)
       return

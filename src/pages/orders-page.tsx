@@ -12,6 +12,7 @@ import { OrderTable } from "@/components/orders/order-table"
 import { PAYMENT_STATUS_LABELS } from "@/components/orders/payment-status-badge"
 import { RecordPaymentDialog } from "@/components/orders/record-payment-dialog"
 import { RefundOrderDialog } from "@/components/orders/refund-order-dialog"
+import { ReturnOrderDialog } from "@/components/orders/return-order-dialog"
 import { ActiveFilterChips, FilterSearchInput, FilterToolbar, type ActiveFilter } from "@/components/filter-toolbar"
 import { PageHeader } from "@/components/page-header"
 import { PaginationBar } from "@/components/pagination-bar"
@@ -67,11 +68,13 @@ export function OrdersPage() {
   const [cancellingOrder, setCancellingOrder] = useState<Order | null>(null)
   const [arrangingOrder, setArrangingOrder] = useState<Order | null>(null)
   const [refundingOrder, setRefundingOrder] = useState<Order | null>(null)
+  const [returningOrder, setReturningOrder] = useState<Order | null>(null)
   const [deletingOrder, setDeletingOrder] = useState<Order | null>(null)
   const [payingOrder, setPayingOrder] = useState<Order | null>(null)
   const [payingTargetStatus, setPayingTargetStatus] = useState<"paid" | "partially_paid" | null>(null)
   const [isCancelling, setIsCancelling] = useState(false)
   const [isRefunding, setIsRefunding] = useState(false)
+  const [isReturning, setIsReturning] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [isPaying, setIsPaying] = useState(false)
 
@@ -112,6 +115,20 @@ export function OrdersPage() {
       toast.error(typeof err === "string" ? err : "Failed to refund order.")
     } finally {
       setIsRefunding(false)
+    }
+  }
+
+  async function handleConfirmReturn(order: Order) {
+    setIsReturning(true)
+    try {
+      await setOrderStatus(order.id, "returned")
+      toast.success("Order returned.")
+      setReturningOrder(null)
+      refetch()
+    } catch (err) {
+      toast.error(typeof err === "string" ? err : "Failed to return order.")
+    } finally {
+      setIsReturning(false)
     }
   }
 
@@ -390,6 +407,7 @@ export function OrdersPage() {
         onEdit={(order) => navigate(`/orders/${order.id}/edit`)}
         onCancel={setCancellingOrder}
         onRefund={setRefundingOrder}
+        onReturn={setReturningOrder}
         onDelete={setDeletingOrder}
         onArrange={setArrangingOrder}
         onRequestPayment={(order, targetStatus) => {
@@ -428,6 +446,13 @@ export function OrdersPage() {
         isPending={isRefunding}
         onOpenChange={(open) => !open && setRefundingOrder(null)}
         onConfirm={handleConfirmRefund}
+      />
+
+      <ReturnOrderDialog
+        order={returningOrder}
+        isPending={isReturning}
+        onOpenChange={(open) => !open && setReturningOrder(null)}
+        onConfirm={handleConfirmReturn}
       />
 
       <DeleteOrderDialog

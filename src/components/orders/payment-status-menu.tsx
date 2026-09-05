@@ -24,9 +24,11 @@ import {
 export function PaymentStatusMenu({
   order,
   onRequestPayment,
+  size = "sm",
 }: {
   order: Order
   onRequestPayment: (order: Order, targetStatus: "paid" | "partially_paid") => void
+  size?: "sm" | "lg"
 }) {
   const { updatePayment, isUpdating } = usePaymentStatusUpdate()
   const Icon = PAYMENT_STATUS_ICONS[order.payment.status]
@@ -36,6 +38,11 @@ export function PaymentStatusMenu({
 
     if (status === "unpaid") {
       await updatePayment(order, { status: "unpaid", method: null, downPayment: 0, balance: order.total })
+      return
+    }
+
+    if (status === "refunded") {
+      await updatePayment(order, { status: "refunded", method: null, downPayment: 0, balance: 0 })
       return
     }
 
@@ -51,7 +58,8 @@ export function PaymentStatusMenu({
             type="button"
             className={cn(
               badgeVariants({ variant: PAYMENT_STATUS_VARIANTS[order.payment.status] }),
-              "cursor-pointer pr-1.5 transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-60"
+              "cursor-pointer pr-1.5 transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-60",
+              size === "lg" && "h-8 gap-1.5 px-3 text-sm [&>svg]:size-4!"
             )}
           />
         }
@@ -62,7 +70,7 @@ export function PaymentStatusMenu({
           <Icon data-icon="inline-start" />
         )}
         {PAYMENT_STATUS_LABELS[order.payment.status]}
-        <ChevronDownIcon className="size-3 opacity-70" />
+        <ChevronDownIcon className={cn("opacity-70", size === "lg" ? "size-4" : "size-3")} />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start">
         {PAYMENT_STATUSES.map((status) => {

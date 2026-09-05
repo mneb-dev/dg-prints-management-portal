@@ -22,7 +22,7 @@ export type OrderDraftFields = {
   shippingFee: string
   channel: OrderChannel | ""
   markPaid: boolean
-  paymentStatus: "paid" | "partially_paid"
+  paymentStatus: "paid" | "partially_paid" | "refunded"
   paymentMethod: PaymentMethod | ""
   downPayment: string
 }

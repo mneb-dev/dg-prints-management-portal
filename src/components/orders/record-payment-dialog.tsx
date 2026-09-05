@@ -18,6 +18,7 @@ import { ToggleGroup } from "@/components/ui/toggle-group"
 import { PAYMENT_METHODS } from "@/lib/orders"
 import type { Order, Payment, PaymentMethod } from "@/lib/orders"
 import { cn, formatCurrency } from "@/lib/utils"
+import { validatePaymentAmount } from "@/lib/validation"
 
 /** Small form dialog for the payment states that can't commit from a single dropdown click:
  * `partially_paid` always needs a down-payment amount, and `paid` needs a method whenever one
@@ -69,14 +70,12 @@ export function RecordPaymentDialog({
   const existingBalance = order?.payment.balance ?? 0
 
   function handleConfirm(target: Order, status: "paid" | "partially_paid") {
-    const nextErrors: { method?: string; downPayment?: string } = {}
-    if (!effectiveMethod) nextErrors.method = "Select a payment method."
-    if (status === "partially_paid") {
-      const value = Number(downPayment)
-      if (!Number.isFinite(value) || value <= 0 || value >= target.total) {
-        nextErrors.downPayment = "Must be greater than 0 and less than the total."
-      }
-    }
+    const nextErrors = validatePaymentAmount({
+      effectiveMethod,
+      downPaymentInput: downPayment,
+      targetStatus: status,
+      total: target.total,
+    })
     if (Object.keys(nextErrors).length > 0) {
       setErrors(nextErrors)
       return

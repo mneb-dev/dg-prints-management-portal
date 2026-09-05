@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import { LockIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -14,14 +15,33 @@ import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field
 import { Input } from "@/components/ui/input"
 import { Spinner } from "@/components/ui/spinner"
 import { Switch } from "@/components/ui/switch"
+import { Toggle } from "@/components/ui/toggle"
+import { ToggleGroup } from "@/components/ui/toggle-group"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { cn } from "@/lib/utils"
 import { useCategoryActions, type Category, type CategoryInput } from "@/lib/categories"
+import { CATEGORY_STATUS_FLOW_OPTIONS, type OrderStatus } from "@/lib/orders"
+import { maxLengthMessage, requiredMessage } from "@/lib/validation"
+
+import { ORDER_STATUS_ICONS, ORDER_STATUS_LABELS } from "@/components/orders/order-status-badge"
+
+// Why each locked status can't be unchecked — shown in a tooltip so the lock reads as
+// intentional rather than a bug (see the status picker below).
+const MANDATORY_STATUS_REASON: Partial<Record<OrderStatus, string>> = {
+  pending: "Every order starts at Pending.",
+  released: "Every order ends at Released.",
+}
+
+// Every category's flow must include a start and end state — see category-form-dialog's
+// status picker, which renders these two as always-checked and disabled.
+const MANDATORY_STATUSES: OrderStatus[] = ["pending", "released"]
 
 function emptyDraft(): CategoryInput {
-  return { name: "", active: true }
+  return { name: "", active: true, statusFlow: [...MANDATORY_STATUSES] }
 }
 
 function draftFromCategory(category: Category): CategoryInput {
-  return { name: category.name, active: category.active }
+  return { name: category.name, active: category.active, statusFlow: category.statusFlow }
 }
 
 export function CategoryFormDialog({
@@ -51,11 +71,11 @@ export function CategoryFormDialog({
 
     const name = draft.name.trim()
     if (!name) {
-      setNameError("Name is required.")
+      setNameError(requiredMessage("Name"))
       return
     }
     if (name.length > 60) {
-      setNameError("Name must be at most 60 characters.")
+      setNameError(maxLengthMessage("Name", 60))
       return
     }
 
@@ -79,7 +99,7 @@ export function CategoryFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{category ? "Edit Category" : "Add Category"}</DialogTitle>
           <DialogDescription>
@@ -115,6 +135,56 @@ export function CategoryFormDialog({
                   onCheckedChange={(checked) => setDraft((prev) => ({ ...prev, active: checked }))}
                 />
               </div>
+            </Field>
+
+            <Field>
+              <FieldLabel>Order statuses</FieldLabel>
+              <p className="text-sm text-muted-foreground">
+                Every order starts at Pending and ends at Released — choose which production
+                steps happen in between.
+              </p>
+              <ToggleGroup
+                multiple
+                value={draft.statusFlow}
+                onValueChange={(next) => {
+                  const withMandatory = new Set([...next, ...MANDATORY_STATUSES])
+                  setDraft((prev) => ({
+                    ...prev,
+                    statusFlow: CATEGORY_STATUS_FLOW_OPTIONS.filter((status) =>
+                      withMandatory.has(status)
+                    ),
+                  }))
+                }}
+                className="flex-nowrap items-center gap-1"
+              >
+                {CATEGORY_STATUS_FLOW_OPTIONS.map((status) => {
+                  const locked = MANDATORY_STATUSES.includes(status)
+                  const Icon = ORDER_STATUS_ICONS[status]
+                  const chip = (
+                    <Toggle
+                      key={status}
+                      value={status}
+                      disabled={locked}
+                      className={cn(
+                        "h-6 shrink-0 gap-1 px-1.5 text-[11px]",
+                        locked && "disabled:pointer-events-auto disabled:opacity-100"
+                      )}
+                    >
+                      <Icon className="size-3" />
+                      {ORDER_STATUS_LABELS[status]}
+                      {locked && <LockIcon className="size-2.5 opacity-70" />}
+                    </Toggle>
+                  )
+                  return locked ? (
+                    <Tooltip key={status}>
+                      <TooltipTrigger render={chip} />
+                      <TooltipContent>{MANDATORY_STATUS_REASON[status]}</TooltipContent>
+                    </Tooltip>
+                  ) : (
+                    chip
+                  )
+                })}
+              </ToggleGroup>
             </Field>
           </FieldGroup>
         </form>

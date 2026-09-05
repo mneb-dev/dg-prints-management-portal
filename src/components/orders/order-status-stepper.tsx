@@ -1,5 +1,6 @@
 import { badgeVariants } from "@/components/ui/badge"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { useCategories } from "@/lib/categories"
 import { getOrderWorkflowStatuses, isTerminalStatus } from "@/lib/orders"
 import type { Order, OrderStatus } from "@/lib/orders"
 import { cn, formatDate, formatRelativeDate } from "@/lib/utils"
@@ -68,11 +69,13 @@ function StatusSummary({ order, status }: { order: Order; status: OrderStatus })
  * split) and a horizontal track at `lg` and up, since a horizontal track can't show every
  * step of an 8-step flow at once on a phone-width screen. */
 export function OrderStatusStepper({ order }: { order: Order }) {
+  const { categories } = useCategories()
+
   if (isTerminalStatus(order.status)) {
     return <StatusSummary order={order} status={order.status} />
   }
 
-  const workflowStatuses = getOrderWorkflowStatuses(order)
+  const workflowStatuses = getOrderWorkflowStatuses(order, categories)
   const currentIndex = workflowStatuses.indexOf(order.status)
 
   // The order's current status isn't part of its derived workflow (e.g. missing/unmapped

@@ -20,7 +20,7 @@ export function ShippingAddressFields({
   onAddressChange,
   fee,
   onFeeChange,
-  error,
+  errors,
 }: {
   enabled: boolean
   onEnabledChange: (value: boolean) => void
@@ -38,7 +38,7 @@ export function ShippingAddressFields({
   onAddressChange: (value: string) => void
   fee: string
   onFeeChange: (value: string) => void
-  error?: string
+  errors?: { name?: string; phone?: string; address?: string }
 }) {
   return (
     <div className="flex flex-col gap-3">
@@ -49,7 +49,7 @@ export function ShippingAddressFields({
 
       {enabled && (
         <div className="flex flex-col gap-3 rounded-lg border p-3">
-          <Field className={sameName ? "opacity-70" : undefined}>
+          <Field className={sameName ? "opacity-70" : undefined} data-invalid={!!errors?.name}>
             <div className="flex items-center justify-between">
               <FieldLabel htmlFor="shipping-name">Name</FieldLabel>
               <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -68,10 +68,12 @@ export function ShippingAddressFields({
               disabled={sameName}
               placeholder="Recipient name"
               maxLength={60}
+              aria-invalid={!!errors?.name}
             />
+            <FieldError>{errors?.name}</FieldError>
           </Field>
 
-          <Field className={samePhone ? "opacity-70" : undefined}>
+          <Field className={samePhone ? "opacity-70" : undefined} data-invalid={!!errors?.phone}>
             <div className="flex items-center justify-between">
               <FieldLabel htmlFor="shipping-phone">Phone</FieldLabel>
               <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -89,10 +91,12 @@ export function ShippingAddressFields({
               onChange={(event) => onPhoneChange(event.target.value)}
               disabled={samePhone}
               placeholder="09XX XXX XXXX"
+              aria-invalid={!!errors?.phone}
             />
+            <FieldError>{errors?.phone}</FieldError>
           </Field>
 
-          <Field>
+          <Field data-invalid={!!errors?.address}>
             <FieldLabel htmlFor="shipping-address">Address</FieldLabel>
             <Textarea
               id="shipping-address"
@@ -100,7 +104,9 @@ export function ShippingAddressFields({
               onChange={(event) => onAddressChange(event.target.value)}
               placeholder="House/unit no., street, barangay, city, province"
               maxLength={250}
+              aria-invalid={!!errors?.address}
             />
+            <FieldError>{errors?.address}</FieldError>
           </Field>
 
           <Field>
@@ -114,8 +120,6 @@ export function ShippingAddressFields({
               onChange={(event) => onFeeChange(event.target.value)}
             />
           </Field>
-
-          <FieldError>{error}</FieldError>
         </div>
       )}
     </div>

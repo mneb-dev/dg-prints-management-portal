@@ -19,7 +19,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import type { Category } from "@/lib/categories"
+
+import {
+  ORDER_STATUS_ICONS,
+  ORDER_STATUS_LABELS,
+  ORDER_STATUS_VARIANTS,
+} from "@/components/orders/order-status-badge"
 
 export function CategoryTable({
   categories,
@@ -48,6 +55,7 @@ export function CategoryTable({
             <TableRow>
               <TableHead>Name</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead>Order statuses</TableHead>
               {canManage && <TableHead className="text-right">Actions</TableHead>}
             </TableRow>
           </TableHeader>
@@ -59,6 +67,9 @@ export function CategoryTable({
                 </TableCell>
                 <TableCell>
                   <Skeleton className="h-5 w-16 rounded-full" />
+                </TableCell>
+                <TableCell>
+                  <Skeleton className="h-4 w-40" />
                 </TableCell>
                 {canManage && (
                   <TableCell className="text-right">
@@ -116,34 +127,67 @@ export function CategoryTable({
           <TableRow>
             <TableHead>Name</TableHead>
             <TableHead>Status</TableHead>
+            <TableHead>Order statuses</TableHead>
             {canManage && <TableHead className="text-right">Actions</TableHead>}
           </TableRow>
         </TableHeader>
         <TableBody>
-          {categories.map((category) => (
-            <TableRow key={category.id}>
-              <TableCell className="font-medium">{category.name}</TableCell>
-              <TableCell>
-                <Badge variant={category.active ? "success" : "secondary"}>
-                  {category.active ? "Active" : "Inactive"}
-                </Badge>
-              </TableCell>
-              {canManage && (
-                <TableCell className="text-right">
-                  <div className="flex justify-end gap-1">
-                    <Button variant="ghost" size="icon-sm" onClick={() => onEdit(category)}>
-                      <PencilIcon />
-                      <span className="sr-only">Edit {category.name}</span>
-                    </Button>
-                    <Button variant="ghost" size="icon-sm" onClick={() => onDelete(category)}>
-                      <Trash2Icon />
-                      <span className="sr-only">Delete {category.name}</span>
-                    </Button>
-                  </div>
+          {categories.map((category) => {
+            const statusFlowSummary = category.statusFlow
+              .map((status) => ORDER_STATUS_LABELS[status])
+              .join(" → ")
+            return (
+              <TableRow key={category.id}>
+                <TableCell className="font-medium">{category.name}</TableCell>
+                <TableCell>
+                  <Badge variant={category.active ? "success" : "secondary"}>
+                    {category.active ? "Active" : "Inactive"}
+                  </Badge>
                 </TableCell>
-              )}
-            </TableRow>
-          ))}
+                <TableCell>
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <div
+                          className="flex w-fit items-center gap-1"
+                          aria-label={statusFlowSummary}
+                        />
+                      }
+                    >
+                      {category.statusFlow.map((status) => {
+                        const Icon = ORDER_STATUS_ICONS[status]
+                        return (
+                          <Badge
+                            key={status}
+                            variant={ORDER_STATUS_VARIANTS[status]}
+                            className="size-5 justify-center rounded-full p-0"
+                            aria-hidden
+                          >
+                            <Icon className="size-3" />
+                          </Badge>
+                        )
+                      })}
+                    </TooltipTrigger>
+                    <TooltipContent>{statusFlowSummary}</TooltipContent>
+                  </Tooltip>
+                </TableCell>
+                {canManage && (
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-1">
+                      <Button variant="ghost" size="icon-sm" onClick={() => onEdit(category)}>
+                        <PencilIcon />
+                        <span className="sr-only">Edit {category.name}</span>
+                      </Button>
+                      <Button variant="ghost" size="icon-sm" onClick={() => onDelete(category)}>
+                        <Trash2Icon />
+                        <span className="sr-only">Delete {category.name}</span>
+                      </Button>
+                    </div>
+                  </TableCell>
+                )}
+              </TableRow>
+            )
+          })}
         </TableBody>
       </Table>
     </div>

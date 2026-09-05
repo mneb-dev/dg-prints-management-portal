@@ -10,8 +10,10 @@ import {
   fetchOrderStatsThunk,
   fetchOrdersThunk,
   fetchRecentOrdersForRankingThunk,
+  fetchSalesOrdersThunk,
   fetchTopCustomersThunk,
   markDashboardStale,
+  SALES_ORDERS_LIMIT,
   setOrdersParams,
   updateOrderThunk,
 } from "@/lib/orders-slice"
@@ -26,12 +28,14 @@ import type {
 
 export {
   DEFAULT_ORDERS_PARAMS,
+  HOT_PRODUCT_TOP_N,
   ORDER_CHANNELS,
   ORDER_STATUSES,
   PAYMENT_METHODS,
   PAYMENT_STATUSES,
 } from "@/lib/orders-slice"
 export {
+  CATEGORY_STATUS_FLOW_OPTIONS,
   ORDER_TERMINAL_STATUSES,
   canEditOrderMetadata,
   canReleaseOrder,
@@ -137,6 +141,28 @@ export function useRecentOrders() {
     recentOrders,
     isLoading: status === "loading" || status === "idle",
     isError: status === "failed",
+  }
+}
+
+/** Orders within an explicit ["dateFrom","dateTo"] window (both inclusive, "yyyy-MM-dd"), capped at
+ * `SALES_ORDERS_LIMIT` — for the dashboard sales chart's calendar-preset periods, which need a real
+ * date-scoped total rather than `useRecentOrders()`'s unscoped last-100-orders sample. Refetches
+ * whenever the range changes; pass `""` for both to skip fetching (e.g. an incomplete custom range). */
+export function useSalesOrders(dateFrom: string, dateTo: string) {
+  const salesOrders = useAppSelector((state) => state.orders.salesOrders)
+  const status = useAppSelector((state) => state.orders.salesStatus)
+  const dispatch = useAppDispatch()
+
+  useEffect(() => {
+    if (!dateFrom || !dateTo) return
+    dispatch(fetchSalesOrdersThunk({ dateFrom, dateTo }))
+  }, [dispatch, dateFrom, dateTo])
+
+  return {
+    salesOrders,
+    isLoading: status === "loading" || status === "idle",
+    isError: status === "failed",
+    isPossiblyTruncated: salesOrders.length === SALES_ORDERS_LIMIT,
   }
 }
 

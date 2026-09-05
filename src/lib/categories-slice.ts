@@ -2,11 +2,13 @@ import { createAsyncThunk, createSlice, type PayloadAction } from "@reduxjs/tool
 
 import { apiClient } from "@/lib/api-client"
 import { getErrorMessage } from "@/lib/api-error"
+import type { OrderStatus } from "@/lib/orders-slice"
 
 export type Category = {
   id: string
   name: string
   active: boolean
+  statusFlow: OrderStatus[]
   createdAt: string
   updatedAt: string
 }
@@ -14,6 +16,7 @@ export type Category = {
 export type CategoryInput = {
   name: string
   active: boolean
+  statusFlow: OrderStatus[]
 }
 
 export const fetchCategoriesThunk = createAsyncThunk<Category[], void, { rejectValue: string }>(

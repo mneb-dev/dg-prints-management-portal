@@ -31,6 +31,11 @@ import {
   type User,
   type UserInput,
 } from "@/lib/users"
+import {
+  PASSWORD_REQUIREMENTS_DESCRIPTION,
+  passwordRequirementMessage,
+  requiredMessage,
+} from "@/lib/validation"
 
 const ROLE_LABELS: Record<Role, string> = {
   staff: "Staff",
@@ -99,10 +104,15 @@ export function UserFormDialog({
     event.preventDefault()
 
     const errors: Partial<Record<keyof UserInput, string>> = {}
-    if (!draft.firstName.trim()) errors.firstName = "First name is required."
-    if (!draft.lastName.trim()) errors.lastName = "Last name is required."
-    if (!draft.username.trim()) errors.username = "Username is required."
-    if (!user && !draft.password?.trim()) errors.password = "Password is required."
+    if (!draft.firstName.trim()) errors.firstName = requiredMessage("First name")
+    if (!draft.lastName.trim()) errors.lastName = requiredMessage("Last name")
+    if (!draft.username.trim()) errors.username = requiredMessage("Username")
+    if (!user && !draft.password?.trim()) {
+      errors.password = requiredMessage("Password")
+    } else if (!user && draft.password) {
+      const strengthError = passwordRequirementMessage(draft.password)
+      if (strengthError) errors.password = strengthError
+    }
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors)
       return
@@ -200,7 +210,9 @@ export function UserFormDialog({
               />
               {user ? (
                 <FieldDescription>Leave blank to keep the current password.</FieldDescription>
-              ) : null}
+              ) : (
+                <FieldDescription>{PASSWORD_REQUIREMENTS_DESCRIPTION}</FieldDescription>
+              )}
               <FieldError>{fieldErrors.password}</FieldError>
             </Field>
 

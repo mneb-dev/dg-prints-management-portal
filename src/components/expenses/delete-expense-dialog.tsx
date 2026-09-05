@@ -12,33 +12,34 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Spinner } from "@/components/ui/spinner"
-import type { Product } from "@/lib/products"
+import type { Expense } from "@/lib/expenses"
+import { formatCurrency } from "@/lib/utils"
 
-export function DeleteProductDialog({
-  product,
+export function DeleteExpenseDialog({
+  expense,
   isDeleting,
   onOpenChange,
   onConfirm,
 }: {
-  product: Product | null
+  expense: Expense | null
   isDeleting?: boolean
   onOpenChange: (open: boolean) => void
-  onConfirm: (product: Product) => void
+  onConfirm: (expense: Expense) => void
 }) {
   return (
-    <AlertDialog open={!!product} onOpenChange={onOpenChange}>
+    <AlertDialog open={!!expense} onOpenChange={onOpenChange}>
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogMedia className="bg-destructive/10 text-destructive">
             <Trash2Icon />
           </AlertDialogMedia>
-          <AlertDialogTitle>Delete product</AlertDialogTitle>
+          <AlertDialogTitle>Delete expense</AlertDialogTitle>
           <AlertDialogDescription>
-            Are you sure you want to delete{" "}
-            <span className="font-medium text-foreground">{product?.name}</span>?
-            If it has existing orders, it will be hidden from your catalog but kept for
-            order history; otherwise it will be permanently removed. This can't be undone
-            from here.
+            Are you sure you want to delete this{" "}
+            <span className="font-medium text-foreground">
+              {expense ? formatCurrency(expense.amount) : ""}
+            </span>{" "}
+            {expense?.category} expense? This can't be undone.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
@@ -46,7 +47,7 @@ export function DeleteProductDialog({
           <AlertDialogAction
             variant="destructive-solid"
             disabled={isDeleting}
-            onClick={() => product && onConfirm(product)}
+            onClick={() => expense && onConfirm(expense)}
           >
             {isDeleting && <Spinner data-icon="inline-start" />}
             {isDeleting ? "Deleting..." : "Delete"}

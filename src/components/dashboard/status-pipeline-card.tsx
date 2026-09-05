@@ -6,7 +6,7 @@ import {
   ORDER_STATUS_VARIANTS,
 } from "@/components/orders/order-status-badge"
 import { Badge } from "@/components/ui/badge"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
 import { Empty, EmptyDescription, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -54,6 +54,14 @@ export function StatusPipelineCard() {
     <Card className="lg:col-span-2">
       <CardHeader>
         <CardTitle>Order status pipeline</CardTitle>
+        {cancelledCount > 0 ? (
+          <CardAction>
+            <Badge variant="destructive" className="gap-1">
+              <TriangleAlertIcon data-icon="inline-start" />
+              {cancelledCount} needs attention
+            </Badge>
+          </CardAction>
+        ) : null}
       </CardHeader>
       <CardContent>
         {isLoading ? (
@@ -79,38 +87,28 @@ export function StatusPipelineCard() {
             <EmptyDescription>New orders will appear here as they come in.</EmptyDescription>
           </Empty>
         ) : (
-          <>
-            <ChartContainer config={chartConfig} className="aspect-auto h-64 w-full">
-              <BarChart data={data} layout="vertical" margin={{ left: 4, right: 16 }}>
-                <CartesianGrid horizontal={false} strokeDasharray="3 3" />
-                <XAxis type="number" allowDecimals={false} tickLine={false} axisLine={false} />
-                <YAxis
-                  type="category"
-                  dataKey="label"
-                  tickLine={false}
-                  axisLine={false}
-                  width={72}
-                />
-                <ChartTooltip
-                  cursor={{ fill: "var(--color-muted)" }}
-                  content={<ChartTooltipContent hideLabel />}
-                />
-                <Bar dataKey="count" radius={4}>
-                  {data.map((entry) => (
-                    <Cell key={entry.status} fill={entry.fill} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ChartContainer>
-            {cancelledCount > 0 ? (
-              <div className="mt-3 flex items-center justify-between rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2">
-                <span className="text-sm text-muted-foreground">Needs attention</span>
-                <Badge variant="destructive">
-                  {cancelledCount} cancelled / refunded
-                </Badge>
-              </div>
-            ) : null}
-          </>
+          <ChartContainer config={chartConfig} className="aspect-auto h-64 w-full">
+            <BarChart data={data} layout="vertical" margin={{ left: 4, right: 16 }}>
+              <CartesianGrid horizontal={false} strokeDasharray="3 3" />
+              <XAxis type="number" allowDecimals={false} tickLine={false} axisLine={false} />
+              <YAxis
+                type="category"
+                dataKey="label"
+                tickLine={false}
+                axisLine={false}
+                width={72}
+              />
+              <ChartTooltip
+                cursor={{ fill: "var(--color-muted)" }}
+                content={<ChartTooltipContent hideLabel />}
+              />
+              <Bar dataKey="count" radius={4}>
+                {data.map((entry) => (
+                  <Cell key={entry.status} fill={entry.fill} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ChartContainer>
         )}
       </CardContent>
     </Card>

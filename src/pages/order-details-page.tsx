@@ -3,6 +3,7 @@ import {
   ArrowLeftIcon,
   CheckCircle2Icon,
   CopyIcon,
+  ExternalLinkIcon,
   FileWarningIcon,
   PencilIcon,
   RotateCcwIcon,
@@ -21,6 +22,7 @@ import { PaymentStatusBadge } from "@/components/orders/payment-status-badge"
 import { PaymentStatusMenu } from "@/components/orders/payment-status-menu"
 import { RecordPaymentDialog } from "@/components/orders/record-payment-dialog"
 import { RefundOrderDialog } from "@/components/orders/refund-order-dialog"
+import { ReturnOrderDialog } from "@/components/orders/return-order-dialog"
 import { Button } from "@/components/ui/button"
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
@@ -34,7 +36,8 @@ import { Separator } from "@/components/ui/separator"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useAuth } from "@/lib/auth"
-import { copyToClipboard } from "@/lib/clipboard"
+import { useCategories } from "@/lib/categories"
+import { copyToClipboard, SPX_ADMIN_CREATE_ORDER_URL } from "@/lib/clipboard"
 import { buildCopyableOrderText, buildLineItemInfoLines, formatOrderSummaryText } from "@/lib/quote-text"
 import {
   getOrderStatusOptions,
@@ -54,10 +57,13 @@ export function OrderDetailsPage() {
   const { updateStatus, isUpdating: isUpdatingStatus } = useOrderStatusUpdate()
   const { role, hasPermission } = useAuth()
   const canManage = hasPermission("manage_orders")
+  const { categories } = useCategories()
   const [cancelling, setCancelling] = useState(false)
   const [refunding, setRefunding] = useState(false)
+  const [returning, setReturning] = useState(false)
   const [isCancelling, setIsCancelling] = useState(false)
   const [isRefunding, setIsRefunding] = useState(false)
+  const [isReturning, setIsReturning] = useState(false)
   const [optimisticStatus, setOptimisticStatus] = useState<OrderStatus | null>(null)
   const [payingTargetStatus, setPayingTargetStatus] = useState<"paid" | "partially_paid" | null>(null)
   const [isPaying, setIsPaying] = useState(false)
@@ -196,7 +202,7 @@ export function OrderDetailsPage() {
   }
 
   const items = order.items
-  const statusOptions = getOrderStatusOptions(order)
+  const statusOptions = getOrderStatusOptions(order, categories)
   const releaseOption = statusOptions.find((option) => option.value === "released")
   const refundOption = statusOptions.find((option) => option.value === "refunded")
   const isReleaseLocked = isReleaseLockedForRole(order.status, role)
@@ -208,6 +214,11 @@ export function OrderDetailsPage() {
 
   function handleCopySummary() {
     if (items.length === 0 || !order) return
+
+    console.log(
+      "Order item notes:",
+      items.map((item) => ({ name: item.productName, notes: item.notes }))
+    )
 
     const infoLines = buildCopyableOrderText(
       items.map((item) => ({
@@ -236,10 +247,21 @@ export function OrderDetailsPage() {
     )
   }
 
+  function handleCopyShippingAddress() {
+    if (!order?.shippingAddress) return
+    const { name, phone, address } = order.shippingAddress
+    copyToClipboard(`${name}\n${phone}\n${address}`)
+  }
+
+  function handleOpenSpx() {
+    window.open(SPX_ADMIN_CREATE_ORDER_URL, "_blank", "noopener,noreferrer")
+  }
+
   async function handleStatusChange(value: string | null) {
     if (!order || !value || value === order.status) return
     if (value === "cancelled") return setCancelling(true)
     if (value === "refunded") return setRefunding(true)
+    if (value === "returned") return setReturning(true)
     setOptimisticStatus(value as OrderStatus)
     await updateStatus(order, value as OrderStatus)
     setOptimisticStatus(null)
@@ -268,6 +290,19 @@ export function OrderDetailsPage() {
       toast.error(typeof err === "string" ? err : "Failed to refund order.")
     } finally {
       setIsRefunding(false)
+    }
+  }
+
+  async function handleConfirmReturn(target: Order) {
+    setIsReturning(true)
+    try {
+      await setOrderStatus(target.id, "returned")
+      toast.success("Order returned.")
+      setReturning(false)
+    } catch (err) {
+      toast.error(typeof err === "string" ? err : "Failed to return order.")
+    } finally {
+      setIsReturning(false)
     }
   }
 
@@ -332,6 +367,13 @@ export function OrderDetailsPage() {
         isPending={isRefunding}
         onOpenChange={(open) => !open && setRefunding(false)}
         onConfirm={handleConfirmRefund}
+      />
+
+      <ReturnOrderDialog
+        order={returning ? order : null}
+        isPending={isReturning}
+        onOpenChange={(open) => !open && setReturning(false)}
+        onConfirm={handleConfirmReturn}
       />
 
       <RecordPaymentDialog
@@ -434,13 +476,14 @@ export function OrderDetailsPage() {
                   <PaymentStatusMenu
                     order={order}
                     onRequestPayment={(_order, targetStatus) => setPayingTargetStatus(targetStatus)}
+                    size="lg"
                   />
                 ) : (
                   <PaymentStatusBadge status={order.payment.status} />
                 )}
               </span>
 
-              {order.payment.status !== "unpaid" && (
+              {order.payment.status !== "unpaid" && order.payment.status !== "refunded" && (
                 <>
                   <span className="text-muted-foreground">Method</span>
                   <span className="justify-self-end">{order.payment.method}</span>
@@ -473,6 +516,26 @@ export function OrderDetailsPage() {
             <Card>
               <CardHeader>
                 <CardTitle>Shipping Address</CardTitle>
+                <CardAction className="flex gap-1">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="Copy shipping address"
+                    onClick={handleCopyShippingAddress}
+                  >
+                    <CopyIcon />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="Open SPX order form"
+                    onClick={handleOpenSpx}
+                  >
+                    <ExternalLinkIcon />
+                  </Button>
+                </CardAction>
               </CardHeader>
               <CardContent className="flex flex-col gap-2">
                 <div className="flex items-baseline gap-1.5 text-sm">
@@ -510,7 +573,9 @@ export function OrderDetailsPage() {
                     order={order}
                     onCancel={() => setCancelling(true)}
                     onRefund={() => setRefunding(true)}
+                    onReturn={() => setReturning(true)}
                     onOptimisticChange={setOptimisticStatus}
+                    size="lg"
                   />
                 )}
               </div>

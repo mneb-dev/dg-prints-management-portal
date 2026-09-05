@@ -18,6 +18,7 @@ export const ORDER_STATUSES = [
   "released",
   "cancelled",
   "refunded",
+  "returned",
 ] as const
 export type OrderStatus = (typeof ORDER_STATUSES)[number]
 
@@ -109,13 +110,13 @@ export type ShippingAddress = {
   fee: number
 }
 
-export const ORDER_CHANNELS = ["Facebook", "Shopee", "Walk-in"] as const
+export const ORDER_CHANNELS = ["Facebook", "Walk-in", "Shopee"] as const
 export type OrderChannel = (typeof ORDER_CHANNELS)[number]
 
-export const PAYMENT_STATUSES = ["unpaid", "partially_paid", "paid"] as const
+export const PAYMENT_STATUSES = ["unpaid", "partially_paid", "paid", "refunded"] as const
 export type PaymentStatus = (typeof PAYMENT_STATUSES)[number]
 
-export const PAYMENT_METHODS = ["GCash", "Maya", "Bank Transfer", "Cash"] as const
+export const PAYMENT_METHODS = ["GCash", "Cash", "Maya", "Bank Transfer"] as const
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number]
 
 export type Payment = {
@@ -288,7 +289,7 @@ export const fetchOrderByIdThunk = createAsyncThunk<Order, string, { rejectValue
   }
 )
 
-const HOT_PRODUCT_TOP_N = 5
+export const HOT_PRODUCT_TOP_N = 5
 const HOT_PRODUCT_MIN_ORDER_COUNT = 2
 
 // Ranks products by how many of the latest 100 orders they appear in (breadth of demand,
@@ -328,6 +329,30 @@ export const fetchRecentOrdersForRankingThunk = createAsyncThunk<
     condition: (_arg, { getState }) => getState().orders.rankingStatus === "idle",
   }
 )
+
+// Mirrors the server's MAX_RECENT_LIMIT (src/routes/orders.ts in the sibling server repo) — the
+// highest "limit" the /orders endpoint will honor in one request.
+export const SALES_ORDERS_LIMIT = 200
+
+/** Orders within an explicit ["dateFrom","dateTo"] window (both inclusive, "yyyy-MM-dd"), capped at
+ * SALES_ORDERS_LIMIT — for the dashboard sales chart's calendar-preset periods, which need a real
+ * date-scoped total rather than `fetchRecentOrdersForRankingThunk`'s unscoped last-100 sample.
+ * Unlike that thunk, this refetches on every call (no `condition` gate) since the range changes
+ * whenever the user picks a different period. */
+export const fetchSalesOrdersThunk = createAsyncThunk<
+  Order[],
+  { dateFrom: string; dateTo: string },
+  { rejectValue: string; state: RootState }
+>("orders/fetchSales", async ({ dateFrom, dateTo }, { rejectWithValue }) => {
+  try {
+    const { data } = await apiClient.get<OrdersListResponse>("/orders", {
+      params: { dateFrom, dateTo, limit: SALES_ORDERS_LIMIT, sortBy: "created_at", sortDir: "desc" },
+    })
+    return data.items
+  } catch (err) {
+    return rejectWithValue(getErrorMessage(err))
+  }
+})
 
 export const fetchTopCustomersThunk = createAsyncThunk<
   CustomerRanking[],
@@ -439,6 +464,10 @@ type OrdersState = {
   orderStats: OrderStats | null
   orderStatsStatus: "idle" | "loading" | "succeeded" | "failed"
   orderStatsError: string | null
+  salesOrders: Order[]
+  salesStatus: "idle" | "loading" | "succeeded" | "failed"
+  salesError: string | null
+  salesLatestRequestId: string | null
 }
 
 const initialState: OrdersState = {
@@ -461,6 +490,10 @@ const initialState: OrdersState = {
   orderStats: null,
   orderStatsStatus: "idle",
   orderStatsError: null,
+  salesOrders: [],
+  salesStatus: "idle",
+  salesError: null,
+  salesLatestRequestId: null,
 }
 
 const ordersSlice = createSlice({
@@ -563,6 +596,21 @@ const ordersSlice = createSlice({
       .addCase(fetchOrderStatsThunk.rejected, (state, action) => {
         state.orderStatsStatus = "failed"
         state.orderStatsError = action.payload ?? "Failed to load order stats."
+      })
+      .addCase(fetchSalesOrdersThunk.pending, (state, action) => {
+        state.salesStatus = "loading"
+        state.salesError = null
+        state.salesLatestRequestId = action.meta.requestId
+      })
+      .addCase(fetchSalesOrdersThunk.fulfilled, (state, action) => {
+        if (action.meta.requestId !== state.salesLatestRequestId) return
+        state.salesStatus = "succeeded"
+        state.salesOrders = action.payload.map(normalizeOrder)
+      })
+      .addCase(fetchSalesOrdersThunk.rejected, (state, action) => {
+        if (action.meta.requestId !== state.salesLatestRequestId) return
+        state.salesStatus = "failed"
+        state.salesError = action.payload ?? "Failed to load sales data."
       })
   },
 })

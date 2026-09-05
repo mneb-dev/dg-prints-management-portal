@@ -62,13 +62,14 @@ export type Product = {
   category: ProductCategory
   description: string
   status: ProductStatus
+  deletedAt: string | null
   options: ProductOption[]
   pricing: PricingEntry[]
   createdAt: string
   updatedAt: string
 }
 
-export type ProductInput = Omit<Product, "id" | "createdAt" | "updatedAt">
+export type ProductInput = Omit<Product, "id" | "createdAt" | "updatedAt" | "deletedAt">
 
 export function summarizePricing(pricing: PricingEntry[]): string {
   if (pricing.length === 0) return "No pricing"

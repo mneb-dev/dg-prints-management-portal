@@ -9,6 +9,7 @@ import {
   RotateCcwIcon,
   ScissorsIcon,
   TruckIcon,
+  Undo2Icon,
   XCircleIcon,
 } from "lucide-react"
 
@@ -26,6 +27,7 @@ const STATUS_LABELS: Record<OrderStatus, string> = {
   released: "Released",
   cancelled: "Cancelled",
   refunded: "Refunded",
+  returned: "Returned",
 }
 
 const STATUS_VARIANTS: Record<
@@ -42,6 +44,7 @@ const STATUS_VARIANTS: Record<
   released: "success",
   cancelled: "destructive",
   refunded: "destructive",
+  returned: "destructive",
 }
 
 const STATUS_ICONS: Record<OrderStatus, LucideIcon> = {
@@ -55,6 +58,7 @@ const STATUS_ICONS: Record<OrderStatus, LucideIcon> = {
   released: CheckCircle2Icon,
   cancelled: XCircleIcon,
   refunded: RotateCcwIcon,
+  returned: Undo2Icon,
 }
 
 export function OrderStatusBadge({ status }: { status: OrderStatus }) {

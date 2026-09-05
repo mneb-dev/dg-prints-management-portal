@@ -6,12 +6,14 @@ import { CalculatorPage } from "@/pages/calculator-page"
 import { CreateOrderPage } from "@/pages/create-order-page"
 import { DashboardPage } from "@/pages/dashboard-page"
 import { EditOrderPage } from "@/pages/edit-order-page"
+import { ExpensesPage } from "@/pages/expenses-page"
 import { LoginPage } from "@/pages/login-page"
 import { NotFoundPage } from "@/pages/not-found-page"
 import { OrderDetailsPage } from "@/pages/order-details-page"
 import { OrdersPage } from "@/pages/orders-page"
 import { ProductsPage } from "@/pages/products-page"
 import { ProfilePage } from "@/pages/profile-page"
+import { RecurringExpensesPage } from "@/pages/recurring-expenses-page"
 import { UsersPage } from "@/pages/users-page"
 
 function App() {
@@ -54,6 +56,15 @@ function App() {
           }
         />
         <Route path="/products" element={<ProductsPage />} />
+        <Route path="/expenses" element={<ExpensesPage />} />
+        <Route
+          path="/expenses/recurring"
+          element={
+            <ProtectedRoute roles={["admin", "superadmin"]}>
+              <RecurringExpensesPage />
+            </ProtectedRoute>
+          }
+        />
         <Route path="/profile" element={<ProfilePage />} />
         <Route
           path="/users"

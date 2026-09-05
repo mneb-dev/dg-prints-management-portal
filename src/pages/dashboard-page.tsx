@@ -1,7 +1,7 @@
 import { PlusIcon } from "lucide-react"
 import { Link, useNavigate } from "react-router-dom"
 
-import { ORDER_STATUS_ICONS } from "@/components/orders/order-status-badge"
+import { ORDER_STATUS_ICONS, ORDER_STATUS_VARIANTS } from "@/components/orders/order-status-badge"
 import { PageHeader } from "@/components/page-header"
 import { RefreshButton } from "@/components/refresh-button"
 import { Button } from "@/components/ui/button"
@@ -9,6 +9,7 @@ import { ChannelMixCard } from "@/components/dashboard/channel-mix-card"
 import { HotProductsCard } from "@/components/dashboard/hot-products-card"
 import { PaymentSummaryCard } from "@/components/dashboard/payment-summary-card"
 import { RecentOrdersCard } from "@/components/dashboard/recent-orders-card"
+import { SalesChartCard } from "@/components/dashboard/sales-chart-card"
 import { StatCard } from "@/components/dashboard/stat-card"
 import { StatusPipelineCard } from "@/components/dashboard/status-pipeline-card"
 import { TopCustomersCard } from "@/components/dashboard/top-customers-card"
@@ -16,7 +17,8 @@ import { useAuth } from "@/lib/auth"
 import { useDashboardRefresh, useOrderActions, useOrderStats } from "@/lib/orders"
 
 export function DashboardPage() {
-  const { hasPermission } = useAuth()
+  const { role, hasPermission } = useAuth()
+  const isAdmin = role === "admin" || role === "superadmin"
   const { stats } = useOrderStats()
   const { setOrdersFilter } = useOrderActions()
   const { refresh, isRefreshing } = useDashboardRefresh()
@@ -58,52 +60,60 @@ export function DashboardPage() {
           icon={ORDER_STATUS_ICONS.pending}
           label="Pending"
           value={pendingCount}
+          tone={ORDER_STATUS_VARIANTS.pending}
           onClick={() => goToOrders("pending")}
         />
         <StatCard
           icon={ORDER_STATUS_ICONS.layout}
           label="Awaiting layout"
           value={layoutCount}
+          tone={ORDER_STATUS_VARIANTS.layout}
           onClick={() => goToOrders("layout")}
         />
         <StatCard
           icon={ORDER_STATUS_ICONS.trace}
           label="Awaiting trace"
           value={traceCount}
+          tone={ORDER_STATUS_VARIANTS.trace}
           onClick={() => goToOrders("trace")}
         />
         <StatCard
           icon={ORDER_STATUS_ICONS.print}
           label="Awaiting print"
           value={printCount}
+          tone={ORDER_STATUS_VARIANTS.print}
           onClick={() => goToOrders("print")}
         />
         <StatCard
           icon={ORDER_STATUS_ICONS.cut}
           label="Awaiting cut"
           value={cutCount}
+          tone={ORDER_STATUS_VARIANTS.cut}
           onClick={() => goToOrders("cut")}
         />
         <StatCard
           icon={ORDER_STATUS_ICONS.pack}
           label="Awaiting pack"
           value={packCount}
+          tone={ORDER_STATUS_VARIANTS.pack}
           onClick={() => goToOrders("pack")}
         />
         <StatCard
           icon={ORDER_STATUS_ICONS.pickup}
           label="Ready for pickup"
           value={readyForPickupCount}
+          tone={ORDER_STATUS_VARIANTS.pickup}
           onClick={() => goToOrders("pickup")}
         />
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        {isAdmin ? <SalesChartCard /> : null}
         <StatusPipelineCard />
         <PaymentSummaryCard />
         <RecentOrdersCard />
-        <HotProductsCard />
         <TopCustomersCard />
+        <HotProductsCard className="lg:col-span-2" />
         <ChannelMixCard />
       </div>
     </div>

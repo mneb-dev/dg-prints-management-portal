@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input"
 import { PasswordInput } from "@/components/ui/password-input"
 import { Spinner } from "@/components/ui/spinner"
 import { useAuth } from "@/lib/auth"
+import { requiredMessage } from "@/lib/validation"
 
 export function LoginPage() {
   const usernameId = useId()
@@ -21,6 +22,7 @@ export function LoginPage() {
   const { login } = useAuth()
   const navigate = useNavigate()
   const [error, setError] = useState<string | null>(null)
+  const [fieldErrors, setFieldErrors] = useState<{ username?: string; password?: string }>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   async function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
@@ -28,6 +30,16 @@ export function LoginPage() {
     const formData = new FormData(event.currentTarget)
     const username = String(formData.get("username") ?? "")
     const password = String(formData.get("password") ?? "")
+
+    const errors: { username?: string; password?: string } = {}
+    if (!username.trim()) errors.username = requiredMessage("Username")
+    if (!password) errors.password = requiredMessage("Password")
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors)
+      return
+    }
+    setFieldErrors({})
+    setError(null)
 
     setIsSubmitting(true)
     const loginError = await login(username, password)
@@ -51,25 +63,28 @@ export function LoginPage() {
         <CardContent>
           <form onSubmit={handleSubmit}>
             <FieldGroup>
-              <Field data-invalid={!!error}>
+              <Field data-invalid={!!fieldErrors.username}>
                 <FieldLabel htmlFor={usernameId}>Username</FieldLabel>
                 <Input
                   id={usernameId}
                   name="username"
                   type="text"
                   autoComplete="username"
-                  aria-invalid={!!error}
+                  aria-invalid={!!fieldErrors.username}
+                  onChange={() => setFieldErrors((prev) => ({ ...prev, username: undefined }))}
                 />
+                <FieldError>{fieldErrors.username}</FieldError>
               </Field>
-              <Field data-invalid={!!error}>
+              <Field data-invalid={!!fieldErrors.password || !!error}>
                 <FieldLabel htmlFor={passwordId}>Password</FieldLabel>
                 <PasswordInput
                   id={passwordId}
                   name="password"
                   autoComplete="current-password"
-                  aria-invalid={!!error}
+                  aria-invalid={!!fieldErrors.password || !!error}
+                  onChange={() => setFieldErrors((prev) => ({ ...prev, password: undefined }))}
                 />
-                <FieldError errors={error ? [{ message: error }] : undefined} />
+                <FieldError>{fieldErrors.password ?? error}</FieldError>
               </Field>
               <Field>
                 <Button type="submit" disabled={isSubmitting}>

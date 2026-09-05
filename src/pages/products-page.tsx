@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react"
-import { PlusIcon } from "lucide-react"
+import { PlusIcon, TagIcon } from "lucide-react"
 import { toast } from "sonner"
 
+import { ManageCategoriesDialog } from "@/components/categories/manage-categories-dialog"
 import { DeleteProductDialog } from "@/components/products/delete-product-dialog"
 import { ProductFormDialog } from "@/components/products/product-form-dialog"
 import { ProductTable } from "@/components/products/product-table"
@@ -49,6 +50,7 @@ export function ProductsPage() {
   const debouncedSearch = useDebouncedValue(searchInput, 400)
 
   const [formOpen, setFormOpen] = useState(false)
+  const [manageCategoriesOpen, setManageCategoriesOpen] = useState(false)
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
   const [deletingProduct, setDeletingProduct] = useState<Product | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -137,10 +139,16 @@ export function ProductsPage() {
         title="Products"
         actions={
           canManage ? (
-            <Button onClick={handleAdd}>
-              <PlusIcon data-icon="inline-start" />
-              Add Product
-            </Button>
+            <>
+              <Button variant="outline" onClick={() => setManageCategoriesOpen(true)}>
+                <TagIcon data-icon="inline-start" />
+                Manage Categories
+              </Button>
+              <Button onClick={handleAdd}>
+                <PlusIcon data-icon="inline-start" />
+                Add Product
+              </Button>
+            </>
           ) : undefined
         }
       />
@@ -262,6 +270,8 @@ export function ProductsPage() {
         product={editingProduct}
         onSaved={refetch}
       />
+
+      <ManageCategoriesDialog open={manageCategoriesOpen} onOpenChange={setManageCategoriesOpen} />
 
       <DeleteProductDialog
         product={deletingProduct}

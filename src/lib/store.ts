@@ -2,6 +2,7 @@ import { configureStore } from "@reduxjs/toolkit"
 
 import authReducer from "@/lib/auth-slice"
 import categoriesReducer from "@/lib/categories-slice"
+import expensesReducer from "@/lib/expenses-slice"
 import ordersReducer from "@/lib/orders-slice"
 import { subscribeToLocalStorage } from "@/lib/persist-subscribe"
 import productsReducer from "@/lib/products-slice"
@@ -16,6 +17,7 @@ export const store = configureStore({
     categories: categoriesReducer,
     orders: ordersReducer,
     users: usersReducer,
+    expenses: expensesReducer,
   },
 })
 

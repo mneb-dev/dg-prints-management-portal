@@ -12,33 +12,35 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Spinner } from "@/components/ui/spinner"
-import type { Product } from "@/lib/products"
+import type { RecurringExpense } from "@/lib/expenses"
+import { formatCurrency } from "@/lib/utils"
 
-export function DeleteProductDialog({
-  product,
+export function DeleteRecurringExpenseDialog({
+  recurringExpense,
   isDeleting,
   onOpenChange,
   onConfirm,
 }: {
-  product: Product | null
+  recurringExpense: RecurringExpense | null
   isDeleting?: boolean
   onOpenChange: (open: boolean) => void
-  onConfirm: (product: Product) => void
+  onConfirm: (recurringExpense: RecurringExpense) => void
 }) {
   return (
-    <AlertDialog open={!!product} onOpenChange={onOpenChange}>
+    <AlertDialog open={!!recurringExpense} onOpenChange={onOpenChange}>
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogMedia className="bg-destructive/10 text-destructive">
             <Trash2Icon />
           </AlertDialogMedia>
-          <AlertDialogTitle>Delete product</AlertDialogTitle>
+          <AlertDialogTitle>Delete recurring expense</AlertDialogTitle>
           <AlertDialogDescription>
-            Are you sure you want to delete{" "}
-            <span className="font-medium text-foreground">{product?.name}</span>?
-            If it has existing orders, it will be hidden from your catalog but kept for
-            order history; otherwise it will be permanently removed. This can't be undone
-            from here.
+            Are you sure you want to delete this{" "}
+            <span className="font-medium text-foreground">
+              {recurringExpense ? formatCurrency(recurringExpense.amount) : ""}
+            </span>{" "}
+            {recurringExpense?.category} schedule? It will stop generating new expenses, but
+            expenses it already created will stay. This can't be undone.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
@@ -46,7 +48,7 @@ export function DeleteProductDialog({
           <AlertDialogAction
             variant="destructive-solid"
             disabled={isDeleting}
-            onClick={() => product && onConfirm(product)}
+            onClick={() => recurringExpense && onConfirm(recurringExpense)}
           >
             {isDeleting && <Spinner data-icon="inline-start" />}
             {isDeleting ? "Deleting..." : "Delete"}

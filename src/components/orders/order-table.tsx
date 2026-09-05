@@ -64,6 +64,7 @@ export function OrderTable({
   onEdit,
   onCancel,
   onRefund,
+  onReturn,
   onDelete,
   onRequestPayment,
   onArrange,
@@ -83,6 +84,7 @@ export function OrderTable({
   onEdit: (order: Order) => void
   onCancel: (order: Order) => void
   onRefund: (order: Order) => void
+  onReturn: (order: Order) => void
   onDelete: (order: Order) => void
   onRequestPayment: (order: Order, targetStatus: "paid" | "partially_paid") => void
   onArrange: (order: Order) => void
@@ -292,7 +294,12 @@ export function OrderTable({
                 </TableCell>
                 <TableCell>
                   {canManage && !isReleaseLocked ? (
-                    <OrderStatusMenu order={order} onCancel={onCancel} onRefund={onRefund} />
+                    <OrderStatusMenu
+                      order={order}
+                      onCancel={onCancel}
+                      onRefund={onRefund}
+                      onReturn={onReturn}
+                    />
                   ) : (
                     <OrderStatusBadge status={order.status} />
                   )}

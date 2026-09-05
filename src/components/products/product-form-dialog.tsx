@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react"
-import { PlusIcon, TagIcon, Trash2Icon, XIcon } from "lucide-react"
+import { PlusIcon, Trash2Icon, XIcon } from "lucide-react"
 import { toast } from "sonner"
 
-import { ManageCategoriesDialog } from "@/components/categories/manage-categories-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -19,7 +18,6 @@ import {
   Select,
   SelectContent,
   SelectItem,
-  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
@@ -38,6 +36,14 @@ import {
   type ProductStatus,
 } from "@/lib/products"
 import { generateId } from "@/lib/utils"
+import {
+  maxLengthMessage,
+  parsePositiveAmount,
+  positiveAmountMessage,
+  PRICING_INCOMPLETE_VARIANTS_MESSAGE,
+  PRICING_NO_VARIANTS_MESSAGE,
+  requiredMessage,
+} from "@/lib/validation"
 import { cartesianOptionCombinations, combinationsMatch } from "@/lib/variant-matrix"
 
 import { VariantPricingTable } from "./variant-pricing-table"
@@ -197,7 +203,6 @@ export function ProductFormDialog({
   const [descriptionError, setDescriptionError] = useState<string | null>(null)
   const [pricingError, setPricingError] = useState<string | null>(null)
   const [categorySelectOpen, setCategorySelectOpen] = useState(false)
-  const [manageCategoriesOpen, setManageCategoriesOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isSinglePrice, setIsSinglePrice] = useState(true)
   const [singlePrice, setSinglePrice] = useState("")
@@ -254,25 +259,25 @@ export function ProductFormDialog({
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!draft.name.trim()) {
-      setNameError("Product name is required.")
+      setNameError(requiredMessage("Product name"))
       return
     }
 
     if (!draft.category) {
-      setCategoryError("Category is required.")
+      setCategoryError(requiredMessage("Category"))
       return
     }
 
     if (draft.description.length > 60) {
-      setDescriptionError("Must be 60 characters or fewer.")
+      setDescriptionError(maxLengthMessage("Description", 60))
       return
     }
 
     let payload = draft
     if (isSinglePrice) {
-      const numericPrice = Number(singlePrice)
-      if (!singlePrice.trim() || !Number.isFinite(numericPrice) || numericPrice <= 0) {
-        setSinglePriceError("Enter a valid price.")
+      const numericPrice = parsePositiveAmount(singlePrice)
+      if (numericPrice === null) {
+        setSinglePriceError(positiveAmountMessage("price"))
         return
       }
       const existingEntry =
@@ -293,7 +298,7 @@ export function ProductFormDialog({
     } else {
       const combinations = cartesianOptionCombinations(draft.options)
       if (combinations.length === 0) {
-        setPricingError("Add at least one variation with values.")
+        setPricingError(PRICING_NO_VARIANTS_MESSAGE)
         return
       }
       const hasUnpriced = combinations.some((combination) => {
@@ -303,7 +308,7 @@ export function ProductFormDialog({
         return !entry || entry.price <= 0
       })
       if (hasUnpriced) {
-        setPricingError("Enter a price for every variant combination.")
+        setPricingError(PRICING_INCOMPLETE_VARIANTS_MESSAGE)
         return
       }
       setPricingError(null)
@@ -375,24 +380,7 @@ export function ProductFormDialog({
                     <SelectTrigger id="product-category" className="w-full" aria-invalid={!!categoryError}>
                       <SelectValue placeholder="Select a category" />
                     </SelectTrigger>
-                    <SelectContent
-                      footer={
-                        <>
-                          <SelectSeparator />
-                          <button
-                            type="button"
-                            className="flex w-full cursor-default items-center gap-1.5 rounded-md py-1 px-1.5 text-sm outline-hidden select-none hover:bg-accent hover:text-accent-foreground"
-                            onClick={() => {
-                              setCategorySelectOpen(false)
-                              setManageCategoriesOpen(true)
-                            }}
-                          >
-                            <TagIcon className="size-4" />
-                            Manage Categories
-                          </button>
-                        </>
-                      }
-                    >
+                    <SelectContent>
                       {categoryOptions.map((category) => (
                         <SelectItem key={category} value={category}>
                           {category}
@@ -562,8 +550,6 @@ export function ProductFormDialog({
           </Button>
         </DialogFooter>
       </DialogContent>
-
-      <ManageCategoriesDialog open={manageCategoriesOpen} onOpenChange={setManageCategoriesOpen} />
     </Dialog>
   )
 }

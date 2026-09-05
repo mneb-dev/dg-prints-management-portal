@@ -41,9 +41,9 @@ import { formatCurrency } from "@/lib/utils"
 
 const CATEGORIES: { category: ProductCategory; label: string; icon: LucideIcon }[] = [
   { category: "Sticker", label: "Sticker", icon: StickerIcon },
-  { category: "Laminated Sticker", label: "Laminated", icon: LayersIcon },
   { category: "Tarpaulin", label: "Tarpaulin", icon: FlagIcon },
   { category: "Sintra", label: "Sintra", icon: LayoutPanelLeftIcon },
+  { category: "Laminated Sticker", label: "Laminated", icon: LayersIcon },
 ]
 
 export function CalculatorPage() {

@@ -16,6 +16,7 @@ export type LineItemSummary = {
   quantity: number
   lineTotal: number
   stickerQuotation: OrderItem["stickerQuotation"]
+  notes: string
 }
 
 function itemInfoLines(item: LineItemSummary): string[] {
@@ -54,6 +55,10 @@ export function OrderSummaryPanel({
   const copyableItems = items.filter((item) => item.product && item.pricing)
 
   function handleCopy() {
+    console.log(
+      "Order item notes:",
+      items.map((item) => ({ name: item.product?.name, notes: item.notes }))
+    )
     if (copyableItems.length === 0) return
 
     const infoLines = buildCopyableOrderText(
