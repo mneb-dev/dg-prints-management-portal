@@ -56,7 +56,14 @@ function App() {
           }
         />
         <Route path="/products" element={<ProductsPage />} />
-        <Route path="/expenses" element={<ExpensesPage />} />
+        <Route
+          path="/expenses"
+          element={
+            <ProtectedRoute permission="manage_expenses">
+              <ExpensesPage />
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/expenses/recurring"
           element={

@@ -7,11 +7,17 @@ import type { RootState } from "@/lib/store"
 export const ROLES = ["staff", "admin", "superadmin"] as const
 export type Role = (typeof ROLES)[number]
 
+export const ROLE_LABELS: Record<Role, string> = {
+  staff: "Staff",
+  admin: "Admin",
+  superadmin: "Super Admin",
+}
+
 export const PERMISSION_KEYS = [
   "manage_products",
   "manage_orders",
   "manage_users",
-  "view_reports",
+  "manage_expenses",
 ] as const
 export type PermissionKey = (typeof PERMISSION_KEYS)[number]
 
@@ -19,7 +25,7 @@ export const PERMISSION_LABELS: Record<PermissionKey, string> = {
   manage_products: "Manage Products",
   manage_orders: "Manage Orders",
   manage_users: "Manage Users",
-  view_reports: "View Reports",
+  manage_expenses: "Manage Expenses",
 }
 
 export const USER_STATUSES = ["active", "inactive"] as const
@@ -45,12 +51,11 @@ export type UserInput = {
   role: Role
   permissions: PermissionKey[]
   status: UserStatus
-  password?: string
 }
 
-function toUserPayload(input: UserInput) {
-  const { password, ...rest } = input
-  return password ? { ...rest, password } : rest
+/** An admin cannot edit, delete, or reset the password of a superadmin account. */
+export function canManageUser(actorRole: Role, target: User): boolean {
+  return !(actorRole === "admin" && target.role === "superadmin")
 }
 
 export type UsersQueryParams = {
@@ -97,7 +102,7 @@ export const createUserThunk = createAsyncThunk<User, UserInput, { rejectValue: 
   "users/create",
   async (input, { rejectWithValue }) => {
     try {
-      const { data } = await apiClient.post<User>("/users", toUserPayload(input))
+      const { data } = await apiClient.post<User>("/users", input)
       return data
     } catch (err) {
       return rejectWithValue(getErrorMessage(err))
@@ -111,7 +116,20 @@ export const updateUserThunk = createAsyncThunk<
   { rejectValue: string }
 >("users/update", async ({ id, input }, { rejectWithValue }) => {
   try {
-    const { data } = await apiClient.put<User>(`/users/${id}`, toUserPayload(input))
+    const { data } = await apiClient.put<User>(`/users/${id}`, input)
+    return data
+  } catch (err) {
+    return rejectWithValue(getErrorMessage(err))
+  }
+})
+
+export const resetUserPasswordThunk = createAsyncThunk<
+  { password: string },
+  string,
+  { rejectValue: string }
+>("users/resetPassword", async (id, { rejectWithValue }) => {
+  try {
+    const { data } = await apiClient.post<{ password: string }>(`/users/${id}/reset-password`)
     return data
   } catch (err) {
     return rejectWithValue(getErrorMessage(err))

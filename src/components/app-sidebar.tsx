@@ -40,9 +40,13 @@ const navItems = [
 
 export function AppSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
   const location = useLocation()
-  const { role } = useAuth()
+  const { role, hasPermission } = useAuth()
   const { requestNavigation } = useNavGuard()
-  const visibleNavItems = navItems.filter((item) => item.title !== "Users" || role !== "staff")
+  const visibleNavItems = navItems.filter(
+    (item) =>
+      (item.title !== "Users" || role !== "staff") &&
+      (item.title !== "Expenses" || hasPermission("manage_expenses"))
+  )
 
   function guardedNavClick(url: string) {
     return (event: MouseEvent) => {

@@ -5,14 +5,17 @@ import {
   createUserThunk,
   deleteUserThunk,
   fetchUsersThunk,
+  resetUserPasswordThunk,
   setUsersParams,
   updateUserThunk,
 } from "@/lib/users-slice"
 import type { User, UserInput, UsersQueryParams } from "@/lib/users-slice"
 
 export {
+  canManageUser,
   PERMISSION_KEYS,
   PERMISSION_LABELS,
+  ROLE_LABELS,
   ROLES,
   USER_STATUSES,
 } from "@/lib/users-slice"
@@ -126,5 +129,10 @@ export function useUserActions() {
     await dispatch(deleteUserThunk(id)).unwrap()
   }
 
-  return { addUser, updateUser, deleteUser }
+  async function resetUserPassword(id: string) {
+    const { password } = await dispatch(resetUserPasswordThunk(id)).unwrap()
+    return password
+  }
+
+  return { addUser, updateUser, deleteUser, resetUserPassword }
 }
