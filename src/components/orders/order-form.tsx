@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { format, parseISO } from "date-fns"
 import {
   CopyIcon,
@@ -27,6 +27,7 @@ import {
   AutocompletePopup,
   AutocompletePrimitive,
 } from "@/components/ui/autocomplete"
+import { CurrencyInput } from "@/components/ui/currency-input"
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -53,6 +54,7 @@ import {
   computeLineItemPricing,
   createEmptyLineItemDraft,
   draftFromOrderItem,
+  isStickerLabelCategory,
   type LineItemDraft,
 } from "@/lib/order-line-item"
 import {
@@ -280,6 +282,12 @@ export function OrderForm({
   const [statusUpdatedAtLocal, setStatusUpdatedAtLocal] = useState("")
   const [statusUpdatedByValue, setStatusUpdatedByValue] = useState("")
 
+  // "Same as customer" can only take effect once there's something to copy — an empty
+  // customer name/phone falls back to the recipient fields being editable, regardless of the
+  // toggle's last recorded state. Used for both the UI (via the props below) and the payload.
+  const effectiveSameName = sameName && !!customerName.trim()
+  const effectiveSamePhone = samePhone && !!customerPhone.trim()
+
   function buildCurrentFields(): OrderDraftFields {
     return {
       customerName,
@@ -346,6 +354,7 @@ export function OrderForm({
       setSamePhone(details.shippingAddress.phone.trim() === details.customerPhone.trim())
       setShippingPhone(details.shippingAddress.phone)
       setShippingAddress(details.shippingAddress.address)
+      setShippingFee(resolvedDefaultShippingFee)
     }
   }
 
@@ -497,6 +506,14 @@ export function OrderForm({
   })
 
   const subtotal = resolvedItems.reduce((sum, resolved) => sum + resolved.lineTotal, 0)
+  const stickerLabelSubtotal = resolvedItems.reduce((sum, resolved) => {
+    const category = resolved.product?.category ?? resolved.frozenOriginal?.productCategory
+    return isStickerLabelCategory(category) ? sum + resolved.lineTotal : sum
+  }, 0)
+  const freeShippingEligible = stickerLabelSubtotal >= 1000
+  // The fee to auto-fill whenever shipping gets turned on (by the toggle or by picking a
+  // customer) — always derived fresh from this order's contents, never from history.
+  const resolvedDefaultShippingFee = String(freeShippingEligible ? 0 : Math.max(0, settings.shippingFee))
   const discountNum = Math.max(0, Number(discount) || 0)
   const additionalFeesNum = Math.max(0, Number(additionalFees) || 0)
   const layoutFeeNum = Math.max(0, Number(layoutFee) || 0)
@@ -505,6 +522,18 @@ export function OrderForm({
     subtotal + additionalFeesNum + layoutFeeNum + shippingFeeNum - discountNum,
     0
   )
+
+  // Keep the shipping fee in sync with the sticker-label promo threshold as line items change —
+  // zero it out the moment the order crosses ≥1000, and revert to the configured default the
+  // moment it drops back below. Staff can still type a different value afterward; this only
+  // reacts to the threshold actually being crossed (in either direction), not every render.
+  const wasFreeShippingEligible = useRef(freeShippingEligible)
+  useEffect(() => {
+    if (shippingEnabled && freeShippingEligible !== wasFreeShippingEligible.current) {
+      setShippingFee(resolvedDefaultShippingFee)
+    }
+    wasFreeShippingEligible.current = freeShippingEligible
+  }, [freeShippingEligible, shippingEnabled, resolvedDefaultShippingFee])
 
   // Only sent when the requester can edit these fields, and only the ones actually
   // changed — never overwrites createdAt with an empty/invalid value.
@@ -530,8 +559,8 @@ export function OrderForm({
   function resolveShippingAddress() {
     if (!shippingEnabled) return null
     return {
-      name: (sameName ? customerName : shippingName).trim(),
-      phone: (samePhone ? customerPhone : shippingPhone).trim(),
+      name: (effectiveSameName ? customerName : shippingName).trim(),
+      phone: (effectiveSamePhone ? customerPhone : shippingPhone).trim(),
       address: shippingAddress.trim(),
       fee: shippingFeeNum,
     }
@@ -588,8 +617,8 @@ export function OrderForm({
     }
 
     if (shippingEnabled) {
-      const resolvedName = sameName ? customerName : shippingName
-      const resolvedPhone = samePhone ? customerPhone : shippingPhone
+      const resolvedName = effectiveSameName ? customerName : shippingName
+      const resolvedPhone = effectiveSamePhone ? customerPhone : shippingPhone
 
       if (!resolvedName.trim()) {
         nextErrors.shippingName = requiredMessage("Recipient name")
@@ -906,10 +935,10 @@ export function OrderForm({
               enabled={shippingEnabled}
               onEnabledChange={(value) => {
                 setShippingEnabled(value)
-                // Prefill from the configured default the first time shipping is turned on
-                // for this order — an untouched "0" means the field hasn't been edited yet.
-                if (value && shippingFee === "0" && settings.shippingFee > 0) {
-                  setShippingFee(String(settings.shippingFee))
+                // Prefill the first time shipping is turned on for this order — an untouched
+                // "0" means the field hasn't been edited yet.
+                if (value && shippingFee === "0") {
+                  setShippingFee(resolvedDefaultShippingFee)
                 }
                 clearError("shippingName")
                 clearError("shippingPhone")
@@ -917,9 +946,9 @@ export function OrderForm({
               }}
               customerName={customerName}
               customerPhone={customerPhone}
-              sameName={sameName}
+              sameName={effectiveSameName}
               onSameNameChange={setSameName}
-              samePhone={samePhone}
+              samePhone={effectiveSamePhone}
               onSamePhoneChange={setSamePhone}
               name={shippingName}
               onNameChange={(value) => {
@@ -938,6 +967,8 @@ export function OrderForm({
               }}
               fee={shippingFee}
               onFeeChange={setShippingFee}
+              freeShippingEligible={freeShippingEligible}
+              stickerLabelSubtotal={stickerLabelSubtotal}
               errors={{
                 name: errors.shippingName,
                 phone: errors.shippingPhone,
@@ -959,11 +990,8 @@ export function OrderForm({
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <Field className="sm:col-span-2">
                   <FieldLabel htmlFor="order-discount">Discount</FieldLabel>
-                  <Input
+                  <CurrencyInput
                     id="order-discount"
-                    type="number"
-                    min={0}
-                    step="0.01"
                     value={discount}
                     onChange={(event) => setDiscount(event.target.value)}
                   />
@@ -971,11 +999,8 @@ export function OrderForm({
 
                 <Field>
                   <FieldLabel htmlFor="order-layout-fee">Layout Fee</FieldLabel>
-                  <Input
+                  <CurrencyInput
                     id="order-layout-fee"
-                    type="number"
-                    min={0}
-                    step="0.01"
                     value={layoutFee}
                     onChange={(event) => {
                       setLayoutFee(event.target.value)
@@ -1018,11 +1043,8 @@ export function OrderForm({
 
                 <Field>
                   <FieldLabel htmlFor="order-additional-fees">Additional Fees</FieldLabel>
-                  <Input
+                  <CurrencyInput
                     id="order-additional-fees"
-                    type="number"
-                    min={0}
-                    step="0.01"
                     value={additionalFees}
                     onChange={(event) => setAdditionalFees(event.target.value)}
                   />

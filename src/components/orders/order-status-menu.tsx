@@ -10,6 +10,7 @@ import {
 import { useCategories } from "@/lib/categories"
 import { getOrderStatusOptions, useOrderStatusUpdate } from "@/lib/orders"
 import type { Order, OrderStatus } from "@/lib/orders"
+import type { Role } from "@/lib/users"
 import { cn } from "@/lib/utils"
 
 import { ORDER_STATUS_ICONS, ORDER_STATUS_LABELS, ORDER_STATUS_VARIANTS } from "./order-status-badge"
@@ -25,6 +26,7 @@ export function OrderStatusMenu({
   onReturn,
   onOptimisticChange,
   size = "sm",
+  role,
 }: {
   order: Order
   onCancel: (order: Order) => void
@@ -32,10 +34,11 @@ export function OrderStatusMenu({
   onReturn: (order: Order) => void
   onOptimisticChange?: (status: OrderStatus | null) => void
   size?: "sm" | "lg"
+  role?: Role | null
 }) {
   const { updateStatus, isUpdating } = useOrderStatusUpdate()
   const { categories } = useCategories()
-  const options = getOrderStatusOptions(order, categories)
+  const options = getOrderStatusOptions(order, categories, role)
   const Icon = ORDER_STATUS_ICONS[order.status]
 
   async function handleSelect(status: OrderStatus) {

@@ -202,7 +202,7 @@ export function OrderDetailsPage() {
   }
 
   const items = order.items
-  const statusOptions = getOrderStatusOptions(order, categories)
+  const statusOptions = getOrderStatusOptions(order, categories, role)
   const releaseOption = statusOptions.find((option) => option.value === "released")
   const refundOption = statusOptions.find((option) => option.value === "refunded")
   const isReleaseLocked = isReleaseLockedForRole(order.status, role)
@@ -579,6 +579,7 @@ export function OrderDetailsPage() {
                     onReturn={() => setReturning(true)}
                     onOptimisticChange={setOptimisticStatus}
                     size="lg"
+                    role={role}
                   />
                 )}
               </div>

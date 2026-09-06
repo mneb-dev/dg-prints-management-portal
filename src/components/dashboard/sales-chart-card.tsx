@@ -291,6 +291,9 @@ export function SalesChartCard() {
     true,
     isStaffView ? "staff" : undefined
   )
+  // Fetch includes inactive users so past orders from a former staff member can still be
+  // isolated/rolled up, but inactive accounts shouldn't be offered as pickable filter options.
+  const activeUserOptions = userOptions.filter((user) => user.status === "active")
 
   const { currentOrders, previousOrders } = useMemo(() => {
     if (!range) return { currentOrders: [] as Order[], previousOrders: [] as Order[] }
@@ -418,7 +421,7 @@ export function SalesChartCard() {
                 All
               </DropdownMenuCheckboxItem>
               <DropdownMenuSeparator />
-              {userOptions.map((user) => {
+              {activeUserOptions.map((user) => {
                 const isChecked = selectedCreatorIds.includes(user.id)
                 const atCap = !isChecked && selectedCreatorIds.length >= MAX_SELECTED_CREATORS
                 return (

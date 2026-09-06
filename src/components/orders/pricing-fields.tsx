@@ -1,5 +1,6 @@
 import { Field, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { QuantityInput } from "@/components/ui/quantity-input"
 import {
   Select,
   SelectContent,
@@ -85,8 +86,8 @@ export function PricingFields({
         </p>
       )}
 
-      {showsDimensions && (
-        <div className="grid grid-cols-3 gap-4">
+      {showsDimensions ? (
+        <div className={`grid gap-4 ${hideQuantity ? "grid-cols-3" : "grid-cols-[1fr_1fr_1fr_auto]"}`}>
           <Field>
             <FieldLabel htmlFor={`${idPrefix}order-width`}>Width</FieldLabel>
             <Input
@@ -127,21 +128,28 @@ export function PricingFields({
               </SelectContent>
             </Select>
           </Field>
+          {!hideQuantity && (
+            <Field>
+              <FieldLabel htmlFor={`${idPrefix}order-quantity`}>Quantity</FieldLabel>
+              <QuantityInput
+                id={`${idPrefix}order-quantity`}
+                value={quantity}
+                onChange={onQuantityChange}
+              />
+            </Field>
+          )}
         </div>
-      )}
-
-      {!hideQuantity && (
-        <Field>
-          <FieldLabel htmlFor={`${idPrefix}order-quantity`}>Quantity</FieldLabel>
-          <Input
-            id={`${idPrefix}order-quantity`}
-            type="number"
-            min={1}
-            step="1"
-            value={quantity}
-            onChange={(event) => onQuantityChange(event.target.value)}
-          />
-        </Field>
+      ) : (
+        !hideQuantity && (
+          <Field>
+            <FieldLabel htmlFor={`${idPrefix}order-quantity`}>Quantity</FieldLabel>
+            <QuantityInput
+              id={`${idPrefix}order-quantity`}
+              value={quantity}
+              onChange={onQuantityChange}
+            />
+          </Field>
+        )
       )}
     </>
   )

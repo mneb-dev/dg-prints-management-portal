@@ -1,5 +1,6 @@
 import { Field, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { QuantityInput } from "@/components/ui/quantity-input"
 import {
   Select,
   SelectContent,
@@ -49,7 +50,7 @@ export function SintraBoardCustomFields({
 
   return (
     <>
-      <div className="grid grid-cols-2 gap-4">
+      <div className={`grid gap-4 ${quantity !== undefined && onQuantityChange ? "grid-cols-[1fr_1fr_auto]" : "grid-cols-2"}`}>
         <Field>
           <FieldLabel htmlFor={`${idPrefix}sintra-custom-width`}>Width (in)</FieldLabel>
           <Input
@@ -72,6 +73,16 @@ export function SintraBoardCustomFields({
             onChange={(event) => onHeightChange(event.target.value)}
           />
         </Field>
+        {quantity !== undefined && onQuantityChange && (
+          <Field>
+            <FieldLabel htmlFor={`${idPrefix}sintra-custom-quantity`}>Quantity</FieldLabel>
+            <QuantityInput
+              id={`${idPrefix}sintra-custom-quantity`}
+              value={quantity ?? ""}
+              onChange={onQuantityChange}
+            />
+          </Field>
+        )}
       </div>
 
       <Field>
@@ -94,20 +105,6 @@ export function SintraBoardCustomFields({
         <Switch checked={backToBack} onCheckedChange={(checked) => onBackToBackChange(!!checked)} />
         Back to back print
       </label>
-
-      {quantity !== undefined && onQuantityChange && (
-        <Field>
-          <FieldLabel htmlFor={`${idPrefix}sintra-custom-quantity`}>Quantity</FieldLabel>
-          <Input
-            id={`${idPrefix}sintra-custom-quantity`}
-            type="number"
-            min={1}
-            step="1"
-            value={quantity}
-            onChange={(event) => onQuantityChange(event.target.value)}
-          />
-        </Field>
-      )}
 
       {price !== null ? (
         <p className="text-2xl font-semibold">{formatCurrency(price)}</p>

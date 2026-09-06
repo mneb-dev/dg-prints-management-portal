@@ -1,7 +1,9 @@
-import { Field, FieldError, FieldLabel } from "@/components/ui/field"
+import { CurrencyInput } from "@/components/ui/currency-input"
+import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
+import { formatCurrency } from "@/lib/utils"
 
 export function ShippingAddressFields({
   enabled,
@@ -20,6 +22,8 @@ export function ShippingAddressFields({
   onAddressChange,
   fee,
   onFeeChange,
+  freeShippingEligible = false,
+  stickerLabelSubtotal = 0,
   errors,
 }: {
   enabled: boolean
@@ -38,8 +42,15 @@ export function ShippingAddressFields({
   onAddressChange: (value: string) => void
   fee: string
   onFeeChange: (value: string) => void
+  freeShippingEligible?: boolean
+  stickerLabelSubtotal?: number
   errors?: { name?: string; phone?: string; address?: string }
 }) {
+  // The parent (order-form.tsx) already resolves `sameName`/`samePhone` against whether the
+  // customer fields are actually filled in, so the display here and the submitted payload agree.
+  const hasCustomerName = !!customerName.trim()
+  const hasCustomerPhone = !!customerPhone.trim()
+
   return (
     <div className="flex flex-col gap-3">
       <label className="flex items-center gap-2 text-sm font-medium">
@@ -56,6 +67,7 @@ export function ShippingAddressFields({
                 <Switch
                   size="sm"
                   checked={sameName}
+                  disabled={!hasCustomerName}
                   onCheckedChange={(checked) => onSameNameChange(!!checked)}
                 />
                 Same as customer
@@ -80,6 +92,7 @@ export function ShippingAddressFields({
                 <Switch
                   size="sm"
                   checked={samePhone}
+                  disabled={!hasCustomerPhone}
                   onCheckedChange={(checked) => onSamePhoneChange(!!checked)}
                 />
                 Same as customer
@@ -111,14 +124,16 @@ export function ShippingAddressFields({
 
           <Field>
             <FieldLabel htmlFor="shipping-fee">Shipping Fee</FieldLabel>
-            <Input
+            <CurrencyInput
               id="shipping-fee"
-              type="number"
-              min={0}
-              step="0.01"
               value={fee}
               onChange={(event) => onFeeChange(event.target.value)}
             />
+            {freeShippingEligible && (
+              <FieldDescription>
+                Free shipping — Sticker Label items total {formatCurrency(stickerLabelSubtotal)} (≥ ₱1,000).
+              </FieldDescription>
+            )}
           </Field>
         </div>
       )}
