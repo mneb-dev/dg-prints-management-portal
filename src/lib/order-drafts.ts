@@ -13,6 +13,7 @@ export type OrderDraftFields = {
   additionalFees: string
   notes: string
   layoutFee: string
+  layoutBy: string
   shippingEnabled: boolean
   sameName: boolean
   samePhone: boolean

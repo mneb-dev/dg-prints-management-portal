@@ -77,6 +77,7 @@ import type { StickerUnit } from "@/lib/sticker-quotation"
 import { useUserOptions } from "@/lib/users"
 import {
   isValidPhMobileNumber,
+  LAYOUT_BY_REQUIRED_MESSAGE,
   maxLengthMessage,
   NOTES_REQUIRED_WHEN_FEES_MESSAGE,
   PHONE_FORMAT_MESSAGE,
@@ -184,6 +185,7 @@ function fieldsFromOrder(order: Order): OrderDraftFields {
     additionalFees: String(order.additionalFees),
     notes: order.notes ?? "",
     layoutFee: String(order.layoutFee),
+    layoutBy: order.layoutBy ?? "",
     shippingEnabled: !!shipping,
     sameName: shipping ? shipping.name === order.customerName : true,
     samePhone: shipping ? shipping.phone === order.customerPhone : true,
@@ -239,7 +241,9 @@ export function OrderForm({
   const { settings } = useSettings()
   const { role } = useAuth()
   const canEditMetadata = !!order && canEditOrderMetadata(role)
-  const { users: userOptions } = useUserOptions(canEditMetadata)
+  // Unconditionally enabled (unlike the admin-only Created By/Status Updated By fields below,
+  // which reuse this same list) since Layout By is a normal field any role can set.
+  const { users: userOptions } = useUserOptions(true)
   const { setGuard } = useNavGuard()
   const { saveDraft, deleteDraft } = useOrderDrafts()
 
@@ -256,6 +260,7 @@ export function OrderForm({
   const [additionalFees, setAdditionalFees] = useState("0")
   const [notes, setNotes] = useState("")
   const [layoutFee, setLayoutFee] = useState("0")
+  const [layoutBy, setLayoutBy] = useState("")
   const [shippingEnabled, setShippingEnabled] = useState(false)
   const [sameName, setSameName] = useState(true)
   const [samePhone, setSamePhone] = useState(true)
@@ -284,6 +289,7 @@ export function OrderForm({
       additionalFees,
       notes,
       layoutFee,
+      layoutBy,
       shippingEnabled,
       sameName,
       samePhone,
@@ -374,6 +380,7 @@ export function OrderForm({
     setAdditionalFees(String(order.additionalFees))
     setNotes(order.notes ?? "")
     setLayoutFee(String(order.layoutFee))
+    setLayoutBy(order.layoutBy ?? "")
     const loadedItems =
       order.items.length > 0 ? order.items.map(draftFromOrderItem) : [createEmptyLineItemDraft()]
     setItems(loadedItems)
@@ -452,6 +459,7 @@ export function OrderForm({
     setAdditionalFees(f.additionalFees)
     setNotes(f.notes)
     setLayoutFee(f.layoutFee)
+    setLayoutBy(f.layoutBy)
     setShippingEnabled(f.shippingEnabled)
     setSameName(f.sameName)
     setSamePhone(f.samePhone)
@@ -571,6 +579,10 @@ export function OrderForm({
       nextErrors.notes = NOTES_REQUIRED_WHEN_FEES_MESSAGE
     }
 
+    if (layoutFeeNum > 0 && !layoutBy) {
+      nextErrors.layoutBy = LAYOUT_BY_REQUIRED_MESSAGE
+    }
+
     if (!channel) {
       nextErrors.channel = requiredMessage("Order channel")
     }
@@ -685,6 +697,7 @@ export function OrderForm({
           discount: discountNum,
           additionalFees: additionalFeesNum,
           layoutFee: layoutFeeNum,
+          layoutBy: layoutBy || null,
           total,
           notes: notes.trim(),
           shippingAddress: resolveShippingAddress(),
@@ -704,6 +717,7 @@ export function OrderForm({
           discount: discountNum,
           additionalFees: additionalFeesNum,
           layoutFee: layoutFeeNum,
+          layoutBy: layoutBy || null,
           total,
           notes: notes.trim(),
           shippingAddress: resolveShippingAddress(),
@@ -943,7 +957,7 @@ export function OrderForm({
           <CardContent>
             <FieldGroup>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <Field>
+                <Field className="sm:col-span-2">
                   <FieldLabel htmlFor="order-discount">Discount</FieldLabel>
                   <Input
                     id="order-discount"
@@ -963,8 +977,43 @@ export function OrderForm({
                     min={0}
                     step="0.01"
                     value={layoutFee}
-                    onChange={(event) => setLayoutFee(event.target.value)}
+                    onChange={(event) => {
+                      setLayoutFee(event.target.value)
+                      clearError("layoutBy")
+                    }}
                   />
+                </Field>
+
+                <Field data-invalid={!!errors.layoutBy}>
+                  <FieldLabel htmlFor="order-layout-by">Layout By</FieldLabel>
+                  <Select
+                    value={layoutBy}
+                    onValueChange={(value) => {
+                      setLayoutBy(value as string)
+                      clearError("layoutBy")
+                    }}
+                  >
+                    <SelectTrigger
+                      id="order-layout-by"
+                      className="w-full"
+                      aria-invalid={!!errors.layoutBy}
+                    >
+                      <SelectValue placeholder="Select a user">
+                        {(value: string | null) => {
+                          const match = userOptions.find((u) => u.id === value)
+                          return match ? `${match.firstName} ${match.lastName}` : "Select a user"
+                        }}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {activeUserOptions.map((u) => (
+                        <SelectItem key={u.id} value={u.id}>
+                          {u.firstName} {u.lastName}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FieldError>{errors.layoutBy}</FieldError>
                 </Field>
 
                 <Field>

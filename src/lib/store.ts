@@ -8,6 +8,7 @@ import ordersReducer from "@/lib/orders-slice"
 import paymentMethodsReducer from "@/lib/payment-methods-slice"
 import { subscribeToLocalStorage } from "@/lib/persist-subscribe"
 import productsReducer from "@/lib/products-slice"
+import salesVisibilityReducer from "@/lib/sales-visibility-slice"
 import settingsReducer from "@/lib/settings-slice"
 import themeReducer from "@/lib/theme-slice"
 import usersReducer from "@/lib/users-slice"
@@ -24,6 +25,7 @@ export const store = configureStore({
     settings: settingsReducer,
     paymentMethods: paymentMethodsReducer,
     orderChannels: orderChannelsReducer,
+    salesVisibility: salesVisibilityReducer,
   },
 })
 

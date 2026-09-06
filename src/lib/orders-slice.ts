@@ -137,6 +137,8 @@ export type Order = {
   discount: number
   additionalFees: number
   layoutFee: number
+  layoutBy: string | null
+  layoutByName: string
   total: number
   notes: string
   shippingAddress: ShippingAddress | null
@@ -157,6 +159,7 @@ export type OrderInput = Omit<
   | "orderNumber"
   | "createdAt"
   | "updatedAt"
+  | "layoutByName"
   | "createdBy"
   | "createdByName"
   | "statusUpdatedBy"
@@ -181,6 +184,8 @@ function normalizeOrder(order: Order): Order {
     channel: order.channel ?? "Walk-in",
     additionalFees: order.additionalFees ?? 0,
     layoutFee: order.layoutFee ?? 0,
+    layoutBy: order.layoutBy ?? null,
+    layoutByName: order.layoutByName ?? "",
     createdBy: order.createdBy ?? null,
     createdByName: order.createdByName ?? "",
     statusUpdatedBy: order.statusUpdatedBy ?? null,

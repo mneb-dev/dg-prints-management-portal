@@ -77,6 +77,15 @@ export type UsersListResponse = {
   pageSize: number | null
 }
 
+// Lean, non-admin-gated projection for pickers (e.g. the order "Layout by" field) —
+// no role/permissions/username, so any authenticated role can fetch it.
+export type UserOption = {
+  id: string
+  firstName: string
+  lastName: string
+  status: UserStatus
+}
+
 export const fetchUsersThunk = createAsyncThunk<
   UsersListResponse,
   UsersQueryParams,
@@ -92,6 +101,29 @@ export const fetchUsersThunk = createAsyncThunk<
         status: params.status || undefined,
         sortBy: params.sortBy,
         sortDir: params.sortDir,
+      },
+    })
+    return data
+  } catch (err) {
+    return rejectWithValue(getErrorMessage(err))
+  }
+})
+
+/** Not gated behind manage_users — any authenticated role can fetch user options for pickers
+ *  (e.g. the order "Layout by" field, or the dashboard sales-by-creator filter). Defaults to
+ *  active users only; pass `{ includeInactive: true }` to list everyone. Pass `{ role: "staff" }`
+ *  to further restrict the roster to one role (e.g. a staff viewer's sales filter should never see
+ *  admin/superadmin as pickable names). See users.tsx#useUserOptions. */
+export const fetchUserOptionsThunk = createAsyncThunk<
+  UserOption[],
+  { includeInactive?: boolean; role?: Role } | undefined,
+  { rejectValue: string }
+>("users/fetchOptions", async (arg, { rejectWithValue }) => {
+  try {
+    const { data } = await apiClient.get<UserOption[]>("/users/options", {
+      params: {
+        ...(arg?.includeInactive ? { includeInactive: true } : undefined),
+        ...(arg?.role ? { role: arg.role } : undefined),
       },
     })
     return data

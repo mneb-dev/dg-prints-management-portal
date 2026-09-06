@@ -4,6 +4,7 @@ import {
   PackageSearchIcon,
   PlusIcon,
   TriangleAlertIcon,
+  TruckIcon,
   XIcon,
 } from "lucide-react"
 
@@ -232,7 +233,25 @@ export function OrderTable({
             return (
               <TableRow key={order.id}>
                 <TableCell className="sticky left-0 bg-background font-medium">
-                  {order.orderNumber}
+                  <span className="inline-flex items-center gap-1.5">
+                    {order.orderNumber}
+                    {order.shippingAddress && (
+                      <Tooltip>
+                        <TooltipTrigger
+                          render={
+                            <button
+                              type="button"
+                              className="inline-flex cursor-default items-center"
+                            />
+                          }
+                        >
+                          <TruckIcon className="size-3.5 text-muted-foreground" />
+                          <span className="sr-only">Has shipping address on file</span>
+                        </TooltipTrigger>
+                        <TooltipContent>Has shipping address on file</TooltipContent>
+                      </Tooltip>
+                    )}
+                  </span>
                 </TableCell>
                 <TableCell>{order.customerName}</TableCell>
                 <TableCell className="text-muted-foreground">
@@ -321,7 +340,7 @@ export function OrderTable({
                       <DropdownMenuItem onClick={() => onView(order)}>View</DropdownMenuItem>
                       {isAdminTier && (
                         <DropdownMenuItem
-                          disabled={!order.shippingAddress}
+                          disabled={!order.shippingAddress || order.payment.status !== "paid"}
                           onClick={() => onArrange(order)}
                         >
                           Arrange

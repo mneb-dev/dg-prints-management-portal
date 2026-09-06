@@ -28,7 +28,6 @@ export type CatalogListItem = {
 /** Compact, drag-reorderable CRUD list — shared by Payment Methods and Order Channels
  * on the Settings page, since both are the exact same shape (name, enabled, order). */
 export function CatalogList({
-  title,
   items,
   isLoading,
   onAdd,
@@ -37,7 +36,6 @@ export function CatalogList({
   onDelete,
   onReorder,
 }: {
-  title: string
   items: CatalogListItem[]
   isLoading?: boolean
   onAdd: (name: string) => Promise<void>
@@ -85,8 +83,7 @@ export function CatalogList({
   }
 
   return (
-    <div className="w-56">
-      <h3 className="mb-1.5 px-0.5 text-sm font-medium">{title}</h3>
+    <div className="w-full">
       <div className="rounded-lg border">
         {isLoading ? (
           <div className="flex flex-col gap-2 p-2.5">
