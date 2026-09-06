@@ -10,8 +10,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { CurrencyInput } from "@/components/ui/currency-input"
 import { Field, FieldError, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
 import { Spinner } from "@/components/ui/spinner"
 import { Toggle } from "@/components/ui/toggle"
 import { ToggleGroup } from "@/components/ui/toggle-group"
@@ -147,11 +147,8 @@ export function RecordPaymentDialog({
           {targetStatus === "partially_paid" && (
             <Field data-invalid={!!errors.downPayment}>
               <FieldLabel htmlFor="record-payment-amount">Down Payment</FieldLabel>
-              <Input
+              <CurrencyInput
                 id="record-payment-amount"
-                type="number"
-                min={0}
-                step="0.01"
                 value={downPayment}
                 onChange={(event) => setDownPayment(event.target.value)}
                 aria-invalid={!!errors.downPayment}

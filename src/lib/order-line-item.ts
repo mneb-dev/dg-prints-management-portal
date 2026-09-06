@@ -23,6 +23,14 @@ import {
 import { calculateStickerPackageResult, type StickerUnit } from "@/lib/sticker-quotation"
 import { generateId } from "@/lib/utils"
 
+const STICKER_LABEL_CATEGORY_NAMES = new Set(["sticker", "sticker label"])
+
+/** Category names for the sticker-label product line have drifted across environments
+ *  ("Sticker" vs. the original seeded "Sticker Label") — match case-insensitively against both. */
+export function isStickerLabelCategory(category: string | null | undefined): boolean {
+  return !!category && STICKER_LABEL_CATEGORY_NAMES.has(category.trim().toLowerCase())
+}
+
 export type SizeUnit = "in" | "cm"
 
 export type LineItemDraft = {

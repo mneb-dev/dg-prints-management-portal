@@ -6,8 +6,8 @@ import { PageHeader } from "@/components/page-header"
 import { CatalogList } from "@/components/settings/catalog-list"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { CurrencyInput } from "@/components/ui/currency-input"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
 import { Spinner } from "@/components/ui/spinner"
 import { useOrderChannelActions, useOrderChannels } from "@/lib/order-channels"
 import { usePaymentMethodActions, usePaymentMethods } from "@/lib/payment-methods"
@@ -124,11 +124,8 @@ export function SettingsPage() {
             <Field className="w-56">
               <FieldLabel htmlFor="settings-shipping-fee">Shipping Fee</FieldLabel>
               <div className="flex items-center gap-2">
-                <Input
+                <CurrencyInput
                   id="settings-shipping-fee"
-                  type="number"
-                  min={0}
-                  step="0.01"
                   className="h-8"
                   value={shippingFeeDraft}
                   disabled={settingsLoading}

@@ -15,8 +15,10 @@ import {
   ComboboxPopup,
   ComboboxPrimitive,
 } from "@/components/ui/combobox"
+import { CurrencyInput } from "@/components/ui/currency-input"
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { QuantityInput } from "@/components/ui/quantity-input"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import type { LengthUnit } from "@/lib/length-units"
@@ -290,22 +292,16 @@ export function OrderLineItemCard({
               <div className="grid grid-cols-2 gap-4">
                 <Field>
                   <FieldLabel htmlFor={`${idPrefix}order-quantity`}>Quantity</FieldLabel>
-                  <Input
+                  <QuantityInput
                     id={`${idPrefix}order-quantity`}
-                    type="number"
-                    min={1}
-                    step="1"
                     value={draft.quantity}
-                    onChange={(event) => handleQuantityChange(event.target.value)}
+                    onChange={handleQuantityChange}
                   />
                 </Field>
                 <Field data-invalid={!!errors.pricing}>
                   <FieldLabel htmlFor={`${idPrefix}order-manual-price`}>Price</FieldLabel>
-                  <Input
+                  <CurrencyInput
                     id={`${idPrefix}order-manual-price`}
-                    type="number"
-                    min={0}
-                    step="0.01"
                     value={draft.manualUnitPrice}
                     onChange={(event) => {
                       onChange({ ...draft, manualUnitPrice: event.target.value })

@@ -1,6 +1,13 @@
 import { useEffect } from "react"
 
-import { Input } from "@/components/ui/input"
+import { CurrencyInput } from "@/components/ui/currency-input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import {
   Table,
   TableBody,
@@ -10,10 +17,13 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { isPackageOptionName } from "@/lib/pricing-resolver"
-import type { PricingEntry, ProductOption } from "@/lib/products"
-import { ALL_VARIANTS } from "@/lib/products"
+import type { PricingEntry, PricingType, PricingUnit, ProductOption } from "@/lib/products"
+import { ALL_VARIANTS, PRICING_TYPES, PRICING_UNITS } from "@/lib/products"
 import { generateId } from "@/lib/utils"
 import { cartesianOptionCombinations, combinationsMatch, type VariantCombination } from "@/lib/variant-matrix"
+
+/** Units selectable for a "Per Unit" row — "Package" is reserved for the Package pricing type. */
+const PER_UNIT_UNITS = PRICING_UNITS.filter((unit) => unit !== "Package")
 
 /** Package name shown on the order side: the value of whichever option is the package-tier option
  *  (matching the naming convention `isPackageOptionName` relies on in the order form), or every value
@@ -78,8 +88,14 @@ export function VariantPricingTable({
     )
   }
 
-  function updatePrice(id: string, price: number) {
-    onChange(pricing.map((entry) => (entry.id === id ? { ...entry, price } : entry)))
+  function updateEntry(id: string, changes: Partial<PricingEntry>) {
+    onChange(pricing.map((entry) => (entry.id === id ? { ...entry, ...changes } : entry)))
+  }
+
+  function updatePricingType(id: string, pricingType: PricingType) {
+    const unit: PricingUnit =
+      pricingType === "Package" ? "Package" : pricingType === "Fixed" ? "piece" : "sq.ft."
+    updateEntry(id, { pricingType, unit })
   }
 
   return (
@@ -90,6 +106,8 @@ export function VariantPricingTable({
             {columns.map((option) => (
               <TableHead key={option.id}>{option.name || "Variant"}</TableHead>
             ))}
+            <TableHead>Pricing Type</TableHead>
+            <TableHead>Unit</TableHead>
             <TableHead>Price</TableHead>
           </TableRow>
         </TableHeader>
@@ -103,19 +121,49 @@ export function VariantPricingTable({
                   <TableCell key={condition.optionId}>{condition.value}</TableCell>
                 ))}
                 <TableCell>
-                  <div className="relative w-32">
-                    <span className="pointer-events-none absolute inset-y-0 left-2.5 flex items-center text-sm text-muted-foreground">
-                      ₱
-                    </span>
-                    <Input
-                      className="pl-6"
-                      type="number"
-                      min={0}
-                      step="0.01"
-                      value={entry.price}
-                      onChange={(event) => updatePrice(entry.id, Number(event.target.value))}
-                    />
-                  </div>
+                  <Select
+                    value={entry.pricingType}
+                    onValueChange={(value) => updatePricingType(entry.id, value as PricingType)}
+                  >
+                    <SelectTrigger className="w-32">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PRICING_TYPES.map((type) => (
+                        <SelectItem key={type} value={type}>
+                          {type}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </TableCell>
+                <TableCell>
+                  {entry.pricingType === "Per Unit" ? (
+                    <Select
+                      value={entry.unit}
+                      onValueChange={(value) => updateEntry(entry.id, { unit: value as PricingUnit })}
+                    >
+                      <SelectTrigger className="w-24">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {PER_UNIT_UNITS.map((unit) => (
+                          <SelectItem key={unit} value={unit}>
+                            {unit}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <span className="text-sm text-muted-foreground">{entry.unit}</span>
+                  )}
+                </TableCell>
+                <TableCell>
+                  <CurrencyInput
+                    wrapperClassName="w-32"
+                    value={entry.price}
+                    onChange={(event) => updateEntry(entry.id, { price: Number(event.target.value) })}
+                  />
                 </TableCell>
               </TableRow>
             )

@@ -18,8 +18,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { CurrencyInput } from "@/components/ui/currency-input"
 import { Field, FieldError, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
 import { Toggle } from "@/components/ui/toggle"
 import { ToggleGroup } from "@/components/ui/toggle-group"
 import { useEnabledOrderChannels } from "@/lib/order-channels"
@@ -334,11 +334,8 @@ function PaymentAmountDialog({
           {targetStatus === "partially_paid" && (
             <Field data-invalid={!!errors.downPayment}>
               <FieldLabel htmlFor="order-payment-down-payment">Down Payment</FieldLabel>
-              <Input
+              <CurrencyInput
                 id="order-payment-down-payment"
-                type="number"
-                min={0}
-                step="0.01"
                 value={downPaymentInput}
                 onChange={(event) => setDownPaymentInput(event.target.value)}
                 aria-invalid={!!errors.downPayment}

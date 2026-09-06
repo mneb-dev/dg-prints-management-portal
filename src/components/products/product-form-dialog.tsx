@@ -12,6 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { CurrencyInput } from "@/components/ui/currency-input"
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import {
@@ -458,24 +459,15 @@ export function ProductFormDialog({
             {isSinglePrice && (
               <Field data-invalid={!!singlePriceError}>
                 <FieldLabel htmlFor="product-single-price">Price</FieldLabel>
-                <div className="relative">
-                  <span className="pointer-events-none absolute inset-y-0 left-2.5 flex items-center text-sm text-muted-foreground">
-                    ₱
-                  </span>
-                  <Input
-                    id="product-single-price"
-                    className="pl-6"
-                    type="number"
-                    min={0}
-                    step="0.01"
-                    value={singlePrice}
-                    onChange={(event) => {
-                      setSinglePrice(event.target.value)
-                      setSinglePriceError(null)
-                    }}
-                    aria-invalid={!!singlePriceError}
-                  />
-                </div>
+                <CurrencyInput
+                  id="product-single-price"
+                  value={singlePrice}
+                  onChange={(event) => {
+                    setSinglePrice(event.target.value)
+                    setSinglePriceError(null)
+                  }}
+                  aria-invalid={!!singlePriceError}
+                />
                 <FieldError>{singlePriceError ?? undefined}</FieldError>
               </Field>
             )}

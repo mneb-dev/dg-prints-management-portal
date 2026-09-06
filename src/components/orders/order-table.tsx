@@ -318,6 +318,7 @@ export function OrderTable({
                       onCancel={onCancel}
                       onRefund={onRefund}
                       onReturn={onReturn}
+                      role={role}
                     />
                   ) : (
                     <OrderStatusBadge status={order.status} />

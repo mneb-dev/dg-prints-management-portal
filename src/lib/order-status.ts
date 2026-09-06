@@ -42,8 +42,13 @@ export function canRefundOrder(status: OrderStatus, paymentStatus: PaymentStatus
   return !isTerminalStatus(status) && paymentStatus !== "unpaid"
 }
 
-export function canReleaseOrder(status: OrderStatus, paymentStatus: PaymentStatus): boolean {
-  return status !== "released" && !isTerminalStatus(status) && paymentStatus === "paid"
+export function canReleaseOrder(
+  status: OrderStatus,
+  paymentStatus: PaymentStatus,
+  role: Role | null | undefined
+): boolean {
+  if (status === "released" || isTerminalStatus(status)) return false
+  return paymentStatus === "paid" || canEditOrderMetadata(role)
 }
 
 export function isReleaseLockedForRole(status: OrderStatus, role: Role | null | undefined): boolean {
@@ -64,10 +69,14 @@ export type OrderStatusOption = {
  * category's status flow with the payment/role guards. Used by every surface that lets
  * someone change an order's status (details page, table). `cancelled`/`refunded` are always
  * appended (guarded) so they're visible as menu options even though no category flow lists them. */
-export function getOrderStatusOptions(order: Order, categories: Category[]): OrderStatusOption[] {
+export function getOrderStatusOptions(
+  order: Order,
+  categories: Category[],
+  role: Role | null | undefined
+): OrderStatusOption[] {
   const workflowStatuses = getOrderWorkflowStatuses(order, categories)
 
-  const canRelease = canReleaseOrder(order.status, order.payment.status)
+  const canRelease = canReleaseOrder(order.status, order.payment.status, role)
   const options: OrderStatusOption[] = workflowStatuses.map((value) =>
     value === "released" && !canRelease
       ? { value, disabled: true, reason: "Requires payment marked Paid" }

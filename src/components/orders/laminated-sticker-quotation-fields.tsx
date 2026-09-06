@@ -2,6 +2,7 @@ import { CheckIcon } from "lucide-react"
 
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { QuantityInput } from "@/components/ui/quantity-input"
 import {
   Select,
   SelectContent,
@@ -89,13 +90,10 @@ export function LaminatedStickerQuotationFields({
         {onQuantityChange && (
           <>
             <span className="text-sm text-muted-foreground">Qty</span>
-            <Input
-              type="number"
-              min={1}
-              step="1"
-              value={quantity}
-              onChange={(event) => onQuantityChange(event.target.value)}
-              className="w-16"
+            <QuantityInput
+              value={quantity ?? ""}
+              onChange={onQuantityChange}
+              className="w-12"
             />
           </>
         )}
