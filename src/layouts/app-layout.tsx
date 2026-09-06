@@ -17,11 +17,19 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 import { useAuth } from "@/lib/auth"
 import { getBreadcrumbSegments } from "@/lib/breadcrumbs"
 import { NavGuardProvider } from "@/lib/nav-guard"
+import { useOrderChannels } from "@/lib/order-channels"
+import { usePaymentMethods } from "@/lib/payment-methods"
+import { useSettings } from "@/lib/settings"
 
 export function AppLayout() {
   const location = useLocation()
   const segments = getBreadcrumbSegments(location.pathname)
   const { refreshCurrentUser } = useAuth()
+  // Warms these fetches here so the order form's payment/channel pickers and
+  // shipping fee prefill don't flicker empty while they load.
+  useSettings()
+  usePaymentMethods()
+  useOrderChannels()
 
   useEffect(() => {
     refreshCurrentUser()

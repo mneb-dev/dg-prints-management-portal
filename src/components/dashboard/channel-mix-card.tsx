@@ -4,18 +4,20 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Empty, EmptyDescription, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
-import { ORDER_CHANNELS, useOrderStats } from "@/lib/orders"
+import { useOrderStats } from "@/lib/orders"
 
 const CHANNEL_BAR_COLOR = "var(--color-chart-2)"
 const LEADER_BAR_COLOR = "var(--color-primary)"
+const LOADING_SKELETON_ROWS = 3
 
 export function ChannelMixCard() {
   const { stats, isLoading } = useOrderStats()
 
-  const counts = ORDER_CHANNELS.map((channel) => ({
-    channel,
-    count: stats?.byChannel[channel] ?? 0,
-  })).sort((a, b) => b.count - a.count)
+  // Channels come straight from the stats data rather than a fixed catalog, so a
+  // channel that's since been renamed/deleted in Settings still shows up here.
+  const counts = Object.entries(stats?.byChannel ?? {})
+    .map(([channel, count]) => ({ channel, count }))
+    .sort((a, b) => b.count - a.count)
 
   const total = stats?.totalOrders ?? 0
   const maxCount = Math.max(...counts.map((c) => c.count), 1)
@@ -28,8 +30,8 @@ export function ChannelMixCard() {
       <CardContent>
         {isLoading ? (
           <div className="flex flex-col gap-3">
-            {ORDER_CHANNELS.map((channel) => (
-              <Skeleton key={channel} className="h-6 w-full" />
+            {Array.from({ length: LOADING_SKELETON_ROWS }).map((_, index) => (
+              <Skeleton key={index} className="h-6 w-full" />
             ))}
           </div>
         ) : total === 0 ? (

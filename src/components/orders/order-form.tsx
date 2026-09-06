@@ -71,6 +71,7 @@ import type {
   PaymentMethod,
 } from "@/lib/orders"
 import { useProductCatalog } from "@/lib/products"
+import { useSettings } from "@/lib/settings"
 import type { SintraThickness } from "@/lib/sintra-board-pricing"
 import type { StickerUnit } from "@/lib/sticker-quotation"
 import { useUserOptions } from "@/lib/users"
@@ -235,6 +236,7 @@ export function OrderForm({
   const { customerNames, topCustomerNames, customerDetailsByName } = useCustomerRankings()
   const { addOrder, updateOrder } = useOrderActions()
   const { categories } = useCategories()
+  const { settings } = useSettings()
   const { role } = useAuth()
   const canEditMetadata = !!order && canEditOrderMetadata(role)
   const { users: userOptions } = useUserOptions(canEditMetadata)
@@ -890,6 +892,11 @@ export function OrderForm({
               enabled={shippingEnabled}
               onEnabledChange={(value) => {
                 setShippingEnabled(value)
+                // Prefill from the configured default the first time shipping is turned on
+                // for this order — an untouched "0" means the field hasn't been edited yet.
+                if (value && shippingFee === "0" && settings.shippingFee > 0) {
+                  setShippingFee(String(settings.shippingFee))
+                }
                 clearError("shippingName")
                 clearError("shippingPhone")
                 clearError("shippingAddress")

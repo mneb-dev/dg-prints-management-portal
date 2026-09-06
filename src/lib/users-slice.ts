@@ -18,6 +18,7 @@ export const PERMISSION_KEYS = [
   "manage_orders",
   "manage_users",
   "manage_expenses",
+  "manage_settings",
 ] as const
 export type PermissionKey = (typeof PERMISSION_KEYS)[number]
 
@@ -26,6 +27,7 @@ export const PERMISSION_LABELS: Record<PermissionKey, string> = {
   manage_orders: "Manage Orders",
   manage_users: "Manage Users",
   manage_expenses: "Manage Expenses",
+  manage_settings: "Manage App Settings",
 }
 
 export const USER_STATUSES = ["active", "inactive"] as const

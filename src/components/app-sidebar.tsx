@@ -4,6 +4,7 @@ import {
   LayoutDashboardIcon,
   PackageIcon,
   ReceiptTextIcon,
+  SettingsIcon,
   ShoppingCartIcon,
   UsersIcon,
 } from "lucide-react"
@@ -36,6 +37,7 @@ const navItems = [
   { title: "Expenses", url: "/expenses", icon: ReceiptTextIcon },
   { title: "Calculator", url: "/calculator", icon: CalculatorIcon },
   { title: "Users", url: "/users", icon: UsersIcon },
+  { title: "Settings", url: "/settings", icon: SettingsIcon },
 ]
 
 export function AppSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
@@ -45,7 +47,8 @@ export function AppSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
   const visibleNavItems = navItems.filter(
     (item) =>
       (item.title !== "Users" || role !== "staff") &&
-      (item.title !== "Expenses" || hasPermission("manage_expenses"))
+      (item.title !== "Expenses" || hasPermission("manage_expenses")) &&
+      (item.title !== "Settings" || role === "superadmin" || hasPermission("manage_settings"))
   )
 
   function guardedNavClick(url: string) {

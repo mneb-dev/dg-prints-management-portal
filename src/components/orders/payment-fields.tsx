@@ -22,8 +22,10 @@ import { Field, FieldError, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Toggle } from "@/components/ui/toggle"
 import { ToggleGroup } from "@/components/ui/toggle-group"
-import { ORDER_CHANNELS, PAYMENT_METHODS, PAYMENT_STATUSES } from "@/lib/orders"
+import { useEnabledOrderChannels } from "@/lib/order-channels"
+import { PAYMENT_STATUSES } from "@/lib/orders"
 import type { OrderChannel, PaymentMethod, PaymentStatus } from "@/lib/orders"
+import { useEnabledPaymentMethods } from "@/lib/payment-methods"
 import { cn, formatCurrency } from "@/lib/utils"
 import { validatePaymentAmount } from "@/lib/validation"
 
@@ -60,6 +62,16 @@ export function PaymentFields({
   total: number
   errors?: { channel?: string; paymentMethod?: string; downPayment?: string }
 }) {
+  const { orderChannels: enabledChannels } = useEnabledOrderChannels()
+  const { paymentMethods: enabledMethods } = useEnabledPaymentMethods()
+  // Merge in the current value even if it's since been disabled/deleted in Settings, so
+  // an existing order using a retired channel/method still renders instead of vanishing.
+  const channelOptions = channel && !enabledChannels.includes(channel)
+    ? [...enabledChannels, channel]
+    : enabledChannels
+  const paymentMethodOptions =
+    paymentMethod && !enabledMethods.includes(paymentMethod) ? [...enabledMethods, paymentMethod] : enabledMethods
+
   const isShopee = channel === "Shopee"
   const currentStatus: PaymentStatus = markPaid ? paymentStatus : "unpaid"
   const [targetStatus, setTargetStatus] = useState<"paid" | "partially_paid" | null>(null)
@@ -109,7 +121,7 @@ export function PaymentFields({
           }}
           className={cn(errors?.channel && "rounded-lg ring-1 ring-destructive")}
         >
-          {ORDER_CHANNELS.map((option) => (
+          {channelOptions.map((option) => (
             <Toggle key={option} value={option}>
               {option}
             </Toggle>
@@ -188,6 +200,7 @@ export function PaymentFields({
       <PaymentAmountDialog
         targetStatus={targetStatus}
         isShopee={isShopee}
+        paymentMethodOptions={paymentMethodOptions}
         paymentMethod={paymentMethod}
         downPayment={downPayment}
         currentPaymentStatus={paymentStatus}
@@ -218,6 +231,7 @@ export function PaymentFields({
 function PaymentAmountDialog({
   targetStatus,
   isShopee,
+  paymentMethodOptions,
   paymentMethod,
   downPayment,
   currentPaymentStatus,
@@ -229,6 +243,7 @@ function PaymentAmountDialog({
 }: {
   targetStatus: "paid" | "partially_paid" | null
   isShopee: boolean
+  paymentMethodOptions: readonly PaymentMethod[]
   paymentMethod: PaymentMethod | ""
   downPayment: string
   currentPaymentStatus: "paid" | "partially_paid" | "refunded"
@@ -295,12 +310,9 @@ function PaymentAmountDialog({
                 if (value) setMethod(value)
               }}
               disabled={isShopee}
-              className={cn(
-                "flex-nowrap gap-1",
-                errors.method && "rounded-lg ring-1 ring-destructive"
-              )}
+              className={cn("gap-1", errors.method && "rounded-lg ring-1 ring-destructive")}
             >
-              {PAYMENT_METHODS.map((option) => (
+              {paymentMethodOptions.map((option) => (
                 <Toggle
                   key={option}
                   value={option}

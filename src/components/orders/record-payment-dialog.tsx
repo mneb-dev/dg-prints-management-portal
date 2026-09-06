@@ -15,8 +15,8 @@ import { Input } from "@/components/ui/input"
 import { Spinner } from "@/components/ui/spinner"
 import { Toggle } from "@/components/ui/toggle"
 import { ToggleGroup } from "@/components/ui/toggle-group"
-import { PAYMENT_METHODS } from "@/lib/orders"
 import type { Order, Payment, PaymentMethod } from "@/lib/orders"
+import { useEnabledPaymentMethods } from "@/lib/payment-methods"
 import { cn, formatCurrency } from "@/lib/utils"
 import { validatePaymentAmount } from "@/lib/validation"
 
@@ -39,10 +39,19 @@ export function RecordPaymentDialog({
   onOpenChange: (open: boolean) => void
   onConfirm: (order: Order, payment: Payment) => void
 }) {
+  const { paymentMethods: enabledMethods } = useEnabledPaymentMethods()
   const isShopee = order?.channel === "Shopee"
   const [method, setMethod] = useState<PaymentMethod | "">("")
   const [downPayment, setDownPayment] = useState("")
   const [errors, setErrors] = useState<{ method?: string; downPayment?: string }>({})
+
+  // Merge in the order's existing method even if it's since been disabled/deleted in
+  // Settings, so it still renders instead of vanishing from the toggle group.
+  const existingMethod = order?.payment.method
+  const paymentMethodOptions =
+    existingMethod && !enabledMethods.includes(existingMethod)
+      ? [...enabledMethods, existingMethod]
+      : enabledMethods
 
   useEffect(() => {
     if (!order) return
@@ -114,9 +123,9 @@ export function RecordPaymentDialog({
                 if (value) setMethod(value)
               }}
               disabled={isShopee}
-              className={cn("flex-nowrap gap-1", errors.method && "rounded-lg ring-1 ring-destructive")}
+              className={cn("gap-1", errors.method && "rounded-lg ring-1 ring-destructive")}
             >
-              {PAYMENT_METHODS.map((option) => (
+              {paymentMethodOptions.map((option) => (
                 <Toggle
                   key={option}
                   value={option}
