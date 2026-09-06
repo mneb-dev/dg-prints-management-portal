@@ -38,8 +38,8 @@ import {
 import { generateId } from "@/lib/utils"
 import {
   maxLengthMessage,
-  parsePositiveAmount,
-  positiveAmountMessage,
+  nonNegativeAmountMessage,
+  parseNonNegativeAmount,
   PRICING_INCOMPLETE_VARIANTS_MESSAGE,
   PRICING_NO_VARIANTS_MESSAGE,
   requiredMessage,
@@ -275,9 +275,9 @@ export function ProductFormDialog({
 
     let payload = draft
     if (isSinglePrice) {
-      const numericPrice = parsePositiveAmount(singlePrice)
+      const numericPrice = parseNonNegativeAmount(singlePrice)
       if (numericPrice === null) {
-        setSinglePriceError(positiveAmountMessage("price"))
+        setSinglePriceError(nonNegativeAmountMessage("price"))
         return
       }
       const existingEntry =
@@ -305,7 +305,7 @@ export function ProductFormDialog({
         const entry = draft.pricing.find(
           (candidate) => candidate.appliesTo !== ALL_VARIANTS && combinationsMatch(candidate.appliesTo, combination)
         )
-        return !entry || entry.price <= 0
+        return !entry || entry.price < 0
       })
       if (hasUnpriced) {
         setPricingError(PRICING_INCOMPLETE_VARIANTS_MESSAGE)
