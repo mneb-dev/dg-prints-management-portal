@@ -23,7 +23,8 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { useAuth } from "@/lib/auth"
-import { EXPENSE_CATEGORIES, EXPENSE_PAYMENT_METHODS, useExpenseActions, useExpenses, type Expense } from "@/lib/expenses"
+import { EXPENSE_CATEGORIES, useExpenseActions, useExpenses, type Expense } from "@/lib/expenses"
+import { usePaymentMethods } from "@/lib/payment-methods"
 import { useDebouncedValue } from "@/lib/use-debounced-value"
 
 const ANY_CATEGORY = "All Categories"
@@ -42,6 +43,7 @@ export function ExpensesPage() {
   const navigate = useNavigate()
   const { expenses, total, params, setParams, refetch, isLoading, isFetching, isError, error } = useExpenses()
   const { deleteExpense } = useExpenseActions()
+  const { paymentMethods } = usePaymentMethods()
   const [searchInput, setSearchInput] = useState(params.search)
   const debouncedSearch = useDebouncedValue(searchInput, 400)
 
@@ -195,9 +197,9 @@ export function ExpensesPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={ANY_METHOD}>{ANY_METHOD}</SelectItem>
-            {EXPENSE_PAYMENT_METHODS.map((method) => (
-              <SelectItem key={method} value={method}>
-                {method}
+            {paymentMethods.map((method) => (
+              <SelectItem key={method.id} value={method.name}>
+                {method.name}
               </SelectItem>
             ))}
           </SelectContent>

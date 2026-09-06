@@ -442,6 +442,9 @@ export function OrderDetailsPage() {
                 <>
                   <span className="text-muted-foreground">Layout Fee</span>
                   <span className="justify-self-end">{formatCurrency(order.layoutFee)}</span>
+
+                  <span className="text-muted-foreground">Layout By</span>
+                  <span className="justify-self-end">{order.layoutByName || "—"}</span>
                 </>
               )}
 

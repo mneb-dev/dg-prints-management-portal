@@ -17,8 +17,7 @@ import { useAuth } from "@/lib/auth"
 import { useDashboardRefresh, useOrderActions, useOrderStats } from "@/lib/orders"
 
 export function DashboardPage() {
-  const { role, hasPermission } = useAuth()
-  const isAdmin = role === "admin" || role === "superadmin"
+  const { hasPermission } = useAuth()
   const { stats } = useOrderStats()
   const { setOrdersFilter } = useOrderActions()
   const { refresh, isRefreshing } = useDashboardRefresh()
@@ -108,9 +107,9 @@ export function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        {isAdmin ? <SalesChartCard /> : null}
         <StatusPipelineCard />
         <PaymentSummaryCard />
+        <SalesChartCard />
         <RecentOrdersCard />
         <TopCustomersCard />
         <HotProductsCard className="lg:col-span-2" />

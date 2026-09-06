@@ -30,18 +30,12 @@ import {
 } from "@/components/ui/table"
 import { getAvatarDataUri } from "@/lib/avatars"
 import { cn } from "@/lib/utils"
-import { PERMISSION_LABELS, type Role, type User, type UserStatus } from "@/lib/users"
+import { canManageUser, PERMISSION_LABELS, ROLE_LABELS, type Role, type User, type UserStatus } from "@/lib/users"
 
 const ROLE_BADGE_VARIANT: Record<Role, "default" | "secondary" | "outline"> = {
   superadmin: "default",
   admin: "secondary",
   staff: "outline",
-}
-
-const ROLE_LABELS: Record<Role, string> = {
-  staff: "Staff",
-  admin: "Admin",
-  superadmin: "Super Admin",
 }
 
 const STATUS_BADGE_VARIANT: Record<UserStatus, "success" | "secondary"> = {
@@ -56,14 +50,6 @@ const STATUS_LABELS: Record<UserStatus, string> = {
 
 function initials(user: User): string {
   return `${user.firstName[0] ?? ""}${user.lastName[0] ?? ""}`.toUpperCase() || "?"
-}
-
-function canDelete(actorRole: Role, target: User): boolean {
-  return !(actorRole === "admin" && target.role === "superadmin")
-}
-
-function canEdit(actorRole: Role, target: User): boolean {
-  return !(actorRole === "admin" && target.role === "superadmin")
 }
 
 export function UserTable({
@@ -215,8 +201,8 @@ export function UserTable({
           <TableBody>
             {users.map((user) => {
               const isSelf = user.id === currentUserId
-              const deletable = !isSelf && (currentUserRole ? canDelete(currentUserRole, user) : false)
-              const editable = currentUserRole ? canEdit(currentUserRole, user) : false
+              const deletable = !isSelf && (currentUserRole ? canManageUser(currentUserRole, user) : false)
+              const editable = currentUserRole ? canManageUser(currentUserRole, user) : false
 
               return (
                 <TableRow key={user.id}>

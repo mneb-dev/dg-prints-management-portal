@@ -1,4 +1,4 @@
-import { ChevronsUpDownIcon, LogOutIcon, UserIcon } from "lucide-react"
+import { ChevronsUpDownIcon, LogOutIcon, SettingsIcon, UserIcon } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -35,8 +35,9 @@ const ROLE_VARIANTS: Record<string, "default" | "info" | "secondary"> = {
 
 export function NavUser() {
   const { isMobile } = useSidebar()
-  const { user, logout } = useAuth()
+  const { user, logout, role, hasPermission } = useAuth()
   const navigate = useNavigate()
+  const canManageSettings = role === "superadmin" || hasPermission("manage_settings")
 
   function handleLogout() {
     logout()
@@ -96,6 +97,12 @@ export function NavUser() {
               <UserIcon />
               Profile
             </DropdownMenuItem>
+            {canManageSettings && (
+              <DropdownMenuItem onClick={() => navigate("/settings")}>
+                <SettingsIcon />
+                Settings
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem onClick={handleLogout}>
               <LogOutIcon />
               Log out

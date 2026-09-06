@@ -1,11 +1,13 @@
 import type { Store } from "@reduxjs/toolkit"
 
 import { AUTH_STORAGE_KEY, type AuthState } from "@/lib/auth-slice"
+import { SALES_VISIBILITY_STORAGE_KEY, type SalesVisibilityState } from "@/lib/sales-visibility-slice"
 import { THEME_STORAGE_KEY, type ThemeState } from "@/lib/theme-slice"
 
 type PersistedState = {
   auth: AuthState
   theme: ThemeState
+  salesVisibility: SalesVisibilityState
 }
 
 function writeAuth(auth: AuthState) {
@@ -20,6 +22,10 @@ function writeTheme(theme: ThemeState) {
   localStorage.setItem(THEME_STORAGE_KEY, theme.theme)
 }
 
+function writeSalesVisibility(salesVisibility: SalesVisibilityState) {
+  localStorage.setItem(SALES_VISIBILITY_STORAGE_KEY, salesVisibility.isVisible ? "visible" : "hidden")
+}
+
 export function subscribeToLocalStorage(store: Store<PersistedState>) {
   let prev = store.getState()
 
@@ -27,6 +33,7 @@ export function subscribeToLocalStorage(store: Store<PersistedState>) {
     const state = store.getState()
     if (state.auth !== prev.auth) writeAuth(state.auth)
     if (state.theme !== prev.theme) writeTheme(state.theme)
+    if (state.salesVisibility !== prev.salesVisibility) writeSalesVisibility(state.salesVisibility)
     prev = state
   })
 }

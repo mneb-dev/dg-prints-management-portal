@@ -110,14 +110,14 @@ export type ShippingAddress = {
   fee: number
 }
 
-export const ORDER_CHANNELS = ["Facebook", "Walk-in", "Shopee"] as const
-export type OrderChannel = (typeof ORDER_CHANNELS)[number]
+// Order channels and payment methods are now managed, orderable lists (see
+// payment-methods.tsx / order-channels.tsx) rather than a fixed set of literals.
+export type OrderChannel = string
 
 export const PAYMENT_STATUSES = ["unpaid", "partially_paid", "paid", "refunded"] as const
 export type PaymentStatus = (typeof PAYMENT_STATUSES)[number]
 
-export const PAYMENT_METHODS = ["GCash", "Cash", "Maya", "Bank Transfer"] as const
-export type PaymentMethod = (typeof PAYMENT_METHODS)[number]
+export type PaymentMethod = string
 
 export type Payment = {
   status: PaymentStatus
@@ -137,6 +137,8 @@ export type Order = {
   discount: number
   additionalFees: number
   layoutFee: number
+  layoutBy: string | null
+  layoutByName: string
   total: number
   notes: string
   shippingAddress: ShippingAddress | null
@@ -157,6 +159,7 @@ export type OrderInput = Omit<
   | "orderNumber"
   | "createdAt"
   | "updatedAt"
+  | "layoutByName"
   | "createdBy"
   | "createdByName"
   | "statusUpdatedBy"
@@ -181,6 +184,8 @@ function normalizeOrder(order: Order): Order {
     channel: order.channel ?? "Walk-in",
     additionalFees: order.additionalFees ?? 0,
     layoutFee: order.layoutFee ?? 0,
+    layoutBy: order.layoutBy ?? null,
+    layoutByName: order.layoutByName ?? "",
     createdBy: order.createdBy ?? null,
     createdByName: order.createdByName ?? "",
     statusUpdatedBy: order.statusUpdatedBy ?? null,

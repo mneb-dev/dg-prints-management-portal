@@ -20,7 +20,6 @@ import type {
 
 export {
   EXPENSE_CATEGORIES,
-  EXPENSE_PAYMENT_METHODS,
   RECURRENCE_FREQUENCIES,
   RECURRENCE_FREQUENCY_LABELS,
 } from "@/lib/expenses-slice"
@@ -28,7 +27,6 @@ export type {
   Expense,
   ExpenseCategory,
   ExpenseInput,
-  ExpensePaymentMethod,
   ExpensesQueryParams,
   RecurrenceFrequency,
   RecurringExpense,

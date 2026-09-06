@@ -4,15 +4,19 @@ import { useAppDispatch, useAppSelector } from "@/lib/hooks"
 import {
   createUserThunk,
   deleteUserThunk,
+  fetchUserOptionsThunk,
   fetchUsersThunk,
+  resetUserPasswordThunk,
   setUsersParams,
   updateUserThunk,
 } from "@/lib/users-slice"
-import type { User, UserInput, UsersQueryParams } from "@/lib/users-slice"
+import type { Role, UserInput, UserOption, UsersQueryParams } from "@/lib/users-slice"
 
 export {
+  canManageUser,
   PERMISSION_KEYS,
   PERMISSION_LABELS,
+  ROLE_LABELS,
   ROLES,
   USER_STATUSES,
 } from "@/lib/users-slice"
@@ -21,6 +25,7 @@ export type {
   Role,
   User,
   UserInput,
+  UserOption,
   UsersQueryParams,
   UserStatus,
 } from "@/lib/users-slice"
@@ -70,33 +75,28 @@ export function useUsers() {
 }
 
 /**
- * Full-ish user list for pickers (e.g. the order admin "Created by"/"Status updated by" fields) —
- * independent of the Users list page's paginated `params` state, so it won't clobber that page's
- * pagination when both are used in the same session.
+ * User list for pickers (e.g. the order "Layout by"/"Created by"/"Status updated by" fields, or
+ * the dashboard sales-by-creator filter) — hits the non-admin-gated /users/options endpoint
+ * (unlike useUsers above), so it works for any authenticated role, and is independent of the
+ * Users list page's paginated `params` state, so it won't clobber that page's pagination when
+ * both are used in the same session. Defaults to active users only; pass `includeInactive: true`
+ * to list everyone regardless of status (e.g. so a sales filter can still isolate a former
+ * staff member's past orders). Pass `role: "staff"` to restrict the picker to staff-role users
+ * only (e.g. so a staff viewer's sales filter never sees admin/superadmin as pickable names).
  */
-export function useUserOptions(enabled = true) {
+export function useUserOptions(enabled = true, includeInactive = false, role?: Role) {
   const dispatch = useAppDispatch()
-  const [users, setUsers] = useState<User[]>([])
+  const [users, setUsers] = useState<UserOption[]>([])
   const [isLoading, setIsLoading] = useState(enabled)
 
   useEffect(() => {
     if (!enabled) return
     let cancelled = false
     setIsLoading(true)
-    dispatch(
-      fetchUsersThunk({
-        page: 1,
-        pageSize: 50,
-        search: "",
-        role: "",
-        status: "",
-        sortBy: "username",
-        sortDir: "asc",
-      })
-    )
+    dispatch(fetchUserOptionsThunk({ includeInactive, role }))
       .unwrap()
       .then((result) => {
-        if (!cancelled) setUsers(result.items)
+        if (!cancelled) setUsers(result)
       })
       .catch(() => {})
       .finally(() => {
@@ -105,7 +105,7 @@ export function useUserOptions(enabled = true) {
     return () => {
       cancelled = true
     }
-  }, [dispatch, enabled])
+  }, [dispatch, enabled, includeInactive, role])
 
   return { users, isLoading }
 }
@@ -126,5 +126,10 @@ export function useUserActions() {
     await dispatch(deleteUserThunk(id)).unwrap()
   }
 
-  return { addUser, updateUser, deleteUser }
+  async function resetUserPassword(id: string) {
+    const { password } = await dispatch(resetUserPasswordThunk(id)).unwrap()
+    return password
+  }
+
+  return { addUser, updateUser, deleteUser, resetUserPassword }
 }

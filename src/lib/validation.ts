@@ -99,3 +99,5 @@ export const PRODUCT_INACTIVE_MESSAGE =
   "This product is inactive and can't be used for new or updated orders."
 export const NOTES_REQUIRED_WHEN_FEES_MESSAGE =
   "Notes are required when additional fees are greater than ₱0."
+export const LAYOUT_BY_REQUIRED_MESSAGE =
+  "Layout by is required when the layout fee is greater than ₱0."

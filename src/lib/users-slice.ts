@@ -7,11 +7,18 @@ import type { RootState } from "@/lib/store"
 export const ROLES = ["staff", "admin", "superadmin"] as const
 export type Role = (typeof ROLES)[number]
 
+export const ROLE_LABELS: Record<Role, string> = {
+  staff: "Staff",
+  admin: "Admin",
+  superadmin: "Super Admin",
+}
+
 export const PERMISSION_KEYS = [
   "manage_products",
   "manage_orders",
   "manage_users",
-  "view_reports",
+  "manage_expenses",
+  "manage_settings",
 ] as const
 export type PermissionKey = (typeof PERMISSION_KEYS)[number]
 
@@ -19,7 +26,8 @@ export const PERMISSION_LABELS: Record<PermissionKey, string> = {
   manage_products: "Manage Products",
   manage_orders: "Manage Orders",
   manage_users: "Manage Users",
-  view_reports: "View Reports",
+  manage_expenses: "Manage Expenses",
+  manage_settings: "Manage App Settings",
 }
 
 export const USER_STATUSES = ["active", "inactive"] as const
@@ -45,12 +53,11 @@ export type UserInput = {
   role: Role
   permissions: PermissionKey[]
   status: UserStatus
-  password?: string
 }
 
-function toUserPayload(input: UserInput) {
-  const { password, ...rest } = input
-  return password ? { ...rest, password } : rest
+/** An admin cannot edit, delete, or reset the password of a superadmin account. */
+export function canManageUser(actorRole: Role, target: User): boolean {
+  return !(actorRole === "admin" && target.role === "superadmin")
 }
 
 export type UsersQueryParams = {
@@ -68,6 +75,15 @@ export type UsersListResponse = {
   total: number
   page: number
   pageSize: number | null
+}
+
+// Lean, non-admin-gated projection for pickers (e.g. the order "Layout by" field) —
+// no role/permissions/username, so any authenticated role can fetch it.
+export type UserOption = {
+  id: string
+  firstName: string
+  lastName: string
+  status: UserStatus
 }
 
 export const fetchUsersThunk = createAsyncThunk<
@@ -93,11 +109,34 @@ export const fetchUsersThunk = createAsyncThunk<
   }
 })
 
+/** Not gated behind manage_users — any authenticated role can fetch user options for pickers
+ *  (e.g. the order "Layout by" field, or the dashboard sales-by-creator filter). Defaults to
+ *  active users only; pass `{ includeInactive: true }` to list everyone. Pass `{ role: "staff" }`
+ *  to further restrict the roster to one role (e.g. a staff viewer's sales filter should never see
+ *  admin/superadmin as pickable names). See users.tsx#useUserOptions. */
+export const fetchUserOptionsThunk = createAsyncThunk<
+  UserOption[],
+  { includeInactive?: boolean; role?: Role } | undefined,
+  { rejectValue: string }
+>("users/fetchOptions", async (arg, { rejectWithValue }) => {
+  try {
+    const { data } = await apiClient.get<UserOption[]>("/users/options", {
+      params: {
+        ...(arg?.includeInactive ? { includeInactive: true } : undefined),
+        ...(arg?.role ? { role: arg.role } : undefined),
+      },
+    })
+    return data
+  } catch (err) {
+    return rejectWithValue(getErrorMessage(err))
+  }
+})
+
 export const createUserThunk = createAsyncThunk<User, UserInput, { rejectValue: string }>(
   "users/create",
   async (input, { rejectWithValue }) => {
     try {
-      const { data } = await apiClient.post<User>("/users", toUserPayload(input))
+      const { data } = await apiClient.post<User>("/users", input)
       return data
     } catch (err) {
       return rejectWithValue(getErrorMessage(err))
@@ -111,7 +150,20 @@ export const updateUserThunk = createAsyncThunk<
   { rejectValue: string }
 >("users/update", async ({ id, input }, { rejectWithValue }) => {
   try {
-    const { data } = await apiClient.put<User>(`/users/${id}`, toUserPayload(input))
+    const { data } = await apiClient.put<User>(`/users/${id}`, input)
+    return data
+  } catch (err) {
+    return rejectWithValue(getErrorMessage(err))
+  }
+})
+
+export const resetUserPasswordThunk = createAsyncThunk<
+  { password: string },
+  string,
+  { rejectValue: string }
+>("users/resetPassword", async (id, { rejectWithValue }) => {
+  try {
+    const { data } = await apiClient.post<{ password: string }>(`/users/${id}/reset-password`)
     return data
   } catch (err) {
     return rejectWithValue(getErrorMessage(err))

@@ -29,9 +29,7 @@ import type {
 export {
   DEFAULT_ORDERS_PARAMS,
   HOT_PRODUCT_TOP_N,
-  ORDER_CHANNELS,
   ORDER_STATUSES,
-  PAYMENT_METHODS,
   PAYMENT_STATUSES,
 } from "@/lib/orders-slice"
 export {

@@ -19,16 +19,10 @@ import { UserFormDialog } from "@/components/users/user-form-dialog"
 import { UserTable } from "@/components/users/user-table"
 import { useAuth } from "@/lib/auth"
 import { useDebouncedValue } from "@/lib/use-debounced-value"
-import { ROLES, USER_STATUSES, useUserActions, useUsers, type User } from "@/lib/users"
+import { ROLE_LABELS, ROLES, USER_STATUSES, useUserActions, useUsers, type Role, type User } from "@/lib/users"
 
 const ANY_ROLE = "All Roles"
 const ANY_STATUS = "All Statuses"
-
-const ROLE_LABELS: Record<string, string> = {
-  staff: "Staff",
-  admin: "Admin",
-  superadmin: "Super Admin",
-}
 
 const STATUS_LABELS: Record<string, string> = {
   active: "Active",
@@ -84,7 +78,7 @@ export function UsersPage() {
     },
     params.role && {
       key: "role",
-      label: ROLE_LABELS[params.role] ?? params.role,
+      label: ROLE_LABELS[params.role as keyof typeof ROLE_LABELS] ?? params.role,
       onRemove: () => setParams({ role: "", page: 1 }),
     },
     params.status && {
@@ -144,7 +138,7 @@ export function UsersPage() {
           disabled={isLoading || isError}
         >
           <SelectTrigger>
-            <SelectValue />
+            <SelectValue>{(value: string) => (value === ANY_ROLE ? ANY_ROLE : ROLE_LABELS[value as Role])}</SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={ANY_ROLE}>{ANY_ROLE}</SelectItem>
@@ -162,7 +156,9 @@ export function UsersPage() {
           disabled={isLoading || isError}
         >
           <SelectTrigger>
-            <SelectValue />
+            <SelectValue>
+              {(value: string) => (value === ANY_STATUS ? ANY_STATUS : STATUS_LABELS[value])}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={ANY_STATUS}>{ANY_STATUS}</SelectItem>
@@ -222,6 +218,7 @@ export function UsersPage() {
         onOpenChange={setFormOpen}
         user={editingUser}
         currentUserId={currentUser?.id}
+        currentUserRole={currentUserRole}
         onSaved={refetch}
       />
 

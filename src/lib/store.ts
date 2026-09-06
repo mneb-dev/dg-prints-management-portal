@@ -3,9 +3,13 @@ import { configureStore } from "@reduxjs/toolkit"
 import authReducer from "@/lib/auth-slice"
 import categoriesReducer from "@/lib/categories-slice"
 import expensesReducer from "@/lib/expenses-slice"
+import orderChannelsReducer from "@/lib/order-channels-slice"
 import ordersReducer from "@/lib/orders-slice"
+import paymentMethodsReducer from "@/lib/payment-methods-slice"
 import { subscribeToLocalStorage } from "@/lib/persist-subscribe"
 import productsReducer from "@/lib/products-slice"
+import salesVisibilityReducer from "@/lib/sales-visibility-slice"
+import settingsReducer from "@/lib/settings-slice"
 import themeReducer from "@/lib/theme-slice"
 import usersReducer from "@/lib/users-slice"
 
@@ -18,6 +22,10 @@ export const store = configureStore({
     orders: ordersReducer,
     users: usersReducer,
     expenses: expensesReducer,
+    settings: settingsReducer,
+    paymentMethods: paymentMethodsReducer,
+    orderChannels: orderChannelsReducer,
+    salesVisibility: salesVisibilityReducer,
   },
 })
 

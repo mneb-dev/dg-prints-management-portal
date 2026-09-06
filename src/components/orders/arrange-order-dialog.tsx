@@ -14,6 +14,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { copyToClipboard } from "@/lib/clipboard"
 import type { Order } from "@/lib/orders"
+import { formatCurrency } from "@/lib/utils"
 
 export function ArrangeOrderDialog({
   order,
@@ -89,6 +90,10 @@ export function ArrangeOrderDialog({
                     <CopyIcon />
                   </Button>
                 </div>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-muted-foreground">Amount</span>
+                <span className="font-medium text-foreground">{formatCurrency(order!.total)}</span>
               </div>
             </div>
 

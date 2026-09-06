@@ -14,6 +14,7 @@ import { OrdersPage } from "@/pages/orders-page"
 import { ProductsPage } from "@/pages/products-page"
 import { ProfilePage } from "@/pages/profile-page"
 import { RecurringExpensesPage } from "@/pages/recurring-expenses-page"
+import { SettingsPage } from "@/pages/settings-page"
 import { UsersPage } from "@/pages/users-page"
 
 function App() {
@@ -56,7 +57,14 @@ function App() {
           }
         />
         <Route path="/products" element={<ProductsPage />} />
-        <Route path="/expenses" element={<ExpensesPage />} />
+        <Route
+          path="/expenses"
+          element={
+            <ProtectedRoute permission="manage_expenses">
+              <ExpensesPage />
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/expenses/recurring"
           element={
@@ -66,6 +74,14 @@ function App() {
           }
         />
         <Route path="/profile" element={<ProfilePage />} />
+        <Route
+          path="/settings"
+          element={
+            <ProtectedRoute permission="manage_settings" bypassPermissionRoles={["superadmin"]}>
+              <SettingsPage />
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/users"
           element={

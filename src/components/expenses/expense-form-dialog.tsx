@@ -26,14 +26,8 @@ import { Spinner } from "@/components/ui/spinner"
 import { Textarea } from "@/components/ui/textarea"
 import { Toggle } from "@/components/ui/toggle"
 import { ToggleGroup } from "@/components/ui/toggle-group"
-import {
-  EXPENSE_CATEGORIES,
-  EXPENSE_PAYMENT_METHODS,
-  useExpenseActions,
-  type Expense,
-  type ExpenseInput,
-  type ExpensePaymentMethod,
-} from "@/lib/expenses"
+import { EXPENSE_CATEGORIES, useExpenseActions, type Expense, type ExpenseInput } from "@/lib/expenses"
+import { useEnabledPaymentMethods } from "@/lib/payment-methods"
 import { cn } from "@/lib/utils"
 import { maxLengthMessage, parsePositiveAmount, positiveAmountMessage, requiredMessage } from "@/lib/validation"
 
@@ -71,6 +65,7 @@ export function ExpenseFormDialog({
   onSaved?: () => void
 }) {
   const { addExpense, updateExpense } = useExpenseActions()
+  const { paymentMethods: enabledMethods } = useEnabledPaymentMethods()
   const [draft, setDraft] = useState<ExpenseInput>(emptyDraft)
   const [amountInput, setAmountInput] = useState("")
   const [dateError, setDateError] = useState<string | null>(null)
@@ -232,7 +227,7 @@ export function ExpenseFormDialog({
                 id="expense-payment-method"
                 value={draft.paymentMethod ? [draft.paymentMethod] : []}
                 onValueChange={(next) => {
-                  const value = next[0] as ExpensePaymentMethod | undefined
+                  const value = next[0]
                   if (value) {
                     setDraft((prev) => ({ ...prev, paymentMethod: value }))
                     setPaymentMethodError(null)
@@ -240,7 +235,12 @@ export function ExpenseFormDialog({
                 }}
                 className={cn(paymentMethodError && "rounded-lg ring-1 ring-destructive")}
               >
-                {EXPENSE_PAYMENT_METHODS.map((method) => (
+                {/* Merge in the current value even if it's since been disabled/deleted in
+                  Settings, so an existing expense using a retired method still renders. */}
+                {(draft.paymentMethod && !enabledMethods.includes(draft.paymentMethod)
+                  ? [...enabledMethods, draft.paymentMethod]
+                  : enabledMethods
+                ).map((method) => (
                   <Toggle key={method} value={method}>
                     {method}
                   </Toggle>
