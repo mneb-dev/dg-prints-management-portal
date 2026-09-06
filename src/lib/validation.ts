@@ -28,6 +28,19 @@ export function parsePositiveAmount(value: string): number | null {
   return Number.isFinite(numeric) && numeric > 0 ? numeric : null
 }
 
+/** "Enter a {fieldLabel} of ₱0 or more." — for prices that may legitimately be free. */
+export function nonNegativeAmountMessage(fieldLabel: string = "price"): string {
+  return `Enter a ${fieldLabel} of ₱0 or more.`
+}
+
+/** Parses a price/amount input string; returns the number if finite and >= 0, else null. */
+export function parseNonNegativeAmount(value: string): number | null {
+  const trimmed = value.trim()
+  if (!trimmed) return null
+  const numeric = Number(trimmed)
+  return Number.isFinite(numeric) && numeric >= 0 ? numeric : null
+}
+
 /** "Enter a down payment greater than ₱0 and less than the order total of ₱X,XXX." */
 export function downPaymentRangeMessage(total: number): string {
   return `Enter a down payment greater than ₱0 and less than the order total of ${formatCurrency(total)}.`
@@ -94,7 +107,7 @@ export const REQUIRED_OPTIONS_MESSAGE = "Select all required options."
 export const PRICING_INCOMPLETE_MESSAGE = "Complete the pricing fields for this product."
 export const PRICING_NO_VARIANTS_MESSAGE = "Add at least one variation with values."
 export const PRICING_INCOMPLETE_VARIANTS_MESSAGE =
-  "Enter a price greater than ₱0 for every variant combination."
+  "Enter a price of ₱0 or more for every variant combination."
 export const PRODUCT_INACTIVE_MESSAGE =
   "This product is inactive and can't be used for new or updated orders."
 export const NOTES_REQUIRED_WHEN_FEES_MESSAGE =
