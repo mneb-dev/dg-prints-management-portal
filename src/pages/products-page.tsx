@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react"
-import { PlusIcon } from "lucide-react"
+import { PlusIcon, TagIcon } from "lucide-react"
 import { toast } from "sonner"
 
+import { ManageCategoriesDialog } from "@/components/categories/manage-categories-dialog"
 import { DeleteProductDialog } from "@/components/products/delete-product-dialog"
 import { ProductFormDialog } from "@/components/products/product-form-dialog"
 import { ProductTable } from "@/components/products/product-table"
@@ -18,10 +19,10 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { useAuth } from "@/lib/auth"
+import { useCategories } from "@/lib/categories"
 import { useDebouncedValue } from "@/lib/use-debounced-value"
 import {
   PRICING_TYPES,
-  PRODUCT_CATEGORIES,
   PRODUCT_STATUSES,
   useProductActions,
   useProducts,
@@ -44,10 +45,12 @@ export function ProductsPage() {
   const canManage = hasPermission("manage_products")
   const { products, total, params, setParams, refetch, isLoading, isFetching, isError, error } = useProducts()
   const { deleteProduct } = useProductActions()
+  const { categories } = useCategories()
   const [searchInput, setSearchInput] = useState(params.search)
   const debouncedSearch = useDebouncedValue(searchInput, 400)
 
   const [formOpen, setFormOpen] = useState(false)
+  const [manageCategoriesOpen, setManageCategoriesOpen] = useState(false)
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
   const [deletingProduct, setDeletingProduct] = useState<Product | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -136,10 +139,16 @@ export function ProductsPage() {
         title="Products"
         actions={
           canManage ? (
-            <Button onClick={handleAdd}>
-              <PlusIcon data-icon="inline-start" />
-              Add Product
-            </Button>
+            <>
+              <Button variant="outline" onClick={() => setManageCategoriesOpen(true)}>
+                <TagIcon data-icon="inline-start" />
+                Manage Categories
+              </Button>
+              <Button onClick={handleAdd}>
+                <PlusIcon data-icon="inline-start" />
+                Add Product
+              </Button>
+            </>
           ) : undefined
         }
       />
@@ -164,9 +173,9 @@ export function ProductsPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={ANY_CATEGORY}>{ANY_CATEGORY}</SelectItem>
-            {PRODUCT_CATEGORIES.map((category) => (
-              <SelectItem key={category} value={category}>
-                {category}
+            {categories.map((category) => (
+              <SelectItem key={category.id} value={category.name}>
+                {category.name}
               </SelectItem>
             ))}
           </SelectContent>
@@ -261,6 +270,8 @@ export function ProductsPage() {
         product={editingProduct}
         onSaved={refetch}
       />
+
+      <ManageCategoriesDialog open={manageCategoriesOpen} onOpenChange={setManageCategoriesOpen} />
 
       <DeleteProductDialog
         product={deletingProduct}

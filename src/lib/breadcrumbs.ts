@@ -9,7 +9,7 @@ const ROUTES: { pattern: RegExp; segments: BreadcrumbSegment[] }[] = [
   { pattern: /^\/orders$/, segments: [{ label: "Orders" }] },
   {
     pattern: /^\/orders\/new$/,
-    segments: [{ label: "Orders", href: "/orders" }, { label: "Create Order" }],
+    segments: [{ label: "Orders", href: "/orders" }, { label: "New Order" }],
   },
   {
     pattern: /^\/orders\/[^/]+\/edit$/,

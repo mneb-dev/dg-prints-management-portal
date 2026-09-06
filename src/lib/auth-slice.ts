@@ -2,7 +2,7 @@ import { createAsyncThunk, createSlice } from "@reduxjs/toolkit"
 
 import { apiClient } from "@/lib/api-client"
 import { getErrorMessage } from "@/lib/api-error"
-import type { PermissionKey, Role } from "@/lib/users-slice"
+import type { PermissionKey, Role, UserStatus } from "@/lib/users-slice"
 
 const AUTH_STORAGE_KEY = "dgprints_auth"
 
@@ -14,6 +14,7 @@ export type CurrentUser = {
   role: Role
   permissions: PermissionKey[]
   avatar: string | null
+  status: UserStatus
 }
 
 export type ProfileInput = Partial<{

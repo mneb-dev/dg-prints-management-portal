@@ -33,17 +33,17 @@ import { useAuth } from "@/lib/auth"
 import { copyToClipboard } from "@/lib/clipboard"
 import { calculateLaminatedStickerQuotation } from "@/lib/laminated-sticker-quotation"
 import { convertToFeet, LENGTH_UNITS, type LengthUnit } from "@/lib/length-units"
-import { resolvePricing } from "@/lib/pricing-resolver"
+import { isPackageOptionName, previewPackageCandidates, resolvePricingPreview } from "@/lib/pricing-resolver"
 import { useProductCatalog, type ProductCategory } from "@/lib/products"
 import { calculateSintraCustomPrice, type SintraThickness } from "@/lib/sintra-board-pricing"
-import { calculateStickerQuotation, PACKAGE_TIERS, type StickerUnit } from "@/lib/sticker-quotation"
+import { calculateStickerPackageResult, parsePackageNumber, type StickerUnit } from "@/lib/sticker-quotation"
 import { formatCurrency } from "@/lib/utils"
 
 const CATEGORIES: { category: ProductCategory; label: string; icon: LucideIcon }[] = [
-  { category: "Sticker Label", label: "Sticker", icon: StickerIcon },
-  { category: "Laminated Sticker", label: "Laminated", icon: LayersIcon },
+  { category: "Sticker", label: "Sticker", icon: StickerIcon },
   { category: "Tarpaulin", label: "Tarpaulin", icon: FlagIcon },
-  { category: "Sintra Board", label: "Sintra", icon: LayoutPanelLeftIcon },
+  { category: "Sintra", label: "Sintra", icon: LayoutPanelLeftIcon },
+  { category: "Laminated Sticker", label: "Laminated", icon: LayersIcon },
 ]
 
 export function CalculatorPage() {
@@ -108,16 +108,18 @@ export function CalculatorPage() {
   }
 
   const selectedProduct = categoryProducts.find((product) => product.id === productId) ?? null
-  const resolution = selectedProduct ? resolvePricing(selectedProduct, optionValues) : null
+  const resolution = selectedProduct ? resolvePricingPreview(selectedProduct, optionValues) : null
   const showsDimensions = resolution?.kind === "auto" && resolution.entry.unit === "sq.ft."
-  const stickerCandidates = resolution?.kind === "package" ? resolution.candidates : []
-  const laminatedCandidates =
-    resolution?.kind === "auto" && resolution.entry.pricingType === "Package" ? [resolution.entry] : []
+  const packageOption = selectedProduct?.options.find((option) => isPackageOptionName(option.name)) ?? null
+  const packageCandidates =
+    selectedProduct && packageOption ? previewPackageCandidates(selectedProduct, packageOption.id) : []
+  const stickerCandidates = category === "Sticker" ? packageCandidates : []
+  const laminatedCandidates = category === "Laminated Sticker" ? packageCandidates : []
   const width_ = Number(width)
   const height_ = Number(height)
   const hasValidSize = width_ > 0 && height_ > 0
 
-  const isSintraCustom = category === "Sintra Board" && isCustomSize
+  const isSintraCustom = category === "Sintra" && isCustomSize
   const customWidthNum = Number(customWidth)
   const customHeightNum = Number(customHeight)
   const hasValidCustomSize = customWidthNum > 0 && customHeightNum > 0
@@ -139,7 +141,7 @@ export function CalculatorPage() {
 
   function handleCreateOrder() {
     const seed: OrderFormSeed =
-      category === "Sticker Label" || category === "Laminated Sticker"
+      category === "Sticker" || category === "Laminated Sticker"
         ? { productId, stickerWidth, stickerHeight, stickerUnit }
         : isSintraCustom
           ? {
@@ -156,35 +158,46 @@ export function CalculatorPage() {
   }
 
   const canCreate =
-    category === "Sticker Label" || category === "Laminated Sticker"
+    category === "Sticker" || category === "Laminated Sticker"
       ? !!productId && Number(stickerWidth) > 0 && Number(stickerHeight) > 0
       : isSintraCustom
         ? !!productId && hasValidCustomSize
         : !!productId
 
   const hasQuote =
-    category === "Sticker Label"
+    category === "Sticker"
       ? !!productId && Number(stickerWidth) > 0 && Number(stickerHeight) > 0
       : category === "Laminated Sticker"
         ? Number(stickerWidth) > 0 && Number(stickerHeight) > 0 && laminatedCandidates.length > 0
         : isSintraCustom
           ? hasValidCustomSize
           : quote !== null
+  
 
   function handleCopyQuote() {
     if (!category || !selectedProduct) return
 
     const lines: string[] = [selectedProduct.name]
 
-    if (category === "Sticker Label") {
-      lines.push(`${stickerWidth} × ${stickerHeight} ${stickerUnit}`)
-      const quotation = calculateStickerQuotation(Number(stickerWidth), Number(stickerHeight), stickerUnit)
-      for (const tier of PACKAGE_TIERS) {
-        const result = quotation[tier.key]
-        lines.push(`${formatCurrency(tier.price)} package — ${result.quantity} pcs + ${result.free} pcs free`)
+    if (category === "Sticker") {
+      lines.push(`Size: ${stickerWidth} × ${stickerHeight} ${stickerUnit}`)
+      lines.push("")
+      for (const candidate of stickerCandidates) {
+        const result = calculateStickerPackageResult(
+          Number(stickerWidth),
+          Number(stickerHeight),
+          stickerUnit,
+          candidate.price,
+          candidate.packageName
+        )
+        const packageNumber = parsePackageNumber(candidate.packageName)
+        const label = packageNumber !== null ? `Package ${packageNumber}` : (candidate.packageName ?? formatCurrency(candidate.price))
+        lines.push(`${label}: ${formatCurrency(candidate.price)}`)
+        lines.push(`${result.quantity} pcs + ${result.free} pcs free`)
+        lines.push("")
       }
     } else if (category === "Laminated Sticker") {
-      lines.push(`${stickerWidth} × ${stickerHeight} ${stickerUnit}`)
+      lines.push(`Size: ${stickerWidth} × ${stickerHeight} ${stickerUnit}`)
       for (const candidate of laminatedCandidates) {
         const qty = calculateLaminatedStickerQuotation(
           Number(stickerWidth),
@@ -193,7 +206,7 @@ export function CalculatorPage() {
           candidate.price
         )
         lines.push(
-          `${candidate.packageName ?? formatCurrency(candidate.price)} — ${formatCurrency(candidate.price)} — ${qty} pcs`
+          `${formatCurrency(candidate.price)} = ${qty} pcs`
         )
       }
     } else if (isSintraCustom) {
@@ -239,7 +252,7 @@ export function CalculatorPage() {
         </CardContent>
       </Card>
 
-      {category === "Sticker Label" && (
+      {category === "Sticker" && (
         <Card>
           <CardHeader>
             <CardTitle>Sticker Quotation</CardTitle>
@@ -284,7 +297,6 @@ export function CalculatorPage() {
                   onHeightChange={setStickerHeight}
                   unit={stickerUnit}
                   onUnitChange={setStickerUnit}
-                  selectedPackage={null}
                   candidates={stickerCandidates}
                 />
               </>
@@ -347,7 +359,7 @@ export function CalculatorPage() {
         </Card>
       )}
 
-      {(category === "Tarpaulin" || category === "Sintra Board") && (
+      {(category === "Tarpaulin" || category === "Sintra") && (
         <Card>
           <CardHeader>
             <CardTitle>{category} Quotation</CardTitle>
@@ -395,7 +407,7 @@ export function CalculatorPage() {
                   />
                 )}
 
-                {selectedProduct && category === "Sintra Board" && (
+                {selectedProduct && category === "Sintra" && (
                   <label className="flex items-center gap-2 text-sm font-medium">
                     <Switch
                       checked={isCustomSize}
@@ -422,36 +434,33 @@ export function CalculatorPage() {
                 ) : (
                   <>
                     {selectedProduct && showsDimensions && (
-                      <div className="grid grid-cols-3 gap-4">
-                        <Field>
-                          <FieldLabel htmlFor="calculator-width">Width</FieldLabel>
+                      <Field>
+                        <FieldLabel>Size</FieldLabel>
+                        <div className="flex items-center gap-2">
                           <Input
-                            id="calculator-width"
                             type="number"
                             min={0}
                             step="0.01"
                             value={width}
                             onChange={(event) => setWidth(event.target.value)}
+                            placeholder="Width"
+                            className="w-20"
                           />
-                        </Field>
-                        <Field>
-                          <FieldLabel htmlFor="calculator-height">Height</FieldLabel>
+                          <span className="text-sm text-muted-foreground">×</span>
                           <Input
-                            id="calculator-height"
                             type="number"
                             min={0}
                             step="0.01"
                             value={height}
                             onChange={(event) => setHeight(event.target.value)}
+                            placeholder="Height"
+                            className="w-20"
                           />
-                        </Field>
-                        <Field>
-                          <FieldLabel htmlFor="calculator-unit">Unit</FieldLabel>
                           <Select
                             value={dimensionUnit}
                             onValueChange={(value) => setDimensionUnit(value as LengthUnit)}
                           >
-                            <SelectTrigger id="calculator-unit">
+                            <SelectTrigger className="w-24">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -462,8 +471,8 @@ export function CalculatorPage() {
                               ))}
                             </SelectContent>
                           </Select>
-                        </Field>
-                      </div>
+                        </div>
+                      </Field>
                     )}
 
                     {selectedProduct && resolution?.kind === "none" && (
@@ -500,7 +509,7 @@ export function CalculatorPage() {
           {canCreateOrder && (
             <Button disabled={!canCreate} onClick={handleCreateOrder}>
               <PlusIcon data-icon="inline-start" />
-              Create order
+              New Order
             </Button>
           )}
         </div>

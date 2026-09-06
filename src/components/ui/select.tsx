@@ -59,6 +59,7 @@ function SelectTrigger({
 function SelectContent({
   className,
   children,
+  footer,
   side = "bottom",
   sideOffset = 4,
   align = "center",
@@ -69,7 +70,10 @@ function SelectContent({
   Pick<
     SelectPrimitive.Positioner.Props,
     "align" | "alignOffset" | "side" | "sideOffset" | "alignItemWithTrigger"
-  >) {
+  > & {
+    /** Rendered as a sibling to the item list, outside its roving-focus navigation — for a pinned action row. */
+    footer?: React.ReactNode
+  }) {
   return (
     <SelectPrimitive.Portal>
       <SelectPrimitive.Positioner
@@ -88,6 +92,7 @@ function SelectContent({
         >
           <SelectScrollUpButton />
           <SelectPrimitive.List>{children}</SelectPrimitive.List>
+          {footer}
           <SelectScrollDownButton />
         </SelectPrimitive.Popup>
       </SelectPrimitive.Positioner>

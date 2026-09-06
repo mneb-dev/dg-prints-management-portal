@@ -1,4 +1,3 @@
-import { EyeIcon, EyeOffIcon } from "lucide-react"
 import { useId, useState, type SubmitEvent } from "react"
 import { useNavigate } from "react-router-dom"
 
@@ -12,8 +11,10 @@ import {
 } from "@/components/ui/card"
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { PasswordInput } from "@/components/ui/password-input"
 import { Spinner } from "@/components/ui/spinner"
 import { useAuth } from "@/lib/auth"
+import { requiredMessage } from "@/lib/validation"
 
 export function LoginPage() {
   const usernameId = useId()
@@ -21,14 +22,24 @@ export function LoginPage() {
   const { login } = useAuth()
   const navigate = useNavigate()
   const [error, setError] = useState<string | null>(null)
+  const [fieldErrors, setFieldErrors] = useState<{ username?: string; password?: string }>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [showPassword, setShowPassword] = useState(false)
 
   async function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault()
     const formData = new FormData(event.currentTarget)
     const username = String(formData.get("username") ?? "")
     const password = String(formData.get("password") ?? "")
+
+    const errors: { username?: string; password?: string } = {}
+    if (!username.trim()) errors.username = requiredMessage("Username")
+    if (!password) errors.password = requiredMessage("Password")
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors)
+      return
+    }
+    setFieldErrors({})
+    setError(null)
 
     setIsSubmitting(true)
     const loginError = await login(username, password)
@@ -52,39 +63,28 @@ export function LoginPage() {
         <CardContent>
           <form onSubmit={handleSubmit}>
             <FieldGroup>
-              <Field data-invalid={!!error}>
+              <Field data-invalid={!!fieldErrors.username}>
                 <FieldLabel htmlFor={usernameId}>Username</FieldLabel>
                 <Input
                   id={usernameId}
                   name="username"
                   type="text"
                   autoComplete="username"
-                  aria-invalid={!!error}
+                  aria-invalid={!!fieldErrors.username}
+                  onChange={() => setFieldErrors((prev) => ({ ...prev, username: undefined }))}
                 />
+                <FieldError>{fieldErrors.username}</FieldError>
               </Field>
-              <Field data-invalid={!!error}>
+              <Field data-invalid={!!fieldErrors.password || !!error}>
                 <FieldLabel htmlFor={passwordId}>Password</FieldLabel>
-                <div className="relative">
-                  <Input
-                    id={passwordId}
-                    name="password"
-                    type={showPassword ? "text" : "password"}
-                    autoComplete="current-password"
-                    aria-invalid={!!error}
-                    className="pr-8"
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    className="absolute top-0 right-0"
-                    onClick={() => setShowPassword((value) => !value)}
-                    aria-label={showPassword ? "Hide password" : "Show password"}
-                  >
-                    {showPassword ? <EyeOffIcon /> : <EyeIcon />}
-                  </Button>
-                </div>
-                <FieldError errors={error ? [{ message: error }] : undefined} />
+                <PasswordInput
+                  id={passwordId}
+                  name="password"
+                  autoComplete="current-password"
+                  aria-invalid={!!fieldErrors.password || !!error}
+                  onChange={() => setFieldErrors((prev) => ({ ...prev, password: undefined }))}
+                />
+                <FieldError>{fieldErrors.password ?? error}</FieldError>
               </Field>
               <Field>
                 <Button type="submit" disabled={isSubmitting}>

@@ -24,35 +24,34 @@ import {
 import { Separator } from "@/components/ui/separator"
 import { Spinner } from "@/components/ui/spinner"
 import { Switch } from "@/components/ui/switch"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
+import { useActiveCategories } from "@/lib/categories"
 import {
   ALL_VARIANTS,
-  PRODUCT_CATEGORIES,
   PRODUCT_STATUSES,
   useProductActions,
-  type PricingEntry,
   type Product,
-  type ProductCategory,
   type ProductInput,
   type ProductOption,
   type ProductStatus,
 } from "@/lib/products"
-import { formatCurrency, generateId } from "@/lib/utils"
+import { generateId } from "@/lib/utils"
+import {
+  maxLengthMessage,
+  parsePositiveAmount,
+  positiveAmountMessage,
+  PRICING_INCOMPLETE_VARIANTS_MESSAGE,
+  PRICING_NO_VARIANTS_MESSAGE,
+  requiredMessage,
+} from "@/lib/validation"
+import { cartesianOptionCombinations, combinationsMatch } from "@/lib/variant-matrix"
 
-import { PricingDialog } from "./pricing-dialog"
+import { VariantPricingTable } from "./variant-pricing-table"
 
 function emptyDraft(): ProductInput {
   return {
     name: "",
-    category: PRODUCT_CATEGORIES[0],
+    category: "",
     description: "",
     status: "Active",
     options: [],
@@ -71,6 +70,15 @@ function draftFromProduct(product: Product): ProductInput {
   }
 }
 
+/** True when a product's shape is exactly "no options, one price that applies to everything". */
+function isSinglePriceProduct(product: Product): boolean {
+  return (
+    product.options.length === 0 &&
+    product.pricing.length === 1 &&
+    product.pricing[0].appliesTo === ALL_VARIANTS
+  )
+}
+
 function OptionRow({
   option,
   onChange,
@@ -85,7 +93,10 @@ function OptionRow({
 
   function commitValue() {
     const trimmed = valueDraft.trim()
-    if (trimmed) {
+    const isDuplicate = option.values.some(
+      (value) => value.toLowerCase() === trimmed.toLowerCase()
+    )
+    if (trimmed && !isDuplicate) {
       onChange({ ...option, values: [...option.values, trimmed] })
     }
     setValueDraft("")
@@ -185,22 +196,41 @@ export function ProductFormDialog({
   onSaved?: () => void
 }) {
   const { addProduct, updateProduct } = useProductActions()
+  const { categories: activeCategories } = useActiveCategories()
   const [draft, setDraft] = useState<ProductInput>(emptyDraft)
   const [nameError, setNameError] = useState<string | null>(null)
+  const [categoryError, setCategoryError] = useState<string | null>(null)
   const [descriptionError, setDescriptionError] = useState<string | null>(null)
-  const [pricingDialogOpen, setPricingDialogOpen] = useState(false)
+  const [pricingError, setPricingError] = useState<string | null>(null)
+  const [categorySelectOpen, setCategorySelectOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isSinglePrice, setIsSinglePrice] = useState(true)
+  const [singlePrice, setSinglePrice] = useState("")
+  const [singlePriceError, setSinglePriceError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!open) return
     setDraft(product ? draftFromProduct(product) : emptyDraft())
     setNameError(null)
+    setCategoryError(null)
+    setDescriptionError(null)
+    setPricingError(null)
+    if (product) {
+      setIsSinglePrice(isSinglePriceProduct(product))
+      setSinglePrice(isSinglePriceProduct(product) ? String(product.pricing[0].price) : "")
+    } else {
+      setIsSinglePrice(true)
+      setSinglePrice("")
+    }
+    setSinglePriceError(null)
   }, [open, product])
 
-  const appliesToOptions = [
-    ALL_VARIANTS,
-    ...new Set(draft.options.flatMap((option) => option.values)),
-  ]
+  // Include the currently-assigned category even if it's since been deactivated,
+  // so editing an existing product doesn't silently drop its category.
+  const categoryOptions =
+    draft.category && !activeCategories.some((c) => c.name === draft.category)
+      ? [...activeCategories.map((c) => c.name), draft.category]
+      : activeCategories.map((c) => c.name)
 
   function addOption() {
     setDraft((prev) => ({
@@ -226,36 +256,71 @@ export function ProductFormDialog({
     }))
   }
 
-  function addPricingEntry(entry: PricingEntry) {
-    setDraft((prev) => ({ ...prev, pricing: [...prev.pricing, entry] }))
-  }
-
-  function removePricingEntry(id: string) {
-    setDraft((prev) => ({
-      ...prev,
-      pricing: prev.pricing.filter((entry) => entry.id !== id),
-    }))
-  }
-
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!draft.name.trim()) {
-      setNameError("Product name is required.")
+      setNameError(requiredMessage("Product name"))
+      return
+    }
+
+    if (!draft.category) {
+      setCategoryError(requiredMessage("Category"))
       return
     }
 
     if (draft.description.length > 60) {
-      setDescriptionError("Must be 60 characters or fewer.")
+      setDescriptionError(maxLengthMessage("Description", 60))
       return
+    }
+
+    let payload = draft
+    if (isSinglePrice) {
+      const numericPrice = parsePositiveAmount(singlePrice)
+      if (numericPrice === null) {
+        setSinglePriceError(positiveAmountMessage("price"))
+        return
+      }
+      const existingEntry =
+        product && isSinglePriceProduct(product) ? product.pricing[0] : null
+      payload = {
+        ...draft,
+        options: [],
+        pricing: [
+          {
+            id: existingEntry?.id ?? generateId(),
+            appliesTo: ALL_VARIANTS,
+            pricingType: "Fixed",
+            price: numericPrice,
+            unit: "piece",
+          },
+        ],
+      }
+    } else {
+      const combinations = cartesianOptionCombinations(draft.options)
+      if (combinations.length === 0) {
+        setPricingError(PRICING_NO_VARIANTS_MESSAGE)
+        return
+      }
+      const hasUnpriced = combinations.some((combination) => {
+        const entry = draft.pricing.find(
+          (candidate) => candidate.appliesTo !== ALL_VARIANTS && combinationsMatch(candidate.appliesTo, combination)
+        )
+        return !entry || entry.price <= 0
+      })
+      if (hasUnpriced) {
+        setPricingError(PRICING_INCOMPLETE_VARIANTS_MESSAGE)
+        return
+      }
+      setPricingError(null)
     }
 
     setIsSubmitting(true)
     try {
       if (product) {
-        await updateProduct(product.id, draft)
+        await updateProduct(product.id, payload)
         toast.success("Product updated.")
       } else {
-        await addProduct(draft)
+        await addProduct(payload)
         toast.success("Product created.")
       }
       onOpenChange(false)
@@ -295,34 +360,35 @@ export function ProductFormDialog({
                     setNameError(null)
                   }}
                   aria-invalid={!!nameError}
-                  placeholder="Sticker Label"
+                  placeholder="Sticker"
                 />
                 <FieldError>{nameError ?? undefined}</FieldError>
               </Field>
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <Field>
+                <Field data-invalid={!!categoryError}>
                   <FieldLabel htmlFor="product-category">Category</FieldLabel>
                   <Select
-                    value={draft.category}
-                    onValueChange={(value) =>
-                      setDraft((prev) => ({
-                        ...prev,
-                        category: value as ProductCategory,
-                      }))
-                    }
+                    value={draft.category || undefined}
+                    onValueChange={(value) => {
+                      setDraft((prev) => ({ ...prev, category: value ?? "" }))
+                      setCategoryError(null)
+                    }}
+                    open={categorySelectOpen}
+                    onOpenChange={setCategorySelectOpen}
                   >
-                    <SelectTrigger id="product-category" className="w-full">
-                      <SelectValue />
+                    <SelectTrigger id="product-category" className="w-full" aria-invalid={!!categoryError}>
+                      <SelectValue placeholder="Select a category" />
                     </SelectTrigger>
                     <SelectContent>
-                      {PRODUCT_CATEGORIES.map((category) => (
+                      {categoryOptions.map((category) => (
                         <SelectItem key={category} value={category}>
                           {category}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
+                  <FieldError>{categoryError}</FieldError>
                 </Field>
 
                 <Field>
@@ -376,94 +442,102 @@ export function ProductFormDialog({
           <Separator />
 
           <div className="flex flex-col gap-3">
-            <div>
-              <h3 className="text-sm font-medium">Product Options</h3>
-              <p className="text-sm text-muted-foreground">
-                Configure the options customers can select for this product.
-              </p>
-            </div>
+            <label className="flex items-center justify-between gap-2">
+              <span>
+                <span className="text-sm font-medium">Single price</span>
+                <p className="text-sm text-muted-foreground">
+                  This product has one price and no options or variants.
+                </p>
+              </span>
+              <Switch
+                checked={isSinglePrice}
+                onCheckedChange={(checked) => setIsSinglePrice(!!checked)}
+              />
+            </label>
 
-            <div className="flex flex-col gap-3">
-              {draft.options.map((option) => (
-                <OptionRow
-                  key={option.id}
-                  option={option}
-                  onChange={(next) => updateOption(option.id, next)}
-                  onRemove={() => removeOption(option.id)}
-                />
-              ))}
-            </div>
-
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="self-start"
-              onClick={addOption}
-            >
-              <PlusIcon data-icon="inline-start" />
-              Add Option
-            </Button>
-          </div>
-
-          <Separator />
-
-          <div className="flex flex-col gap-3">
-            <h3 className="text-sm font-medium">Pricing</h3>
-
-            {draft.pricing.length > 0 && (
-              <div className="rounded-lg border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Condition</TableHead>
-                      <TableHead>Pricing Type</TableHead>
-                      <TableHead>Package</TableHead>
-                      <TableHead>Price</TableHead>
-                      <TableHead className="text-right">
-                        <span className="sr-only">Remove</span>
-                      </TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {draft.pricing.map((entry) => (
-                      <TableRow key={entry.id}>
-                        <TableCell>{entry.appliesTo}</TableCell>
-                        <TableCell>{entry.pricingType}</TableCell>
-                        <TableCell>{entry.packageName ?? "—"}</TableCell>
-                        <TableCell>
-                          {formatCurrency(entry.price)}
-                          {entry.pricingType === "Per Unit" && ` / ${entry.unit}`}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon-sm"
-                            onClick={() => removePricingEntry(entry.id)}
-                          >
-                            <Trash2Icon />
-                            <span className="sr-only">Remove pricing row</span>
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+            {isSinglePrice && (
+              <Field data-invalid={!!singlePriceError}>
+                <FieldLabel htmlFor="product-single-price">Price</FieldLabel>
+                <div className="relative">
+                  <span className="pointer-events-none absolute inset-y-0 left-2.5 flex items-center text-sm text-muted-foreground">
+                    ₱
+                  </span>
+                  <Input
+                    id="product-single-price"
+                    className="pl-6"
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={singlePrice}
+                    onChange={(event) => {
+                      setSinglePrice(event.target.value)
+                      setSinglePriceError(null)
+                    }}
+                    aria-invalid={!!singlePriceError}
+                  />
+                </div>
+                <FieldError>{singlePriceError ?? undefined}</FieldError>
+              </Field>
             )}
-
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="self-start"
-              onClick={() => setPricingDialogOpen(true)}
-            >
-              <PlusIcon data-icon="inline-start" />
-              Add Pricing
-            </Button>
           </div>
+
+          {!isSinglePrice && (
+            <>
+              <Separator />
+
+              <div className="flex flex-col gap-3">
+                <div>
+                  <h3 className="text-sm font-medium">Product Options</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Configure the options customers can select for this product.
+                  </p>
+                </div>
+
+                <div className="flex flex-col gap-3">
+                  {draft.options.map((option) => (
+                    <OptionRow
+                      key={option.id}
+                      option={option}
+                      onChange={(next) => updateOption(option.id, next)}
+                      onRemove={() => removeOption(option.id)}
+                    />
+                  ))}
+                </div>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="self-start"
+                  onClick={addOption}
+                >
+                  <PlusIcon data-icon="inline-start" />
+                  Add Option
+                </Button>
+              </div>
+
+              <Separator />
+
+              <div className="flex flex-col gap-3" data-invalid={!!pricingError}>
+                <div>
+                  <h3 className="text-sm font-medium">Pricing</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Set a price for every combination of the variations above.
+                  </p>
+                </div>
+
+                <VariantPricingTable
+                  options={draft.options}
+                  pricing={draft.pricing}
+                  onChange={(pricing) => {
+                    setDraft((prev) => ({ ...prev, pricing }))
+                    setPricingError(null)
+                  }}
+                />
+                <FieldError>{pricingError ?? undefined}</FieldError>
+              </div>
+            </>
+          )}
         </form>
 
         <DialogFooter>
@@ -476,13 +550,6 @@ export function ProductFormDialog({
           </Button>
         </DialogFooter>
       </DialogContent>
-
-      <PricingDialog
-        open={pricingDialogOpen}
-        onOpenChange={setPricingDialogOpen}
-        appliesToOptions={appliesToOptions}
-        onAdd={addPricingEntry}
-      />
     </Dialog>
   )
 }

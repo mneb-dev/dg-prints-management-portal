@@ -10,23 +10,20 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { PasswordInput } from "@/components/ui/password-input"
 import { useAuth } from "@/lib/auth"
 import { getAvatarDataUri } from "@/lib/avatars"
 import type { Role } from "@/lib/users-slice"
+import {
+  PASSWORDS_DO_NOT_MATCH_MESSAGE,
+  passwordRequirementMessage,
+  requiredMessage,
+} from "@/lib/validation"
 
 const ROLE_LABELS: Record<Role, string> = {
   staff: "Staff",
   admin: "Admin",
   superadmin: "Super Admin",
-}
-
-function passwordRequirementError(password: string): string | null {
-  if (password.length < 8) return "Password must be at least 8 characters."
-  if (!/[a-z]/.test(password)) return "Password must include a lowercase letter."
-  if (!/[A-Z]/.test(password)) return "Password must include an uppercase letter."
-  if (!/\d/.test(password)) return "Password must include a number."
-  if (!/[^A-Za-z0-9]/.test(password)) return "Password must include a special character."
-  return null
 }
 
 export function ProfilePage() {
@@ -58,9 +55,9 @@ export function ProfilePage() {
   async function handleSaveProfile(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const errors: Record<string, string | undefined> = {}
-    if (!profileDraft.firstName.trim()) errors.firstName = "First name is required."
-    if (!profileDraft.lastName.trim()) errors.lastName = "Last name is required."
-    if (!profileDraft.username.trim()) errors.username = "Username is required."
+    if (!profileDraft.firstName.trim()) errors.firstName = requiredMessage("First name")
+    if (!profileDraft.lastName.trim()) errors.lastName = requiredMessage("Last name")
+    if (!profileDraft.username.trim()) errors.username = requiredMessage("Username")
     if (Object.keys(errors).length > 0) {
       setProfileErrors(errors)
       return
@@ -79,10 +76,10 @@ export function ProfilePage() {
   async function handleChangePassword(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const errors: Record<string, string | undefined> = {}
-    if (!currentPassword) errors.currentPassword = "Current password is required."
-    const requirementError = passwordRequirementError(newPassword)
+    if (!currentPassword) errors.currentPassword = requiredMessage("Current password")
+    const requirementError = passwordRequirementMessage(newPassword)
     if (requirementError) errors.newPassword = requirementError
-    if (newPassword !== confirmPassword) errors.confirmPassword = "Passwords do not match."
+    if (newPassword !== confirmPassword) errors.confirmPassword = PASSWORDS_DO_NOT_MATCH_MESSAGE
     if (Object.keys(errors).length > 0) {
       setPasswordErrors(errors)
       return
@@ -200,9 +197,8 @@ export function ProfilePage() {
             <FieldGroup>
               <Field data-invalid={!!passwordErrors.currentPassword}>
                 <FieldLabel htmlFor="profile-current-password">Current Password</FieldLabel>
-                <Input
+                <PasswordInput
                   id="profile-current-password"
-                  type="password"
                   value={currentPassword}
                   onChange={(event) => {
                     setCurrentPassword(event.target.value)
@@ -215,9 +211,8 @@ export function ProfilePage() {
               </Field>
               <Field data-invalid={!!passwordErrors.newPassword}>
                 <FieldLabel htmlFor="profile-new-password">New Password</FieldLabel>
-                <Input
+                <PasswordInput
                   id="profile-new-password"
-                  type="password"
                   value={newPassword}
                   onChange={(event) => {
                     setNewPassword(event.target.value)
@@ -234,9 +229,8 @@ export function ProfilePage() {
               </Field>
               <Field data-invalid={!!passwordErrors.confirmPassword}>
                 <FieldLabel htmlFor="profile-confirm-password">Confirm New Password</FieldLabel>
-                <Input
+                <PasswordInput
                   id="profile-confirm-password"
-                  type="password"
                   value={confirmPassword}
                   onChange={(event) => {
                     setConfirmPassword(event.target.value)

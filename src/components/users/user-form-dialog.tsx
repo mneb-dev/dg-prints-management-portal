@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dialog"
 import { Field, FieldError, FieldGroup, FieldLabel, FieldDescription } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { PasswordInput } from "@/components/ui/password-input"
 import {
   Select,
   SelectContent,
@@ -30,6 +31,11 @@ import {
   type User,
   type UserInput,
 } from "@/lib/users"
+import {
+  PASSWORD_REQUIREMENTS_DESCRIPTION,
+  passwordRequirementMessage,
+  requiredMessage,
+} from "@/lib/validation"
 
 const ROLE_LABELS: Record<Role, string> = {
   staff: "Staff",
@@ -44,6 +50,7 @@ function emptyDraft(): UserInput {
     username: "",
     role: "staff",
     permissions: [],
+    status: "active",
     password: "",
   }
 }
@@ -55,6 +62,7 @@ function draftFromUser(user: User): UserInput {
     username: user.username,
     role: user.role,
     permissions: user.permissions,
+    status: user.status,
     password: "",
   }
 }
@@ -63,11 +71,13 @@ export function UserFormDialog({
   open,
   onOpenChange,
   user,
+  currentUserId,
   onSaved,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   user: User | null
+  currentUserId?: string | null
   onSaved?: () => void
 }) {
   const { addUser, updateUser } = useUserActions()
@@ -94,10 +104,15 @@ export function UserFormDialog({
     event.preventDefault()
 
     const errors: Partial<Record<keyof UserInput, string>> = {}
-    if (!draft.firstName.trim()) errors.firstName = "First name is required."
-    if (!draft.lastName.trim()) errors.lastName = "Last name is required."
-    if (!draft.username.trim()) errors.username = "Username is required."
-    if (!user && !draft.password?.trim()) errors.password = "Password is required."
+    if (!draft.firstName.trim()) errors.firstName = requiredMessage("First name")
+    if (!draft.lastName.trim()) errors.lastName = requiredMessage("Last name")
+    if (!draft.username.trim()) errors.username = requiredMessage("Username")
+    if (!user && !draft.password?.trim()) {
+      errors.password = requiredMessage("Password")
+    } else if (!user && draft.password) {
+      const strengthError = passwordRequirementMessage(draft.password)
+      if (strengthError) errors.password = strengthError
+    }
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors)
       return
@@ -183,9 +198,8 @@ export function UserFormDialog({
 
             <Field data-invalid={!!fieldErrors.password}>
               <FieldLabel htmlFor="user-password">Password</FieldLabel>
-              <Input
+              <PasswordInput
                 id="user-password"
-                type="password"
                 value={draft.password}
                 onChange={(event) => {
                   setDraft((prev) => ({ ...prev, password: event.target.value }))
@@ -196,7 +210,9 @@ export function UserFormDialog({
               />
               {user ? (
                 <FieldDescription>Leave blank to keep the current password.</FieldDescription>
-              ) : null}
+              ) : (
+                <FieldDescription>{PASSWORD_REQUIREMENTS_DESCRIPTION}</FieldDescription>
+              )}
               <FieldError>{fieldErrors.password}</FieldError>
             </Field>
 
@@ -217,6 +233,25 @@ export function UserFormDialog({
                   ))}
                 </SelectContent>
               </Select>
+            </Field>
+
+            <Field>
+              <FieldLabel>Status</FieldLabel>
+              <div className="flex items-center justify-between rounded-lg border p-3">
+                <span className="text-sm">
+                  {draft.status === "active" ? "Active" : "Inactive"}
+                </span>
+                <Switch
+                  checked={draft.status === "active"}
+                  disabled={!!user && user.id === currentUserId}
+                  onCheckedChange={(checked) =>
+                    setDraft((prev) => ({ ...prev, status: checked ? "active" : "inactive" }))
+                  }
+                />
+              </div>
+              {user && user.id === currentUserId ? (
+                <FieldDescription>You cannot deactivate your own account.</FieldDescription>
+              ) : null}
             </Field>
 
             <Field>

@@ -2,6 +2,7 @@ import { createAsyncThunk, createSlice, type PayloadAction } from "@reduxjs/tool
 
 import { apiClient } from "@/lib/api-client"
 import { getErrorMessage } from "@/lib/api-error"
+import type { LengthUnit } from "@/lib/length-units"
 import type { PricingUnit, ProductCategory } from "@/lib/products"
 import type { RootState } from "@/lib/store"
 import type { StickerUnit } from "@/lib/sticker-quotation"
@@ -17,6 +18,7 @@ export const ORDER_STATUSES = [
   "released",
   "cancelled",
   "refunded",
+  "returned",
 ] as const
 export type OrderStatus = (typeof ORDER_STATUSES)[number]
 
@@ -49,8 +51,12 @@ export type OrderItemPricing =
       unit: PricingUnit
       // Only present when `unit` is area-based (e.g. "sq.ft."). Other per-unit pricing
       // (e.g. per "A4" sheet, per "piece") has no dimensions — total is just price × quantity.
+      // Always in feet — this is what pricing math uses, not what the user typed.
       width?: number
       height?: number
+      // The value + unit the user actually entered in the quotation form, before conversion
+      // to feet for pricing math. Absent on orders saved before this field existed.
+      displaySize?: { width: number; height: number; unit: LengthUnit }
     }
   | {
       pricingType: "Fixed"
@@ -64,7 +70,7 @@ export type OrderItemPricing =
       unitPrice: number
     }
   | {
-      // Sintra Board "Custom size" mode — a form-level override that bypasses the
+      // Sintra "Custom size" mode — a form-level override that bypasses the
       // product's configured pricing entirely. thickness/back-to-back aren't stored
       // structurally (the backend whitelists a fixed set of pricing keys); they're
       // folded into `packageName` as a human-readable description instead — see
@@ -104,13 +110,13 @@ export type ShippingAddress = {
   fee: number
 }
 
-export const ORDER_CHANNELS = ["Facebook", "Shopee", "Walk-in"] as const
+export const ORDER_CHANNELS = ["Facebook", "Walk-in", "Shopee"] as const
 export type OrderChannel = (typeof ORDER_CHANNELS)[number]
 
-export const PAYMENT_STATUSES = ["unpaid", "partially_paid", "paid"] as const
+export const PAYMENT_STATUSES = ["unpaid", "partially_paid", "paid", "refunded"] as const
 export type PaymentStatus = (typeof PAYMENT_STATUSES)[number]
 
-export const PAYMENT_METHODS = ["GCash", "Maya", "Bank Transfer", "Cash"] as const
+export const PAYMENT_METHODS = ["GCash", "Cash", "Maya", "Bank Transfer"] as const
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number]
 
 export type Payment = {
@@ -133,7 +139,6 @@ export type Order = {
   layoutFee: number
   total: number
   notes: string
-  description: string
   shippingAddress: ShippingAddress | null
   channel: OrderChannel
   payment: Payment
@@ -210,6 +215,19 @@ export type OrdersQueryParams = {
   sortDir: "asc" | "desc"
 }
 
+export const DEFAULT_ORDERS_PARAMS: OrdersQueryParams = {
+  page: 1,
+  pageSize: 10,
+  search: "",
+  status: "",
+  paymentStatus: "",
+  category: "",
+  dateFrom: "",
+  dateTo: "",
+  sortBy: "created_at",
+  sortDir: "desc",
+}
+
 export type OrdersListResponse = {
   items: Order[]
   total: number
@@ -271,7 +289,7 @@ export const fetchOrderByIdThunk = createAsyncThunk<Order, string, { rejectValue
   }
 )
 
-const HOT_PRODUCT_TOP_N = 5
+export const HOT_PRODUCT_TOP_N = 5
 const HOT_PRODUCT_MIN_ORDER_COUNT = 2
 
 // Ranks products by how many of the latest 100 orders they appear in (breadth of demand,
@@ -312,6 +330,30 @@ export const fetchRecentOrdersForRankingThunk = createAsyncThunk<
   }
 )
 
+// Mirrors the server's MAX_RECENT_LIMIT (src/routes/orders.ts in the sibling server repo) — the
+// highest "limit" the /orders endpoint will honor in one request.
+export const SALES_ORDERS_LIMIT = 200
+
+/** Orders within an explicit ["dateFrom","dateTo"] window (both inclusive, "yyyy-MM-dd"), capped at
+ * SALES_ORDERS_LIMIT — for the dashboard sales chart's calendar-preset periods, which need a real
+ * date-scoped total rather than `fetchRecentOrdersForRankingThunk`'s unscoped last-100 sample.
+ * Unlike that thunk, this refetches on every call (no `condition` gate) since the range changes
+ * whenever the user picks a different period. */
+export const fetchSalesOrdersThunk = createAsyncThunk<
+  Order[],
+  { dateFrom: string; dateTo: string },
+  { rejectValue: string; state: RootState }
+>("orders/fetchSales", async ({ dateFrom, dateTo }, { rejectWithValue }) => {
+  try {
+    const { data } = await apiClient.get<OrdersListResponse>("/orders", {
+      params: { dateFrom, dateTo, limit: SALES_ORDERS_LIMIT, sortBy: "created_at", sortDir: "desc" },
+    })
+    return data.items
+  } catch (err) {
+    return rejectWithValue(getErrorMessage(err))
+  }
+})
+
 export const fetchTopCustomersThunk = createAsyncThunk<
   CustomerRanking[],
   void,
@@ -328,6 +370,36 @@ export const fetchTopCustomersThunk = createAsyncThunk<
   },
   {
     condition: (_arg, { getState }) => getState().orders.customerRankingStatus === "idle",
+  }
+)
+
+export type OrderStats = {
+  byStatus: Record<string, number>
+  byPaymentStatus: Record<string, number>
+  byChannel: Record<string, number>
+  outstandingBalance: number
+  totalOrders: number
+}
+
+/** Whole-dataset order KPI aggregates (status/payment/channel counts, outstanding AR) —
+ * powers the dashboard's stat strip and breakdown cards without the last-100-orders cap
+ * that `fetchRecentOrdersForRankingThunk` is subject to. */
+export const fetchOrderStatsThunk = createAsyncThunk<
+  OrderStats,
+  void,
+  { rejectValue: string; state: RootState }
+>(
+  "orders/fetchStats",
+  async (_arg, { rejectWithValue }) => {
+    try {
+      const { data } = await apiClient.get<OrderStats>("/orders/stats")
+      return data
+    } catch (err) {
+      return rejectWithValue(getErrorMessage(err))
+    }
+  },
+  {
+    condition: (_arg, { getState }) => getState().orders.orderStatsStatus === "idle",
   }
 )
 
@@ -383,11 +455,19 @@ type OrdersState = {
   currentStatus: "idle" | "loading" | "succeeded" | "failed"
   currentError: string | null
   hotProductIds: string[]
+  recentOrders: Order[]
   rankingStatus: "idle" | "loading" | "succeeded" | "failed"
   rankingError: string | null
   customerRankings: CustomerRanking[]
   customerRankingStatus: "idle" | "loading" | "succeeded" | "failed"
   customerRankingError: string | null
+  orderStats: OrderStats | null
+  orderStatsStatus: "idle" | "loading" | "succeeded" | "failed"
+  orderStatsError: string | null
+  salesOrders: Order[]
+  salesStatus: "idle" | "loading" | "succeeded" | "failed"
+  salesError: string | null
+  salesLatestRequestId: string | null
 }
 
 const initialState: OrdersState = {
@@ -396,27 +476,24 @@ const initialState: OrdersState = {
   status: "idle",
   error: null,
   latestRequestId: null,
-  params: {
-    page: 1,
-    pageSize: 10,
-    search: "",
-    status: "",
-    paymentStatus: "",
-    category: "",
-    dateFrom: "",
-    dateTo: "",
-    sortBy: "created_at",
-    sortDir: "desc",
-  },
+  params: DEFAULT_ORDERS_PARAMS,
   current: null,
   currentStatus: "idle",
   currentError: null,
   hotProductIds: [],
+  recentOrders: [],
   rankingStatus: "idle",
   rankingError: null,
   customerRankings: [],
   customerRankingStatus: "idle",
   customerRankingError: null,
+  orderStats: null,
+  orderStatsStatus: "idle",
+  orderStatsError: null,
+  salesOrders: [],
+  salesStatus: "idle",
+  salesError: null,
+  salesLatestRequestId: null,
 }
 
 const ordersSlice = createSlice({
@@ -425,6 +502,14 @@ const ordersSlice = createSlice({
   reducers: {
     setOrdersParams(state, action: PayloadAction<Partial<OrdersQueryParams>>) {
       state.params = { ...state.params, ...action.payload }
+    },
+    /** Resets the three "fetch once per session" dashboard query statuses back to "idle" so their
+     * thunks' `condition` (which skips re-fetching once a status leaves "idle") allows a re-fetch —
+     * for the Dashboard page's manual refresh button. */
+    markDashboardStale(state) {
+      state.orderStatsStatus = "idle"
+      state.rankingStatus = "idle"
+      state.customerRankingStatus = "idle"
     },
   },
   extraReducers(builder) {
@@ -482,6 +567,7 @@ const ordersSlice = createSlice({
       .addCase(fetchRecentOrdersForRankingThunk.fulfilled, (state, action: PayloadAction<Order[]>) => {
         state.rankingStatus = "succeeded"
         state.hotProductIds = computeHotProductIds(action.payload)
+        state.recentOrders = action.payload.map(normalizeOrder)
       })
       .addCase(fetchRecentOrdersForRankingThunk.rejected, (state, action) => {
         state.rankingStatus = "failed"
@@ -499,9 +585,36 @@ const ordersSlice = createSlice({
         state.customerRankingStatus = "failed"
         state.customerRankingError = action.payload ?? "Failed to load customer rankings."
       })
+      .addCase(fetchOrderStatsThunk.pending, (state) => {
+        state.orderStatsStatus = "loading"
+        state.orderStatsError = null
+      })
+      .addCase(fetchOrderStatsThunk.fulfilled, (state, action: PayloadAction<OrderStats>) => {
+        state.orderStatsStatus = "succeeded"
+        state.orderStats = action.payload
+      })
+      .addCase(fetchOrderStatsThunk.rejected, (state, action) => {
+        state.orderStatsStatus = "failed"
+        state.orderStatsError = action.payload ?? "Failed to load order stats."
+      })
+      .addCase(fetchSalesOrdersThunk.pending, (state, action) => {
+        state.salesStatus = "loading"
+        state.salesError = null
+        state.salesLatestRequestId = action.meta.requestId
+      })
+      .addCase(fetchSalesOrdersThunk.fulfilled, (state, action) => {
+        if (action.meta.requestId !== state.salesLatestRequestId) return
+        state.salesStatus = "succeeded"
+        state.salesOrders = action.payload.map(normalizeOrder)
+      })
+      .addCase(fetchSalesOrdersThunk.rejected, (state, action) => {
+        if (action.meta.requestId !== state.salesLatestRequestId) return
+        state.salesStatus = "failed"
+        state.salesError = action.payload ?? "Failed to load sales data."
+      })
   },
 })
 
-export const { setOrdersParams } = ordersSlice.actions
+export const { setOrdersParams, markDashboardStale } = ordersSlice.actions
 export default ordersSlice.reducer
 export type { OrdersState }

@@ -1,21 +1,27 @@
 import { useEffect, useState } from "react"
+import { format, parseISO } from "date-fns"
 import { PlusIcon } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 import { toast } from "sonner"
 
+import { ArrangeOrderDialog } from "@/components/orders/arrange-order-dialog"
 import { CancelOrderDialog } from "@/components/orders/cancel-order-dialog"
 import { DeleteOrderDialog } from "@/components/orders/delete-order-dialog"
 import { ORDER_STATUS_LABELS } from "@/components/orders/order-status-badge"
 import { OrderTable } from "@/components/orders/order-table"
 import { PAYMENT_STATUS_LABELS } from "@/components/orders/payment-status-badge"
+import { RecordPaymentDialog } from "@/components/orders/record-payment-dialog"
 import { RefundOrderDialog } from "@/components/orders/refund-order-dialog"
+import { ReturnOrderDialog } from "@/components/orders/return-order-dialog"
 import { ActiveFilterChips, FilterSearchInput, FilterToolbar, type ActiveFilter } from "@/components/filter-toolbar"
 import { PageHeader } from "@/components/page-header"
 import { PaginationBar } from "@/components/pagination-bar"
+import { RefreshButton } from "@/components/refresh-button"
 import { SortControl } from "@/components/sort-control"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { Calendar } from "@/components/ui/calendar"
 import { Label } from "@/components/ui/label"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import {
   Select,
   SelectContent,
@@ -24,17 +30,20 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { useAuth } from "@/lib/auth"
+import { useCategories } from "@/lib/categories"
+import { SPX_ADMIN_CREATE_ORDER_URL } from "@/lib/clipboard"
 import { useDebouncedValue } from "@/lib/use-debounced-value"
 import {
+  DEFAULT_ORDERS_PARAMS,
   ORDER_STATUSES,
   PAYMENT_STATUSES,
   useOrderActions,
   useOrders,
   type Order,
   type OrderStatus,
+  type Payment,
   type PaymentStatus,
 } from "@/lib/orders"
-import { PRODUCT_CATEGORIES } from "@/lib/products"
 
 const ANY_STATUS = "All Statuses"
 const ANY_PAYMENT_STATUS = "All Payment Statuses"
@@ -52,15 +61,22 @@ export function OrdersPage() {
   const { hasPermission, role } = useAuth()
   const canManage = hasPermission("manage_orders")
   const { orders, total, params, setParams, refetch, isLoading, isFetching, isError, error } = useOrders()
-  const { setOrderStatus, deleteOrder } = useOrderActions()
+  const { categories } = useCategories()
+  const { setOrderStatus, updateOrder, deleteOrder } = useOrderActions()
   const [searchInput, setSearchInput] = useState(params.search)
   const debouncedSearch = useDebouncedValue(searchInput, 400)
   const [cancellingOrder, setCancellingOrder] = useState<Order | null>(null)
+  const [arrangingOrder, setArrangingOrder] = useState<Order | null>(null)
   const [refundingOrder, setRefundingOrder] = useState<Order | null>(null)
+  const [returningOrder, setReturningOrder] = useState<Order | null>(null)
   const [deletingOrder, setDeletingOrder] = useState<Order | null>(null)
+  const [payingOrder, setPayingOrder] = useState<Order | null>(null)
+  const [payingTargetStatus, setPayingTargetStatus] = useState<"paid" | "partially_paid" | null>(null)
   const [isCancelling, setIsCancelling] = useState(false)
   const [isRefunding, setIsRefunding] = useState(false)
+  const [isReturning, setIsReturning] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [isPaying, setIsPaying] = useState(false)
 
   useEffect(() => {
     if (debouncedSearch !== params.search) {
@@ -83,6 +99,11 @@ export function OrdersPage() {
     }
   }
 
+  function handleConfirmArrange(_order: Order) {
+    window.open(SPX_ADMIN_CREATE_ORDER_URL, "_blank", "noopener,noreferrer")
+    setArrangingOrder(null)
+  }
+
   async function handleConfirmRefund(order: Order) {
     setIsRefunding(true)
     try {
@@ -94,6 +115,35 @@ export function OrdersPage() {
       toast.error(typeof err === "string" ? err : "Failed to refund order.")
     } finally {
       setIsRefunding(false)
+    }
+  }
+
+  async function handleConfirmReturn(order: Order) {
+    setIsReturning(true)
+    try {
+      await setOrderStatus(order.id, "returned")
+      toast.success("Order returned.")
+      setReturningOrder(null)
+      refetch()
+    } catch (err) {
+      toast.error(typeof err === "string" ? err : "Failed to return order.")
+    } finally {
+      setIsReturning(false)
+    }
+  }
+
+  async function handleConfirmPayment(order: Order, payment: Payment) {
+    setIsPaying(true)
+    try {
+      await updateOrder(order.id, { payment })
+      toast.success("Payment updated.")
+      setPayingOrder(null)
+      setPayingTargetStatus(null)
+      refetch()
+    } catch (err) {
+      toast.error(typeof err === "string" ? err : "Failed to update payment.")
+    } finally {
+      setIsPaying(false)
     }
   }
 
@@ -123,17 +173,7 @@ export function OrdersPage() {
 
   function clearFilters() {
     setSearchInput("")
-    setParams({
-      search: "",
-      status: "",
-      paymentStatus: "",
-      category: "",
-      dateFrom: "",
-      dateTo: "",
-      sortBy: "created_at",
-      sortDir: "desc",
-      page: 1,
-    })
+    setParams(DEFAULT_ORDERS_PARAMS)
   }
 
   const activeFilters: ActiveFilter[] = [
@@ -178,12 +218,15 @@ export function OrdersPage() {
         title="Orders"
         description="Manage customer orders"
         actions={
-          canManage ? (
-            <Button onClick={() => navigate("/orders/new")}>
-              <PlusIcon data-icon="inline-start" />
-              Create Order
-            </Button>
-          ) : undefined
+          <>
+            <RefreshButton onRefresh={refetch} isRefreshing={isFetching} />
+            {canManage ? (
+              <Button onClick={() => navigate("/orders/new")}>
+                <PlusIcon data-icon="inline-start" />
+                New Order
+              </Button>
+            ) : undefined}
+          </>
         }
       />
 
@@ -191,7 +234,7 @@ export function OrdersPage() {
         <FilterSearchInput
           value={searchInput}
           onChange={setSearchInput}
-          placeholder="Search order #, customer, description..."
+          placeholder="Search order #, customer..."
           disabled={isLoading || isError}
         />
 
@@ -255,9 +298,9 @@ export function OrdersPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={ANY_CATEGORY}>{ANY_CATEGORY}</SelectItem>
-            {PRODUCT_CATEGORIES.map((category) => (
-              <SelectItem key={category} value={category}>
-                {category}
+            {categories.map((category) => (
+              <SelectItem key={category.id} value={category.name}>
+                {category.name}
               </SelectItem>
             ))}
           </SelectContent>
@@ -268,30 +311,68 @@ export function OrdersPage() {
             <Label htmlFor="orders-date-from" className="text-sm text-muted-foreground">
               From
             </Label>
-            <Input
-              id="orders-date-from"
-              type="date"
-              value={params.dateFrom}
-              onChange={(event) => setParams({ dateFrom: event.target.value, page: 1 })}
-              max={params.dateTo || undefined}
-              className="w-36 border-0 px-0 focus-visible:ring-0"
-              disabled={isLoading || isError}
-            />
+            <Popover>
+              <PopoverTrigger
+                id="orders-date-from"
+                disabled={isLoading || isError}
+                render={
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 px-1.5 font-normal"
+                  />
+                }
+              >
+                <span className={params.dateFrom ? undefined : "text-muted-foreground"}>
+                  {params.dateFrom ? format(parseISO(params.dateFrom), "MMM d, yyyy") : "Select date"}
+                </span>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={params.dateFrom ? parseISO(params.dateFrom) : undefined}
+                  onSelect={(date) =>
+                    setParams({ dateFrom: date ? format(date, "yyyy-MM-dd") : "", page: 1 })
+                  }
+                  disabled={params.dateTo ? { after: parseISO(params.dateTo) } : undefined}
+                  autoFocus
+                />
+              </PopoverContent>
+            </Popover>
           </div>
           <div className="h-5 w-px bg-border" />
           <div className="flex items-center gap-1.5">
             <Label htmlFor="orders-date-to" className="text-sm text-muted-foreground">
               To
             </Label>
-            <Input
-              id="orders-date-to"
-              type="date"
-              value={params.dateTo}
-              onChange={(event) => setParams({ dateTo: event.target.value, page: 1 })}
-              min={params.dateFrom || undefined}
-              className="w-36 border-0 px-0 focus-visible:ring-0"
-              disabled={isLoading || isError}
-            />
+            <Popover>
+              <PopoverTrigger
+                id="orders-date-to"
+                disabled={isLoading || isError}
+                render={
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 px-1.5 font-normal"
+                  />
+                }
+              >
+                <span className={params.dateTo ? undefined : "text-muted-foreground"}>
+                  {params.dateTo ? format(parseISO(params.dateTo), "MMM d, yyyy") : "Select date"}
+                </span>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={params.dateTo ? parseISO(params.dateTo) : undefined}
+                  onSelect={(date) =>
+                    setParams({ dateTo: date ? format(date, "yyyy-MM-dd") : "", page: 1 })
+                  }
+                  disabled={params.dateFrom ? { before: parseISO(params.dateFrom) } : undefined}
+                  autoFocus
+                />
+              </PopoverContent>
+            </Popover>
           </div>
         </div>
 
@@ -326,7 +407,13 @@ export function OrdersPage() {
         onEdit={(order) => navigate(`/orders/${order.id}/edit`)}
         onCancel={setCancellingOrder}
         onRefund={setRefundingOrder}
+        onReturn={setReturningOrder}
         onDelete={setDeletingOrder}
+        onArrange={setArrangingOrder}
+        onRequestPayment={(order, targetStatus) => {
+          setPayingOrder(order)
+          setPayingTargetStatus(targetStatus)
+        }}
       />
 
       {total > 0 && (
@@ -348,6 +435,12 @@ export function OrdersPage() {
         onConfirm={handleConfirmCancel}
       />
 
+      <ArrangeOrderDialog
+        order={arrangingOrder}
+        onOpenChange={(open) => !open && setArrangingOrder(null)}
+        onConfirm={handleConfirmArrange}
+      />
+
       <RefundOrderDialog
         order={refundingOrder}
         isPending={isRefunding}
@@ -355,11 +448,31 @@ export function OrdersPage() {
         onConfirm={handleConfirmRefund}
       />
 
+      <ReturnOrderDialog
+        order={returningOrder}
+        isPending={isReturning}
+        onOpenChange={(open) => !open && setReturningOrder(null)}
+        onConfirm={handleConfirmReturn}
+      />
+
       <DeleteOrderDialog
         order={deletingOrder}
         isDeleting={isDeleting}
         onOpenChange={(open) => !open && setDeletingOrder(null)}
         onConfirm={handleConfirmDelete}
+      />
+
+      <RecordPaymentDialog
+        order={payingOrder}
+        targetStatus={payingTargetStatus}
+        isPending={isPaying}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPayingOrder(null)
+            setPayingTargetStatus(null)
+          }
+        }}
+        onConfirm={handleConfirmPayment}
       />
     </div>
   )

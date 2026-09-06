@@ -36,7 +36,9 @@ export function DeleteProductDialog({
           <AlertDialogDescription>
             Are you sure you want to delete{" "}
             <span className="font-medium text-foreground">{product?.name}</span>?
-            This action cannot be undone.
+            If it has existing orders, it will be hidden from your catalog but kept for
+            order history; otherwise it will be permanently removed. This can't be undone
+            from here.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

@@ -1,11 +1,22 @@
 import { useEffect, useMemo, useState } from "react"
-import { PlusIcon } from "lucide-react"
+import { format, parseISO } from "date-fns"
+import {
+  CopyIcon,
+  ExternalLinkIcon,
+  PlusIcon,
+  SettingsIcon,
+  TagIcon,
+  TruckIcon,
+  UserIcon,
+  WalletIcon,
+} from "lucide-react"
 import { useNavigate } from "react-router-dom"
 import { toast } from "sonner"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Calendar } from "@/components/ui/calendar"
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Autocomplete,
   AutocompleteEmpty,
@@ -18,6 +29,7 @@ import {
 } from "@/components/ui/autocomplete"
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import {
   Select,
   SelectContent,
@@ -27,7 +39,15 @@ import {
 } from "@/components/ui/select"
 import { Spinner } from "@/components/ui/spinner"
 import { useAuth } from "@/lib/auth"
+import { useCategories } from "@/lib/categories"
+import { SPX_ADMIN_CREATE_ORDER_URL, copyToClipboard } from "@/lib/clipboard"
 import type { LengthUnit } from "@/lib/length-units"
+import { useNavGuard } from "@/lib/nav-guard"
+import {
+  type OrderDraft,
+  type OrderDraftFields,
+  useOrderDrafts,
+} from "@/lib/order-drafts"
 import {
   buildOrderItem,
   computeLineItemPricing,
@@ -54,10 +74,24 @@ import { useProductCatalog } from "@/lib/products"
 import type { SintraThickness } from "@/lib/sintra-board-pricing"
 import type { StickerUnit } from "@/lib/sticker-quotation"
 import { useUserOptions } from "@/lib/users"
+import {
+  isValidPhMobileNumber,
+  maxLengthMessage,
+  NOTES_REQUIRED_WHEN_FEES_MESSAGE,
+  PHONE_FORMAT_MESSAGE,
+  PRICING_INCOMPLETE_MESSAGE,
+  PRODUCT_INACTIVE_MESSAGE,
+  REQUIRED_OPTIONS_MESSAGE,
+  requiredMessage,
+  validatePaymentAmount,
+} from "@/lib/validation"
 
+import { DiscardOrderChangesDialog } from "./discard-order-changes-dialog"
+import { OrderFormSectionNav, type OrderFormSection } from "./order-form-section-nav"
 import { OrderLineItemCard, type LineItemErrorKey } from "./order-line-item-card"
 import { OrderSummaryPanel } from "./order-summary-panel"
 import { PaymentFields } from "./payment-fields"
+import { SaveOrderDraftDialog } from "./save-order-draft-dialog"
 import { ShippingAddressFields } from "./shipping-address-fields"
 
 // Converts between an ISO timestamp and the value a `datetime-local` input needs,
@@ -74,6 +108,99 @@ function fromDatetimeLocalValue(value: string): string | null {
   if (!value) return null
   const date = new Date(value)
   return Number.isNaN(date.getTime()) ? null : date.toISOString()
+}
+
+// Admin metadata override for a `datetime-local`-shaped value ("YYYY-MM-DDTHH:mm"): a themed
+// Calendar popover for the date part plus a native time input for the time-of-day part.
+function DateTimeField({
+  id,
+  value,
+  onChange,
+  disabled,
+}: {
+  id: string
+  value: string
+  onChange: (value: string) => void
+  disabled?: boolean
+}) {
+  const datePart = value.slice(0, 10)
+  const timePart = value.slice(11, 16)
+
+  return (
+    <div className="flex gap-2">
+      <Popover>
+        <PopoverTrigger
+          id={id}
+          disabled={disabled}
+          render={
+            <Button variant="outline" size="sm" className="flex-1 justify-start font-normal" />
+          }
+        >
+          {datePart ? format(parseISO(datePart), "MMM d, yyyy") : "Select date"}
+        </PopoverTrigger>
+        <PopoverContent className="w-auto p-0" align="start">
+          <Calendar
+            mode="single"
+            selected={datePart ? parseISO(datePart) : undefined}
+            onSelect={(date) =>
+              onChange(date ? `${format(date, "yyyy-MM-dd")}T${timePart || "00:00"}` : "")
+            }
+            autoFocus
+          />
+        </PopoverContent>
+      </Popover>
+      <Input
+        type="time"
+        value={timePart}
+        onChange={(event) => datePart && onChange(`${datePart}T${event.target.value}`)}
+        disabled={disabled || !datePart}
+        className="w-28"
+      />
+    </div>
+  )
+}
+
+// Line items get a fresh generateId() every time an empty draft is created, so comparing raw
+// LineItemDraft objects would flag an untouched create-mode form as "dirty" from the first render.
+// Identity fields carry no user-visible content, so they're excluded from dirty comparisons.
+function stripItemIdentity({ id: _id, originalItemId: _originalItemId, ...rest }: LineItemDraft) {
+  return rest
+}
+
+function toComparableFields(fields: OrderDraftFields) {
+  return { ...fields, items: fields.items.map(stripItemIdentity) }
+}
+
+// Pure mirror of the order-seeding effect below — used to build the edit-mode dirty baseline.
+function fieldsFromOrder(order: Order): OrderDraftFields {
+  const shipping = order.shippingAddress
+  const paid = order.payment.status !== "unpaid"
+  return {
+    customerName: order.customerName,
+    customerPhone: order.customerPhone,
+    items: order.items.length > 0 ? order.items.map(draftFromOrderItem) : [createEmptyLineItemDraft()],
+    discount: String(order.discount),
+    additionalFees: String(order.additionalFees),
+    notes: order.notes ?? "",
+    layoutFee: String(order.layoutFee),
+    shippingEnabled: !!shipping,
+    sameName: shipping ? shipping.name === order.customerName : true,
+    samePhone: shipping ? shipping.phone === order.customerPhone : true,
+    shippingName: shipping?.name ?? "",
+    shippingPhone: shipping?.phone ?? "",
+    shippingAddress: shipping?.address ?? "",
+    shippingFee: shipping ? String(shipping.fee ?? 0) : "0",
+    channel: order.channel,
+    markPaid: paid,
+    paymentStatus:
+      order.payment.status === "refunded"
+        ? "refunded"
+        : paid && order.payment.status !== "paid"
+          ? "partially_paid"
+          : "paid",
+    paymentMethod: paid ? (order.payment.method ?? "") : "",
+    downPayment: paid ? String(order.payment.downPayment) : "",
+  }
 }
 
 export type OrderFormSeed = {
@@ -95,9 +222,11 @@ export type OrderFormSeed = {
 export function OrderForm({
   order,
   initialValues,
+  draftToLoad,
 }: {
   order: Order | null
   initialValues?: OrderFormSeed
+  draftToLoad?: OrderDraft | null
 }) {
   const navigate = useNavigate()
   const { products } = useProductCatalog()
@@ -105,14 +234,22 @@ export function OrderForm({
   const hotProductIds = useMemo(() => new Set(hotProductIdList), [hotProductIdList])
   const { customerNames, topCustomerNames, customerDetailsByName } = useCustomerRankings()
   const { addOrder, updateOrder } = useOrderActions()
+  const { categories } = useCategories()
   const { role } = useAuth()
   const canEditMetadata = !!order && canEditOrderMetadata(role)
   const { users: userOptions } = useUserOptions(canEditMetadata)
+  const { setGuard } = useNavGuard()
+  const { saveDraft, deleteDraft } = useOrderDrafts()
 
   const [customerName, setCustomerName] = useState("")
   const [customerPhone, setCustomerPhone] = useState("")
   const [items, setItems] = useState<LineItemDraft[]>([createEmptyLineItemDraft()])
-  const [description, setDescription] = useState("")
+  // Which line-item cards render expanded vs collapsed to a summary row — mirrors the same
+  // "single item starts open, multiple start collapsed" rule the read-only order details page
+  // uses (see order-item-summary.tsx / order-details-page.tsx).
+  const [openItemIds, setOpenItemIds] = useState<Set<string>>(
+    () => new Set(items.length === 1 ? items.map((item) => item.id) : [])
+  )
   const [discount, setDiscount] = useState("0")
   const [additionalFees, setAdditionalFees] = useState("0")
   const [notes, setNotes] = useState("")
@@ -126,7 +263,7 @@ export function OrderForm({
   const [shippingFee, setShippingFee] = useState("0")
   const [channel, setChannel] = useState<OrderChannel | "">("")
   const [markPaid, setMarkPaid] = useState(false)
-  const [paymentStatus, setPaymentStatus] = useState<"paid" | "partially_paid">("paid")
+  const [paymentStatus, setPaymentStatus] = useState<"paid" | "partially_paid" | "refunded">("paid")
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | "">("")
   const [downPayment, setDownPayment] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -135,6 +272,38 @@ export function OrderForm({
   const [createdByValue, setCreatedByValue] = useState("")
   const [statusUpdatedAtLocal, setStatusUpdatedAtLocal] = useState("")
   const [statusUpdatedByValue, setStatusUpdatedByValue] = useState("")
+
+  function buildCurrentFields(): OrderDraftFields {
+    return {
+      customerName,
+      customerPhone,
+      items,
+      discount,
+      additionalFees,
+      notes,
+      layoutFee,
+      shippingEnabled,
+      sameName,
+      samePhone,
+      shippingName,
+      shippingPhone,
+      shippingAddress,
+      shippingFee,
+      channel,
+      markPaid,
+      paymentStatus,
+      paymentMethod,
+      downPayment,
+    }
+  }
+
+  const [pendingNav, setPendingNav] = useState<string | number | null>(null)
+  const [loadedDraftId, setLoadedDraftId] = useState<string | null>(null)
+  const [baselineFields, setBaselineFields] = useState<OrderDraftFields>(() => buildCurrentFields())
+
+  const isDirty =
+    JSON.stringify(toComparableFields(buildCurrentFields())) !==
+    JSON.stringify(toComparableFields(baselineFields))
 
   function clearError(key: string) {
     setErrors((prev) => {
@@ -172,14 +341,22 @@ export function OrderForm({
     }
   }
 
-  const activeProducts = products.filter((product) => product.status === "Active")
+  const activeProducts = products
+    .filter((product) => product.status === "Active")
+    .sort((a, b) => Number(hotProductIds.has(b.id)) - Number(hotProductIds.has(a.id)))
+
+  const activeUserOptions = userOptions.filter((user) => user.status === "active")
 
   function updateItemAt(index: number, next: LineItemDraft) {
     setItems((prev) => prev.map((draft, i) => (i === index ? next : draft)))
   }
 
   function addItem() {
-    setItems((prev) => [...prev, createEmptyLineItemDraft()])
+    const next = createEmptyLineItemDraft()
+    setItems((prev) => [...prev, next])
+    // A freshly-added item is empty, so it always starts expanded regardless of how many
+    // other items are already collapsed.
+    setOpenItemIds((prev) => new Set(prev).add(next.id))
   }
 
   function removeItemAt(index: number) {
@@ -191,12 +368,14 @@ export function OrderForm({
     if (!order) return
     setCustomerName(order.customerName)
     setCustomerPhone(order.customerPhone)
-    setDescription(order.description ?? "")
     setDiscount(String(order.discount))
     setAdditionalFees(String(order.additionalFees))
     setNotes(order.notes ?? "")
     setLayoutFee(String(order.layoutFee))
-    setItems(order.items.length > 0 ? order.items.map(draftFromOrderItem) : [createEmptyLineItemDraft()])
+    const loadedItems =
+      order.items.length > 0 ? order.items.map(draftFromOrderItem) : [createEmptyLineItemDraft()]
+    setItems(loadedItems)
+    setOpenItemIds(new Set(loadedItems.length === 1 ? loadedItems.map((item) => item.id) : []))
 
     if (order.shippingAddress) {
       setShippingEnabled(true)
@@ -211,7 +390,13 @@ export function OrderForm({
     setChannel(order.channel)
     if (order.payment.status !== "unpaid") {
       setMarkPaid(true)
-      setPaymentStatus(order.payment.status === "paid" ? "paid" : "partially_paid")
+      setPaymentStatus(
+        order.payment.status === "paid"
+          ? "paid"
+          : order.payment.status === "refunded"
+            ? "refunded"
+            : "partially_paid"
+      )
       setPaymentMethod(order.payment.method ?? "")
       setDownPayment(String(order.payment.downPayment))
     }
@@ -220,6 +405,13 @@ export function OrderForm({
     setCreatedByValue(order.createdBy ?? "")
     setStatusUpdatedAtLocal(toDatetimeLocalValue(order.statusUpdatedAt))
     setStatusUpdatedByValue(order.statusUpdatedBy ?? "")
+  }, [order])
+
+  // Resets the edit-mode dirty baseline whenever a (new) order finishes loading, so unsaved-changes
+  // tracking compares against the order's actual saved state rather than the empty create-mode default.
+  useEffect(() => {
+    if (!order) return
+    setBaselineFields(fieldsFromOrder(order))
   }, [order])
 
   useEffect(() => {
@@ -244,6 +436,44 @@ export function OrderForm({
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [order, initialValues])
+
+  // Loading a saved draft is a later, deliberate user action (a "Load" click), so it's seeded in
+  // its own effect placed after the calculator-handoff seed above and always wins over it.
+  useEffect(() => {
+    if (order || !draftToLoad) return
+    const f = draftToLoad.fields
+    setCustomerName(f.customerName)
+    setCustomerPhone(f.customerPhone)
+    setItems(f.items)
+    setOpenItemIds(new Set(f.items.length === 1 ? f.items.map((item) => item.id) : []))
+    setDiscount(f.discount)
+    setAdditionalFees(f.additionalFees)
+    setNotes(f.notes)
+    setLayoutFee(f.layoutFee)
+    setShippingEnabled(f.shippingEnabled)
+    setSameName(f.sameName)
+    setSamePhone(f.samePhone)
+    setShippingName(f.shippingName)
+    setShippingPhone(f.shippingPhone)
+    setShippingAddress(f.shippingAddress)
+    setShippingFee(f.shippingFee)
+    setChannel(f.channel)
+    setMarkPaid(f.markPaid)
+    setPaymentStatus(f.paymentStatus)
+    setPaymentMethod(f.paymentMethod)
+    setDownPayment(f.downPayment)
+    setLoadedDraftId(draftToLoad.id)
+    // The loaded draft becomes the new "nothing to save" baseline — only edits made after loading
+    // it should count as dirty, since the draft itself already reflects this content.
+    setBaselineFields(f)
+  }, [order, draftToLoad])
+
+  // Registers this form with the shared nav-guard so sidebar clicks can intercept navigation while
+  // there are unsaved changes; the app uses a plain BrowserRouter, so there's no useBlocker to lean on.
+  useEffect(() => {
+    setGuard(isDirty ? (targetPath: string) => setPendingNav(targetPath) : null)
+    return () => setGuard(null)
+  }, [isDirty, setGuard])
 
   const resolvedItems = items.map((draft) => {
     const product = products.find((candidate) => candidate.id === draft.productId) ?? null
@@ -297,8 +527,19 @@ export function OrderForm({
     }
   }
 
+  function handleOpenSpx() {
+    window.open(SPX_ADMIN_CREATE_ORDER_URL, "_blank", "noopener,noreferrer")
+  }
+
+  function handleCopyShippingAddress() {
+    const shipping = resolveShippingAddress()
+    if (!shipping) return
+    copyToClipboard(`${shipping.name}\n${shipping.phone}\n${shipping.address}`)
+  }
+
   function resolvePayment(total: number): Payment {
     if (!markPaid) return { status: "unpaid", method: null, downPayment: 0, balance: total }
+    if (paymentStatus === "refunded") return { status: "refunded", method: null, downPayment: 0, balance: 0 }
     const method = channel === "Shopee" ? "Bank Transfer" : (paymentMethod as PaymentMethod)
     if (paymentStatus === "paid") {
       return { status: "paid", method, downPayment: total, balance: 0 }
@@ -313,79 +554,99 @@ export function OrderForm({
     const nextErrors: Record<string, string> = {}
 
     if (!customerName.trim()) {
-      nextErrors.customerName = "Customer name is required."
+      nextErrors.customerName = requiredMessage("Customer name")
     } else if (customerName.trim().length > 60) {
-      nextErrors.customerName = "Must be 60 characters or fewer."
+      nextErrors.customerName = maxLengthMessage("Customer name", 60)
     }
 
-    if (description.length > 60) {
-      nextErrors.description = "Must be 60 characters or fewer."
+    if (customerPhone.trim() && !isValidPhMobileNumber(customerPhone.trim())) {
+      nextErrors.customerPhone = PHONE_FORMAT_MESSAGE
     }
 
     if (notes.length > 20) {
-      nextErrors.notes = "Must be 20 characters or fewer."
+      nextErrors.notes = maxLengthMessage("Notes", 20)
     } else if (additionalFeesNum > 0 && !notes.trim()) {
-      nextErrors.notes = "Notes is required when Additional Fees is greater than 0."
+      nextErrors.notes = NOTES_REQUIRED_WHEN_FEES_MESSAGE
     }
 
     if (!channel) {
-      nextErrors.channel = "Order channel is required."
+      nextErrors.channel = requiredMessage("Order channel")
     }
 
     if (shippingEnabled) {
       const resolvedName = sameName ? customerName : shippingName
       const resolvedPhone = samePhone ? customerPhone : shippingPhone
-      if (!resolvedName.trim() || !resolvedPhone.trim() || !shippingAddress.trim()) {
-        nextErrors.shipping = "Name, phone, and address are required."
+
+      if (!resolvedName.trim()) {
+        nextErrors.shippingName = requiredMessage("Recipient name")
       } else if (resolvedName.trim().length > 60) {
-        nextErrors.shipping = "Name must be 60 characters or fewer."
+        nextErrors.shippingName = maxLengthMessage("Recipient name", 60)
+      }
+
+      if (!resolvedPhone.trim()) {
+        nextErrors.shippingPhone = requiredMessage("Recipient phone")
+      } else if (!isValidPhMobileNumber(resolvedPhone.trim())) {
+        nextErrors.shippingPhone = PHONE_FORMAT_MESSAGE
+      }
+
+      if (!shippingAddress.trim()) {
+        nextErrors.shippingAddress = requiredMessage("Address")
       } else if (shippingAddress.trim().length > 250) {
-        nextErrors.shipping = "Address must be 250 characters or fewer."
+        nextErrors.shippingAddress = maxLengthMessage("Address", 250)
       }
     }
 
-    if (markPaid) {
+    if (markPaid && paymentStatus !== "refunded") {
       const effectiveMethod = channel === "Shopee" ? "Bank Transfer" : paymentMethod
-      if (!effectiveMethod) {
-        nextErrors.paymentMethod = "Select a payment method."
-      }
-      if (paymentStatus === "partially_paid") {
-        const dp = Number(downPayment)
-        if (!Number.isFinite(dp) || dp <= 0 || dp >= previewTotal) {
-          nextErrors.downPayment = "Must be greater than 0 and less than the total."
-        }
-      }
+      const paymentErrors = validatePaymentAmount({
+        effectiveMethod,
+        downPaymentInput: downPayment,
+        targetStatus: paymentStatus === "partially_paid" ? "partially_paid" : "paid",
+        total: previewTotal,
+      })
+      if (paymentErrors.method) nextErrors.paymentMethod = paymentErrors.method
+      if (paymentErrors.downPayment) nextErrors.downPayment = paymentErrors.downPayment
     }
 
     resolvedItems.forEach((resolved, index) => {
       if (resolved.isMissingProduct) return
 
       if (!resolved.product) {
-        nextErrors[`item-${index}-product`] = "Select a product."
+        nextErrors[`item-${index}-product`] = requiredMessage("Product")
       } else if (resolved.product.status !== "Active") {
-        nextErrors[`item-${index}-product`] =
-          "This product is inactive and can't be used for new or updated orders."
+        nextErrors[`item-${index}-product`] = PRODUCT_INACTIVE_MESSAGE
       } else if (
         !resolved.computed.isManual &&
-        !(resolved.product.category === "Sintra Board" && resolved.draft.isCustomSize)
+        !(resolved.product.category === "Sintra" && resolved.draft.isCustomSize)
       ) {
         const missingRequired = resolved.product.options.some(
           (option) => option.required && !resolved.draft.optionValues[option.id]
         )
-        if (missingRequired) nextErrors[`item-${index}-options`] = "Select all required options."
+        if (missingRequired) nextErrors[`item-${index}-options`] = REQUIRED_OPTIONS_MESSAGE
       }
 
       if (resolved.product && !resolved.computed.pricing) {
-        nextErrors[`item-${index}-pricing`] = "Complete the pricing fields for this product."
+        nextErrors[`item-${index}-pricing`] = PRICING_INCOMPLETE_MESSAGE
       }
 
       if (resolved.draft.notes.length > 60) {
-        nextErrors[`item-${index}-notes`] = "Must be 60 characters or fewer."
+        nextErrors[`item-${index}-notes`] = maxLengthMessage("Notes", 60)
       }
     })
 
     if (Object.keys(nextErrors).length > 0) {
       setErrors(nextErrors)
+      // A collapsed item's error is invisible until its card reopens — expand every item
+      // that failed validation so the errors below are actually visible.
+      const erroredItemIds = new Set(
+        Object.keys(nextErrors)
+          .filter((key) => key.startsWith("item-"))
+          .map((key) => items[Number(key.split("-")[1])]?.id)
+          .filter((itemId): itemId is string => !!itemId)
+      )
+      if (erroredItemIds.size > 0) {
+        setOpenItemIds((prev) => new Set([...prev, ...erroredItemIds]))
+      }
       return
     }
     setErrors({})
@@ -411,12 +672,11 @@ export function OrderForm({
 
       if (order) {
         const firstCategory = builtItems[0]?.productCategory ?? order.items[0]?.productCategory
-        const validStatuses = firstCategory ? getStatusFlowForCategory(firstCategory) : []
+        const validStatuses = firstCategory ? getStatusFlowForCategory(firstCategory, categories) : []
         const status = validStatuses.includes(order.status) ? order.status : "pending"
         await updateOrder(order.id, {
           customerName: customerName.trim(),
           customerPhone: customerPhone.trim(),
-          description: description.trim(),
           status,
           items: builtItems,
           subtotal: subtotalFinal,
@@ -436,7 +696,6 @@ export function OrderForm({
         const created = await addOrder({
           customerName: customerName.trim(),
           customerPhone: customerPhone.trim(),
-          description: description.trim(),
           status: "pending",
           items: builtItems,
           subtotal: subtotalFinal,
@@ -450,6 +709,7 @@ export function OrderForm({
           payment: resolvePayment(total),
         })
         toast.success("Order created.")
+        if (loadedDraftId) deleteDraft(loadedDraftId)
         navigate(`/orders/${created.id}`)
       }
     } catch (err) {
@@ -459,12 +719,38 @@ export function OrderForm({
     }
   }
 
+  function confirmNavigation() {
+    if (pendingNav === null) return
+    // react-router's navigate() is overloaded on `To | number`, which TS can't dispatch from a
+    // union argument directly — narrowing per-branch resolves to the matching overload.
+    if (typeof pendingNav === "number") navigate(pendingNav)
+    else navigate(pendingNav)
+    setPendingNav(null)
+  }
+
+  function confirmSaveDraftAndLeave() {
+    saveDraft(buildCurrentFields(), loadedDraftId ?? undefined)
+    confirmNavigation()
+  }
+
+  const sections: OrderFormSection[] = [
+    { id: "order-section-customer", label: "Customer" },
+    { id: "order-section-products", label: "Products" },
+    { id: "order-section-shipping", label: "Shipping" },
+    { id: "order-section-pricing", label: "Pricing" },
+    { id: "order-section-payment", label: "Payment" },
+    ...(canEditMetadata ? [{ id: "order-section-metadata", label: "Metadata" }] : []),
+  ]
+
   return (
     <form onSubmit={handleSubmit} className="grid gap-6 lg:grid-cols-[1fr_360px]">
       <div className="flex flex-col gap-4">
-        <Card>
+        <Card id="order-section-customer" className="scroll-mt-24 shadow-xs">
           <CardHeader>
-            <CardTitle>Customer</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <UserIcon className="size-4 text-muted-foreground" />
+              Customer
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <FieldGroup>
@@ -485,7 +771,7 @@ export function OrderForm({
                       <AutocompleteInput
                         id="order-customer-name"
                         className="w-full"
-                        placeholder="Juan Dela Cruz"
+                        placeholder="Fullname"
                         maxLength={60}
                         aria-invalid={!!errors.customerName}
                       />
@@ -511,31 +797,21 @@ export function OrderForm({
                   </Autocomplete>
                   <FieldError>{errors.customerName}</FieldError>
                 </Field>
-                <Field>
+                <Field data-invalid={!!errors.customerPhone}>
                   <FieldLabel htmlFor="order-customer-phone">Phone</FieldLabel>
                   <Input
                     id="order-customer-phone"
                     value={customerPhone}
-                    onChange={(event) => setCustomerPhone(event.target.value)}
+                    onChange={(event) => {
+                      setCustomerPhone(event.target.value)
+                      clearError("customerPhone")
+                    }}
                     placeholder="09XX XXX XXXX"
+                    aria-invalid={!!errors.customerPhone}
                   />
+                  <FieldError>{errors.customerPhone}</FieldError>
                 </Field>
               </div>
-              <Field data-invalid={!!errors.description}>
-                <FieldLabel htmlFor="order-description">Order description</FieldLabel>
-                <Input
-                  id="order-description"
-                  value={description}
-                  onChange={(event) => {
-                    setDescription(event.target.value)
-                    clearError("description")
-                  }}
-                  placeholder="Optional short description"
-                  maxLength={60}
-                  aria-invalid={!!errors.description}
-                />
-                <FieldError>{errors.description}</FieldError>
-              </Field>
             </FieldGroup>
           </CardContent>
         </Card>
@@ -543,6 +819,7 @@ export function OrderForm({
         {resolvedItems.map((resolved, index) => (
           <OrderLineItemCard
             key={resolved.draft.id}
+            id={index === 0 ? "order-section-products" : undefined}
             index={index}
             products={products}
             activeProducts={activeProducts}
@@ -560,24 +837,62 @@ export function OrderForm({
               notes: errors[`item-${index}-notes`],
             }}
             onClearError={(key: LineItemErrorKey) => clearError(`item-${index}-${key}`)}
+            isOpen={openItemIds.has(resolved.draft.id)}
+            onOpenChange={(open) =>
+              setOpenItemIds((prev) => {
+                const next = new Set(prev)
+                if (open) next.add(resolved.draft.id)
+                else next.delete(resolved.draft.id)
+                return next
+              })
+            }
+            canCollapse={!!resolved.product}
           />
         ))}
 
         <Button type="button" variant="outline" size="sm" className="self-start" onClick={addItem}>
           <PlusIcon data-icon="inline-start" />
-          Add another product
+          Add another order
         </Button>
 
-        <Card>
+        <Card id="order-section-shipping" className="scroll-mt-24 shadow-xs">
           <CardHeader>
-            <CardTitle>Shipping</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <TruckIcon className="size-4 text-muted-foreground" />
+              Shipping
+            </CardTitle>
+            {shippingEnabled && (
+              <CardAction className="flex gap-1">
+            
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="Copy shipping address"
+                  onClick={handleCopyShippingAddress}
+                >
+                  <CopyIcon />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="Open SPX order form"
+                  onClick={handleOpenSpx}
+                >
+                  <ExternalLinkIcon />
+                </Button>
+              </CardAction>
+            )}
           </CardHeader>
           <CardContent>
             <ShippingAddressFields
               enabled={shippingEnabled}
               onEnabledChange={(value) => {
                 setShippingEnabled(value)
-                clearError("shipping")
+                clearError("shippingName")
+                clearError("shippingPhone")
+                clearError("shippingAddress")
               }}
               customerName={customerName}
               customerPhone={customerPhone}
@@ -588,44 +903,63 @@ export function OrderForm({
               name={shippingName}
               onNameChange={(value) => {
                 setShippingName(value)
-                clearError("shipping")
+                clearError("shippingName")
               }}
               phone={shippingPhone}
               onPhoneChange={(value) => {
                 setShippingPhone(value)
-                clearError("shipping")
+                clearError("shippingPhone")
               }}
               address={shippingAddress}
               onAddressChange={(value) => {
                 setShippingAddress(value)
-                clearError("shipping")
+                clearError("shippingAddress")
               }}
               fee={shippingFee}
               onFeeChange={setShippingFee}
-              error={errors.shipping}
+              errors={{
+                name: errors.shippingName,
+                phone: errors.shippingPhone,
+                address: errors.shippingAddress,
+              }}
             />
           </CardContent>
         </Card>
 
-        <Card>
+        <Card id="order-section-pricing" className="scroll-mt-24 shadow-xs">
           <CardHeader>
-            <CardTitle>Pricing</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <TagIcon className="size-4 text-muted-foreground" />
+              Pricing
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <FieldGroup>
-              <Field>
-                <FieldLabel htmlFor="order-discount">Discount</FieldLabel>
-                <Input
-                  id="order-discount"
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  value={discount}
-                  onChange={(event) => setDiscount(event.target.value)}
-                />
-              </Field>
-
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <Field>
+                  <FieldLabel htmlFor="order-discount">Discount</FieldLabel>
+                  <Input
+                    id="order-discount"
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={discount}
+                    onChange={(event) => setDiscount(event.target.value)}
+                  />
+                </Field>
+
+                <Field>
+                  <FieldLabel htmlFor="order-layout-fee">Layout Fee</FieldLabel>
+                  <Input
+                    id="order-layout-fee"
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={layoutFee}
+                    onChange={(event) => setLayoutFee(event.target.value)}
+                  />
+                </Field>
+
                 <Field>
                   <FieldLabel htmlFor="order-additional-fees">Additional Fees</FieldLabel>
                   <Input
@@ -653,25 +987,16 @@ export function OrderForm({
                   <FieldError>{errors.notes}</FieldError>
                 </Field>
               </div>
-
-              <Field>
-                <FieldLabel htmlFor="order-layout-fee">Layout Fee</FieldLabel>
-                <Input
-                  id="order-layout-fee"
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  value={layoutFee}
-                  onChange={(event) => setLayoutFee(event.target.value)}
-                />
-              </Field>
             </FieldGroup>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card id="order-section-payment" className="scroll-mt-24 shadow-xs">
           <CardHeader>
-            <CardTitle>Payment</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <WalletIcon className="size-4 text-muted-foreground" />
+              Payment
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <PaymentFields
@@ -705,20 +1030,22 @@ export function OrderForm({
         </Card>
 
         {canEditMetadata && (
-          <Card>
+          <Card id="order-section-metadata" className="scroll-mt-24 shadow-xs">
             <CardHeader>
-              <CardTitle>Order Metadata</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <SettingsIcon className="size-4 text-muted-foreground" />
+                Order Metadata
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <FieldGroup>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <Field>
                     <FieldLabel htmlFor="order-created-at">Created Date</FieldLabel>
-                    <Input
+                    <DateTimeField
                       id="order-created-at"
-                      type="datetime-local"
                       value={createdAtLocal}
-                      onChange={(event) => setCreatedAtLocal(event.target.value)}
+                      onChange={setCreatedAtLocal}
                     />
                   </Field>
                   <Field>
@@ -736,7 +1063,7 @@ export function OrderForm({
                         </SelectValue>
                       </SelectTrigger>
                       <SelectContent>
-                        {userOptions.map((u) => (
+                        {activeUserOptions.map((u) => (
                           <SelectItem key={u.id} value={u.id}>
                             {u.firstName} {u.lastName}
                           </SelectItem>
@@ -748,11 +1075,10 @@ export function OrderForm({
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <Field>
                     <FieldLabel htmlFor="order-status-updated-at">Status Updated Date</FieldLabel>
-                    <Input
+                    <DateTimeField
                       id="order-status-updated-at"
-                      type="datetime-local"
                       value={statusUpdatedAtLocal}
-                      onChange={(event) => setStatusUpdatedAtLocal(event.target.value)}
+                      onChange={setStatusUpdatedAtLocal}
                     />
                   </Field>
                   <Field>
@@ -770,7 +1096,7 @@ export function OrderForm({
                         </SelectValue>
                       </SelectTrigger>
                       <SelectContent>
-                        {userOptions.map((u) => (
+                        {activeUserOptions.map((u) => (
                           <SelectItem key={u.id} value={u.id}>
                             {u.firstName} {u.lastName}
                           </SelectItem>
@@ -785,17 +1111,22 @@ export function OrderForm({
         )}
 
         <div className="flex justify-end gap-2">
-          <Button type="button" variant="outline" onClick={() => navigate(-1)}>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => (isDirty ? setPendingNav(-1) : navigate(-1))}
+          >
             Cancel
           </Button>
           <Button type="submit" disabled={isSubmitting}>
             {isSubmitting && <Spinner data-icon="inline-start" />}
-            {isSubmitting ? "Saving..." : order ? "Update Order" : "Create Order"}
+            {isSubmitting ? "Saving..." : order ? "Update Order" : "New Order"}
           </Button>
         </div>
       </div>
 
-      <div className="lg:sticky lg:top-20 lg:self-start">
+      <div className="flex flex-col gap-4 lg:sticky lg:top-20 lg:self-start">
+        <OrderFormSectionNav sections={sections} />
         <OrderSummaryPanel
           items={resolvedItems.map((resolved) => ({
             product: resolved.product,
@@ -804,6 +1135,7 @@ export function OrderForm({
             quantity: Math.max(1, Math.round(Number(resolved.draft.quantity) || 1)),
             lineTotal: resolved.lineTotal,
             stickerQuotation: resolved.computed.stickerQuotationSnapshot,
+            notes: resolved.draft.notes,
           }))}
           discount={discountNum}
           additionalFees={additionalFeesNum}
@@ -812,6 +1144,21 @@ export function OrderForm({
           notes={notes}
         />
       </div>
+
+      {order ? (
+        <DiscardOrderChangesDialog
+          open={pendingNav !== null}
+          onOpenChange={(open) => !open && setPendingNav(null)}
+          onDiscard={confirmNavigation}
+        />
+      ) : (
+        <SaveOrderDraftDialog
+          open={pendingNav !== null}
+          onOpenChange={(open) => !open && setPendingNav(null)}
+          onDiscard={confirmNavigation}
+          onSaveDraft={confirmSaveDraftAndLeave}
+        />
+      )}
     </form>
   )
 }

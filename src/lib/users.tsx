@@ -14,6 +14,7 @@ export {
   PERMISSION_KEYS,
   PERMISSION_LABELS,
   ROLES,
+  USER_STATUSES,
 } from "@/lib/users-slice"
 export type {
   PermissionKey,
@@ -21,6 +22,7 @@ export type {
   User,
   UserInput,
   UsersQueryParams,
+  UserStatus,
 } from "@/lib/users-slice"
 
 /** Paginated Users list — for the Users list page. Refetches whenever `params` changes. */
@@ -35,7 +37,16 @@ export function useUsers() {
   useEffect(() => {
     dispatch(fetchUsersThunk(params))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dispatch, params.page, params.pageSize, params.search, params.role, params.sortBy, params.sortDir])
+  }, [
+    dispatch,
+    params.page,
+    params.pageSize,
+    params.search,
+    params.role,
+    params.status,
+    params.sortBy,
+    params.sortDir,
+  ])
 
   function setParams(patch: Partial<UsersQueryParams>) {
     dispatch(setUsersParams(patch))
@@ -73,7 +84,15 @@ export function useUserOptions(enabled = true) {
     let cancelled = false
     setIsLoading(true)
     dispatch(
-      fetchUsersThunk({ page: 1, pageSize: 50, search: "", role: "", sortBy: "username", sortDir: "asc" })
+      fetchUsersThunk({
+        page: 1,
+        pageSize: 50,
+        search: "",
+        role: "",
+        status: "",
+        sortBy: "username",
+        sortDir: "asc",
+      })
     )
       .unwrap()
       .then((result) => {

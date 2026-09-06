@@ -4,15 +4,20 @@ import { apiClient } from "@/lib/api-client"
 import { getErrorMessage } from "@/lib/api-error"
 import type { RootState } from "@/lib/store"
 
-export const PRODUCT_CATEGORIES = [
-  "Sticker Label",
+/**
+ * The categories originally hardcoded here, before categories became an
+ * admin-managed entity (see @/lib/categories). Kept only as the key-set for
+ * the default icon/tone/status-flow lookups — not used to populate pickers.
+ */
+export const KNOWN_PRODUCT_CATEGORIES = [
+  "Sticker",
   "Laminated Sticker",
   "Tarpaulin",
-  "Sintra Board",
+  "Sintra",
   "General Merchandise",
   "3D Print",
 ] as const
-export type ProductCategory = (typeof PRODUCT_CATEGORIES)[number]
+export type ProductCategory = string
 
 export const PRODUCT_STATUSES = ["Active", "Inactive"] as const
 export type ProductStatus = (typeof PRODUCT_STATUSES)[number]
@@ -33,9 +38,18 @@ export type ProductOption = {
   values: string[]
 }
 
+/** One `{ option, value }` condition within a combination match — all conditions on an entry must
+ *  match the customer's selected option values for that entry to apply. */
+export type AppliesToCondition = {
+  optionId: string
+  value: string
+}
+
+export type AppliesTo = typeof ALL_VARIANTS | AppliesToCondition[]
+
 export type PricingEntry = {
   id: string
-  appliesTo: string
+  appliesTo: AppliesTo
   pricingType: PricingType
   packageName?: string
   price: number
@@ -48,13 +62,14 @@ export type Product = {
   category: ProductCategory
   description: string
   status: ProductStatus
+  deletedAt: string | null
   options: ProductOption[]
   pricing: PricingEntry[]
   createdAt: string
   updatedAt: string
 }
 
-export type ProductInput = Omit<Product, "id" | "createdAt" | "updatedAt">
+export type ProductInput = Omit<Product, "id" | "createdAt" | "updatedAt" | "deletedAt">
 
 export function summarizePricing(pricing: PricingEntry[]): string {
   if (pricing.length === 0) return "No pricing"
@@ -69,14 +84,6 @@ export function summarizePricing(pricing: PricingEntry[]): string {
   }
 
   return type
-}
-
-function toProductPayload(input: ProductInput) {
-  return {
-    ...input,
-    options: input.options.map(({ id: _id, ...rest }) => rest),
-    pricing: input.pricing.map(({ id: _id, ...rest }) => rest),
-  }
 }
 
 export type ProductsQueryParams = {
@@ -142,7 +149,7 @@ export const createProductThunk = createAsyncThunk<Product, ProductInput, { reje
   "products/create",
   async (input, { rejectWithValue }) => {
     try {
-      const { data } = await apiClient.post<Product>("/products", toProductPayload(input))
+      const { data } = await apiClient.post<Product>("/products", input)
       return data
     } catch (err) {
       return rejectWithValue(getErrorMessage(err))
@@ -156,7 +163,7 @@ export const updateProductThunk = createAsyncThunk<
   { rejectValue: string }
 >("products/update", async ({ id, input }, { rejectWithValue }) => {
   try {
-    const { data } = await apiClient.put<Product>(`/products/${id}`, toProductPayload(input))
+    const { data } = await apiClient.put<Product>(`/products/${id}`, input)
     return data
   } catch (err) {
     return rejectWithValue(getErrorMessage(err))

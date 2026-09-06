@@ -22,6 +22,9 @@ export const PERMISSION_LABELS: Record<PermissionKey, string> = {
   view_reports: "View Reports",
 }
 
+export const USER_STATUSES = ["active", "inactive"] as const
+export type UserStatus = (typeof USER_STATUSES)[number]
+
 export type User = {
   id: string
   firstName: string
@@ -30,6 +33,7 @@ export type User = {
   role: Role
   permissions: PermissionKey[]
   avatar: string | null
+  status: UserStatus
   createdAt: string
   updatedAt: string
 }
@@ -40,6 +44,7 @@ export type UserInput = {
   username: string
   role: Role
   permissions: PermissionKey[]
+  status: UserStatus
   password?: string
 }
 
@@ -53,6 +58,7 @@ export type UsersQueryParams = {
   pageSize: number
   search: string
   role: string
+  status: string
   sortBy: string
   sortDir: "asc" | "desc"
 }
@@ -76,6 +82,7 @@ export const fetchUsersThunk = createAsyncThunk<
         pageSize: params.pageSize,
         search: params.search || undefined,
         role: params.role || undefined,
+        status: params.status || undefined,
         sortBy: params.sortBy,
         sortDir: params.sortDir,
       },
@@ -143,6 +150,7 @@ const initialState: UsersState = {
     pageSize: 10,
     search: "",
     role: "",
+    status: "",
     sortBy: "created_at",
     sortDir: "asc",
   },
