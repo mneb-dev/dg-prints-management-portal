@@ -44,6 +44,13 @@
     --color-status-ready: var(--status-ready);
     --color-status-success: var(--status-success);
     --color-status-warning: var(--status-warning);
+    /* Order-status-only colors — see ORDER_STATUS_COLORS in order-status-badge.tsx for the
+       status-to-token mapping. Edit these values to retune a status's color. */
+    --color-order-status-trace: var(--order-status-trace);
+    --color-order-status-cut: var(--order-status-cut);
+    --color-order-status-pack: var(--order-status-pack);
+    --color-order-status-refunded: var(--order-status-refunded);
+    --color-order-status-returned: var(--order-status-returned);
     --radius-sm: calc(var(--radius) * 0.6);
     --radius-md: calc(var(--radius) * 0.8);
     --radius-lg: var(--radius);
@@ -83,6 +90,11 @@
     --status-ready: oklch(0.62 0.11 205);
     --status-success: oklch(0.6 0.15 145);
     --status-warning: oklch(0.68 0.15 75);
+    --order-status-trace: oklch(0.56 0.16 245);
+    --order-status-cut: oklch(0.58 0.15 268);
+    --order-status-pack: oklch(0.6 0.11 110);
+    --order-status-refunded: oklch(0.58 0.16 296);
+    --order-status-returned: oklch(0.6 0.17 324);
     --radius: 0.625rem;
     --sidebar: oklch(0.985 0 0);
     --sidebar-foreground: oklch(0.19 0.014 238);
@@ -125,6 +137,11 @@
     --status-ready: oklch(0.72 0.11 205);
     --status-success: oklch(0.72 0.15 145);
     --status-warning: oklch(0.78 0.14 75);
+    --order-status-trace: oklch(0.68 0.16 245);
+    --order-status-cut: oklch(0.7 0.15 268);
+    --order-status-pack: oklch(0.72 0.11 110);
+    --order-status-refunded: oklch(0.7 0.15 296);
+    --order-status-returned: oklch(0.72 0.16 324);
     --sidebar: oklch(0.15 0.012 238);
     --sidebar-foreground: oklch(0.96 0.004 238);
     --sidebar-primary: oklch(0.66 0.2 356);

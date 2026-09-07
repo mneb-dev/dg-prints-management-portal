@@ -5,20 +5,7 @@ import { getOrderWorkflowStatuses, isTerminalStatus } from "@/lib/orders"
 import type { Order, OrderStatus } from "@/lib/orders"
 import { cn, formatDate, formatRelativeDate } from "@/lib/utils"
 
-import { ORDER_STATUS_ICONS, ORDER_STATUS_LABELS, ORDER_STATUS_VARIANTS } from "./order-status-badge"
-
-type StatusVariant = "secondary" | "info" | "progress" | "ready" | "success" | "destructive"
-
-// Solid bar fill per variant, for the connector line only — badgeVariants' bg-*/10
-// classes are for translucent pill/icon-chip backgrounds and read too faint as a solid bar.
-const CONNECTOR_ACCENT_CLASS: Record<StatusVariant, string> = {
-  secondary: "bg-border",
-  info: "bg-status-info",
-  progress: "bg-status-progress",
-  ready: "bg-status-ready",
-  success: "bg-status-success",
-  destructive: "bg-destructive",
-}
+import { ORDER_STATUS_COLORS, ORDER_STATUS_ICONS, ORDER_STATUS_LABELS } from "./order-status-badge"
 
 const ENTRANCE_ANIMATION =
   "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 motion-safe:duration-200"
@@ -30,13 +17,13 @@ const ENTRANCE_ANIMATION =
  * highlighted keeps the component honest about what it can and can't display. */
 function StatusSummary({ order, status }: { order: Order; status: OrderStatus }) {
   const Icon = ORDER_STATUS_ICONS[status]
-  const variant = ORDER_STATUS_VARIANTS[status]
   return (
     <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:gap-3">
       <span
         className={cn(
-          badgeVariants({ variant }),
-          "size-10 shrink-0 rounded-full p-0 [&>svg]:size-5!",
+          badgeVariants({ variant: "plain" }),
+          ORDER_STATUS_COLORS[status].badge,
+          "border-transparent size-10 shrink-0 rounded-full p-0 [&>svg]:size-5!",
           ENTRANCE_ANIMATION
         )}
       >
@@ -85,7 +72,8 @@ export function OrderStatusStepper({ order }: { order: Order }) {
     return <StatusSummary order={order} status={order.status} />
   }
 
-  const currentVariant = ORDER_STATUS_VARIANTS[order.status]
+  const currentColor = ORDER_STATUS_COLORS[order.status]
+  const unreachedBadgeClass = "bg-secondary text-secondary-foreground"
 
   return (
     <>
@@ -98,7 +86,7 @@ export function OrderStatusStepper({ order }: { order: Order }) {
         {workflowStatuses.map((status, i) => {
           const isCurrent = i === currentIndex
           const isReached = i <= currentIndex
-          const variant = isReached ? currentVariant : "secondary"
+          const badgeColorClass = isReached ? currentColor.badge : unreachedBadgeClass
           const Icon = ORDER_STATUS_ICONS[status]
           const isLast = i === workflowStatuses.length - 1
 
@@ -111,8 +99,9 @@ export function OrderStatusStepper({ order }: { order: Order }) {
                       <button
                         type="button"
                         className={cn(
-                          badgeVariants({ variant }),
-                          "size-11 shrink-0 rounded-full p-0 cursor-default [&>svg]:size-5!",
+                          badgeVariants({ variant: "plain" }),
+                          badgeColorClass,
+                          "border-transparent size-11 shrink-0 rounded-full p-0 cursor-default [&>svg]:size-5!",
                           isCurrent && ENTRANCE_ANIMATION
                         )}
                       />
@@ -127,7 +116,7 @@ export function OrderStatusStepper({ order }: { order: Order }) {
                   <div
                     className={cn(
                       "min-h-6 w-0.5 flex-1",
-                      i < currentIndex ? CONNECTOR_ACCENT_CLASS[currentVariant] : "bg-border"
+                      i < currentIndex ? currentColor.solid : "bg-border"
                     )}
                   />
                 )}
@@ -168,7 +157,7 @@ export function OrderStatusStepper({ order }: { order: Order }) {
         {workflowStatuses.map((status, i) => {
           const isCurrent = i === currentIndex
           const isReached = i <= currentIndex
-          const variant = isReached ? currentVariant : "secondary"
+          const badgeColorClass = isReached ? currentColor.badge : unreachedBadgeClass
           const Icon = ORDER_STATUS_ICONS[status]
           const isLast = i === workflowStatuses.length - 1
 
@@ -181,8 +170,9 @@ export function OrderStatusStepper({ order }: { order: Order }) {
                       <button
                         type="button"
                         className={cn(
-                          badgeVariants({ variant }),
-                          "size-9 shrink-0 rounded-full p-0 cursor-default [&>svg]:size-4!",
+                          badgeVariants({ variant: "plain" }),
+                          badgeColorClass,
+                          "border-transparent size-9 shrink-0 rounded-full p-0 cursor-default [&>svg]:size-4!",
                           isCurrent && ENTRANCE_ANIMATION
                         )}
                       />
@@ -214,7 +204,7 @@ export function OrderStatusStepper({ order }: { order: Order }) {
                 <div
                   className={cn(
                     "h-0.5 min-w-8 flex-1",
-                    i < currentIndex ? CONNECTOR_ACCENT_CLASS[currentVariant] : "bg-border"
+                    i < currentIndex ? currentColor.solid : "bg-border"
                   )}
                 />
               )}

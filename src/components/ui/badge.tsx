@@ -28,6 +28,7 @@ const badgeVariants = cva(
           "bg-status-success/10 text-status-success dark:bg-status-success/20 [a]:hover:bg-status-success/20",
         warning:
           "bg-status-warning/10 text-status-warning dark:bg-status-warning/20 [a]:hover:bg-status-warning/20",
+        plain: "",
       },
     },
     defaultVariants: {

@@ -23,10 +23,11 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import type { Category } from "@/lib/categories"
 
 import {
+  ORDER_STATUS_COLORS,
   ORDER_STATUS_ICONS,
   ORDER_STATUS_LABELS,
-  ORDER_STATUS_VARIANTS,
 } from "@/components/orders/order-status-badge"
+import { cn } from "@/lib/utils"
 
 export function CategoryTable({
   categories,
@@ -159,8 +160,11 @@ export function CategoryTable({
                         return (
                           <Badge
                             key={status}
-                            variant={ORDER_STATUS_VARIANTS[status]}
-                            className="size-5 justify-center rounded-full p-0"
+                            variant="plain"
+                            className={cn(
+                              ORDER_STATUS_COLORS[status].badge,
+                              "border-transparent size-5 justify-center rounded-full p-0"
+                            )}
                             aria-hidden
                           >
                             <Icon className="size-3" />

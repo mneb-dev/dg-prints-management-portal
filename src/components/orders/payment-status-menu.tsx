@@ -12,9 +12,9 @@ import type { Order, PaymentStatus } from "@/lib/orders"
 import { cn } from "@/lib/utils"
 
 import {
+  PAYMENT_STATUS_COLORS,
   PAYMENT_STATUS_ICONS,
   PAYMENT_STATUS_LABELS,
-  PAYMENT_STATUS_VARIANTS,
 } from "./payment-status-badge"
 
 /** Compact, click-to-change payment control for the orders table row — same trigger/menu shape
@@ -57,8 +57,9 @@ export function PaymentStatusMenu({
           <button
             type="button"
             className={cn(
-              badgeVariants({ variant: PAYMENT_STATUS_VARIANTS[order.payment.status] }),
-              "cursor-pointer pr-1.5 transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-60",
+              badgeVariants({ variant: "plain" }),
+              PAYMENT_STATUS_COLORS[order.payment.status].badge,
+              "border-transparent cursor-pointer pr-1.5 transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-60",
               size === "lg" && "h-8 gap-1.5 px-3 text-sm [&>svg]:size-4!"
             )}
           />

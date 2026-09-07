@@ -13,7 +13,7 @@ import type { Order, OrderStatus } from "@/lib/orders"
 import type { Role } from "@/lib/users"
 import { cn } from "@/lib/utils"
 
-import { ORDER_STATUS_ICONS, ORDER_STATUS_LABELS, ORDER_STATUS_VARIANTS } from "./order-status-badge"
+import { ORDER_STATUS_COLORS, ORDER_STATUS_ICONS, ORDER_STATUS_LABELS } from "./order-status-badge"
 
 /** Compact, click-to-change status control for the orders table row. Trigger matches the
  * read-only `OrderStatusBadge` it replaces (same size/color) so the column doesn't get wider —
@@ -59,8 +59,9 @@ export function OrderStatusMenu({
           <button
             type="button"
             className={cn(
-              badgeVariants({ variant: ORDER_STATUS_VARIANTS[order.status] }),
-              "cursor-pointer pr-1.5 transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-60",
+              badgeVariants({ variant: "plain" }),
+              ORDER_STATUS_COLORS[order.status].badge,
+              "border-transparent cursor-pointer pr-1.5 transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-60",
               size === "lg" && "h-8 gap-1.5 px-3 text-sm [&>svg]:size-4!"
             )}
           />
