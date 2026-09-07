@@ -5,11 +5,12 @@ import {
   createCategoryThunk,
   deleteCategoryThunk,
   fetchCategoriesThunk,
+  fetchHotSizesThunk,
   updateCategoryThunk,
 } from "@/lib/categories-slice"
 import type { CategoryInput } from "@/lib/categories-slice"
 
-export type { Category, CategoryInput } from "@/lib/categories-slice"
+export type { Category, CategoryInput, CommonSize, HotSizes } from "@/lib/categories-slice"
 
 /** Full category list (active and inactive), fetched once per session. */
 export function useCategories() {
@@ -34,6 +35,27 @@ export function useCategories() {
 export function useActiveCategories() {
   const { categories, isLoading, isError, error } = useCategories()
   return { categories: categories.filter((category) => category.active), isLoading, isError, error }
+}
+
+/** Hot sizes (top 5 recent-order sizes per category, deduped against configured common
+ * sizes), fetched once per session. Powers the Calculator page's quick-size chips alongside
+ * each category's own `commonSizes` from `useCategories`. */
+export function useHotSizes() {
+  const hotSizes = useAppSelector((state) => state.categories.hotSizes)
+  const status = useAppSelector((state) => state.categories.hotSizesStatus)
+  const error = useAppSelector((state) => state.categories.hotSizesError)
+  const dispatch = useAppDispatch()
+
+  useEffect(() => {
+    if (status === "idle") dispatch(fetchHotSizesThunk())
+  }, [dispatch, status])
+
+  return {
+    hotSizes,
+    isLoading: status === "idle" || status === "loading",
+    isError: status === "failed",
+    error,
+  }
 }
 
 /** Category create/update/delete only — no list fetch. For the Categories page and its dialogs. */

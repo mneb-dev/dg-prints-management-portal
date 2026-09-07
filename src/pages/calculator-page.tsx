@@ -6,6 +6,7 @@ import {
   LayoutPanelLeftIcon,
   PlusIcon,
   StickerIcon,
+  TruckIcon,
   type LucideIcon,
 } from "lucide-react"
 import { useNavigate } from "react-router-dom"
@@ -13,11 +14,12 @@ import { useNavigate } from "react-router-dom"
 import { LaminatedStickerQuotationFields } from "@/components/orders/laminated-sticker-quotation-fields"
 import { type OrderFormSeed } from "@/components/orders/order-form"
 import { ProductOptionsFields } from "@/components/orders/product-options-fields"
+import { QuickSizeChips } from "@/components/orders/quick-size-chips"
 import { SintraBoardCustomFields } from "@/components/orders/sintra-board-custom-fields"
 import { StickerQuotationFields } from "@/components/orders/sticker-quotation-fields"
 import { PageHeader } from "@/components/page-header"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
@@ -30,11 +32,14 @@ import {
 } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { useAuth } from "@/lib/auth"
+import { useCategories, useHotSizes, type CommonSize } from "@/lib/categories"
 import { copyToClipboard } from "@/lib/clipboard"
 import { calculateLaminatedStickerQuotation } from "@/lib/laminated-sticker-quotation"
 import { convertToFeet, LENGTH_UNITS, type LengthUnit } from "@/lib/length-units"
 import { isPackageOptionName, previewPackageCandidates, resolvePricingPreview } from "@/lib/pricing-resolver"
 import { useProductCatalog, type ProductCategory } from "@/lib/products"
+import { appendShippingFeeNote } from "@/lib/quote-text"
+import { useSettings } from "@/lib/settings"
 import { calculateSintraCustomPrice, type SintraThickness } from "@/lib/sintra-board-pricing"
 import { calculateStickerPackageResult, parsePackageNumber, type StickerUnit } from "@/lib/sticker-quotation"
 import { formatCurrency } from "@/lib/utils"
@@ -51,6 +56,9 @@ export function CalculatorPage() {
   const { hasPermission } = useAuth()
   const canCreateOrder = hasPermission("manage_orders")
   const { products } = useProductCatalog()
+  const { categories } = useCategories()
+  const { hotSizes, isLoading: hotSizesLoading } = useHotSizes()
+  const { settings } = useSettings()
 
   const [category, setCategory] = useState<ProductCategory | null>(null)
   const [stickerWidth, setStickerWidth] = useState("")
@@ -78,8 +86,10 @@ export function CalculatorPage() {
     }
   }, [categoryProducts, productId])
 
-  function handleCategoryChange(next: ProductCategory) {
-    setCategory(next)
+  // Shared by handleCategoryChange (switching categories) and handleClearCurrent (an
+  // explicit Clear button within the current category's own quotation card) — both reset
+  // the exact same fields, the only difference being whether `category` itself changes.
+  function resetCategoryFields() {
     setProductId("")
     setOptionValues({})
     setWidth("")
@@ -93,6 +103,27 @@ export function CalculatorPage() {
     setCustomHeight("")
     setCustomThickness("3mm")
     setCustomBackToBack(false)
+  }
+
+  function handleCategoryChange(next: ProductCategory) {
+    setCategory(next)
+    resetCategoryFields()
+  }
+
+  function handleClearCurrent() {
+    resetCategoryFields()
+  }
+
+  function handleSelectStickerSize(size: CommonSize) {
+    setStickerWidth(String(size.width))
+    setStickerHeight(String(size.height))
+    setStickerUnit(size.unit as StickerUnit)
+  }
+
+  function handleSelectTarpaulinSize(size: CommonSize) {
+    setWidth(String(size.width))
+    setHeight(String(size.height))
+    setDimensionUnit(size.unit as LengthUnit)
   }
 
   function handleProductChange(id: string) {
@@ -115,6 +146,17 @@ export function CalculatorPage() {
     selectedProduct && packageOption ? previewPackageCandidates(selectedProduct, packageOption.id) : []
   const stickerCandidates = category === "Sticker" ? packageCandidates : []
   const laminatedCandidates = category === "Laminated Sticker" ? packageCandidates : []
+
+  // Exact-name lookup — same pattern as getStatusFlowForCategory (order-status.ts). Laminated
+  // Sticker has no config of its own; it always mirrors the Sticker Label bucket.
+  const stickerLabelCategory = categories.find((c) => c.name === "Sticker")
+  const tarpaulinCategory = categories.find((c) => c.name === "Tarpaulin")
+  const quickSizes: CommonSize[] | null =
+    category === "Sticker" || category === "Laminated Sticker"
+      ? [...(stickerLabelCategory?.commonSizes ?? []), ...(hotSizes?.stickerLabel ?? [])]
+      : category === "Tarpaulin"
+        ? [...(tarpaulinCategory?.commonSizes ?? []), ...(hotSizes?.tarpaulin ?? [])]
+        : null
   const width_ = Number(width)
   const height_ = Number(height)
   const hasValidSize = width_ > 0 && height_ > 0
@@ -174,8 +216,8 @@ export function CalculatorPage() {
           : quote !== null
   
 
-  function handleCopyQuote() {
-    if (!category || !selectedProduct) return
+  function buildQuoteText(): string | null {
+    if (!category || !selectedProduct) return null
 
     const lines: string[] = [selectedProduct.name]
 
@@ -223,7 +265,17 @@ export function CalculatorPage() {
       if (quote !== null) lines.push(`Total: ${formatCurrency(quote)}`)
     }
 
-    copyToClipboard(lines.join("\n"))
+    return lines.join("\n")
+  }
+
+  function handleCopyQuote() {
+    const text = buildQuoteText()
+    if (text !== null) copyToClipboard(text)
+  }
+
+  function handleCopyQuoteWithShipping() {
+    const text = buildQuoteText()
+    if (text !== null) copyToClipboard(appendShippingFeeNote(text, settings.shippingFee))
   }
 
   return (
@@ -253,9 +305,14 @@ export function CalculatorPage() {
       </Card>
 
       {category === "Sticker" && (
-        <Card>
+        <Card className="animate-in fade-in-0 duration-150">
           <CardHeader>
             <CardTitle>Sticker Quotation</CardTitle>
+            <CardAction>
+              <Button type="button" variant="ghost" size="sm" onClick={handleClearCurrent}>
+                Clear
+              </Button>
+            </CardAction>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
             {categoryProducts.length === 0 ? (
@@ -290,6 +347,12 @@ export function CalculatorPage() {
                   </Select>
                 </Field>
 
+                <QuickSizeChips
+                  sizes={quickSizes ?? []}
+                  isLoading={hotSizesLoading}
+                  onSelect={handleSelectStickerSize}
+                />
+
                 <StickerQuotationFields
                   width={stickerWidth}
                   onWidthChange={setStickerWidth}
@@ -306,9 +369,14 @@ export function CalculatorPage() {
       )}
 
       {category === "Laminated Sticker" && (
-        <Card>
+        <Card className="animate-in fade-in-0 duration-150">
           <CardHeader>
             <CardTitle>Laminated Sticker Quotation</CardTitle>
+            <CardAction>
+              <Button type="button" variant="ghost" size="sm" onClick={handleClearCurrent}>
+                Clear
+              </Button>
+            </CardAction>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
             {categoryProducts.length === 0 ? (
@@ -343,6 +411,12 @@ export function CalculatorPage() {
                   </Select>
                 </Field>
 
+                <QuickSizeChips
+                  sizes={quickSizes ?? []}
+                  isLoading={hotSizesLoading}
+                  onSelect={handleSelectStickerSize}
+                />
+
                 <LaminatedStickerQuotationFields
                   width={stickerWidth}
                   onWidthChange={setStickerWidth}
@@ -360,9 +434,14 @@ export function CalculatorPage() {
       )}
 
       {(category === "Tarpaulin" || category === "Sintra") && (
-        <Card>
+        <Card className="animate-in fade-in-0 duration-150">
           <CardHeader>
             <CardTitle>{category} Quotation</CardTitle>
+            <CardAction>
+              <Button type="button" variant="ghost" size="sm" onClick={handleClearCurrent}>
+                Clear
+              </Button>
+            </CardAction>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
             {categoryProducts.length === 0 ? (
@@ -433,6 +512,14 @@ export function CalculatorPage() {
                   />
                 ) : (
                   <>
+                    {selectedProduct && category === "Tarpaulin" && showsDimensions && (
+                      <QuickSizeChips
+                        sizes={quickSizes ?? []}
+                        isLoading={hotSizesLoading}
+                        onSelect={handleSelectTarpaulinSize}
+                      />
+                    )}
+
                     {selectedProduct && showsDimensions && (
                       <Field>
                         <FieldLabel>Size</FieldLabel>
@@ -506,6 +593,11 @@ export function CalculatorPage() {
             <CopyIcon data-icon="inline-start" />
             Copy quote
           </Button>
+          {(category === "Sticker" || category === "Laminated Sticker") && (
+            <Button type="button" variant="outline" disabled={!hasQuote} onClick={handleCopyQuoteWithShipping}>
+             <TruckIcon  data-icon="inline-start" /> Copy quote + SF
+            </Button>
+          )}
           {canCreateOrder && (
             <Button disabled={!canCreate} onClick={handleCreateOrder}>
               <PlusIcon data-icon="inline-start" />

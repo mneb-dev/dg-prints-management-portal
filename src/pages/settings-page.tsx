@@ -4,6 +4,7 @@ import { toast } from "sonner"
 
 import { PageHeader } from "@/components/page-header"
 import { CatalogList } from "@/components/settings/catalog-list"
+import { QuickSizesCard } from "@/components/settings/quick-sizes-card"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { CurrencyInput } from "@/components/ui/currency-input"
@@ -145,6 +146,8 @@ export function SettingsPage() {
             </Field>
           </CardContent>
         </Card>
+
+        <QuickSizesCard />
       </div>
     </div>
   )

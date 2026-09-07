@@ -143,3 +143,20 @@ export function formatOrderSummaryText(input: OrderSummaryTextInput): string {
   lines.push(`*Total Due: ${formatCurrency(input.total)}*`)
   return lines.join("\n")
 }
+
+/** Standing shipping-fee blurb ("SF") appended to a copied quote by the Calculator page's
+ * "Copy with SF" action (Sticker and Laminated Sticker categories only). The quoted amount
+ * is the app's configured default shipping fee (App Settings → Shipping Settings), not a
+ * hardcoded figure, so the two stay in sync automatically when that setting changes. */
+function buildShippingFeeNote(shippingFee: number): string {
+  return (
+    `🚚Standard shipping po is ${formatCurrency(shippingFee)} nationwide \n\n` +
+    "⭐️Free shipping kapag ang order nyo po is worth ₱1000 and above"
+  )
+}
+
+/** Appends the shipping-fee note below an already-formatted copyable quote/summary,
+ * separated by two blank lines. */
+export function appendShippingFeeNote(summaryText: string, shippingFee: number): string {
+  return `${summaryText}\n\n\n${buildShippingFeeNote(shippingFee)}`
+}

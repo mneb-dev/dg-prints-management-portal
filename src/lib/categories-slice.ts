@@ -4,11 +4,23 @@ import { apiClient } from "@/lib/api-client"
 import { getErrorMessage } from "@/lib/api-error"
 import type { OrderStatus } from "@/lib/orders-slice"
 
+export type CommonSize = {
+  width: number
+  height: number
+  unit: string
+}
+
+export type HotSizes = {
+  stickerLabel: CommonSize[]
+  tarpaulin: CommonSize[]
+}
+
 export type Category = {
   id: string
   name: string
   active: boolean
   statusFlow: OrderStatus[]
+  commonSizes: CommonSize[]
   createdAt: string
   updatedAt: string
 }
@@ -17,6 +29,7 @@ export type CategoryInput = {
   name: string
   active: boolean
   statusFlow: OrderStatus[]
+  commonSizes: CommonSize[]
 }
 
 export const fetchCategoriesThunk = createAsyncThunk<Category[], void, { rejectValue: string }>(
@@ -68,16 +81,34 @@ export const deleteCategoryThunk = createAsyncThunk<string, string, { rejectValu
   }
 )
 
+export const fetchHotSizesThunk = createAsyncThunk<HotSizes, void, { rejectValue: string }>(
+  "categories/fetchHotSizes",
+  async (_arg, { rejectWithValue }) => {
+    try {
+      const { data } = await apiClient.get<HotSizes>("/categories/hot-sizes")
+      return data
+    } catch (err) {
+      return rejectWithValue(getErrorMessage(err))
+    }
+  }
+)
+
 type CategoriesState = {
   items: Category[]
   status: "idle" | "loading" | "succeeded" | "failed"
   error: string | null
+  hotSizes: HotSizes | null
+  hotSizesStatus: "idle" | "loading" | "succeeded" | "failed"
+  hotSizesError: string | null
 }
 
 const initialState: CategoriesState = {
   items: [],
   status: "idle",
   error: null,
+  hotSizes: null,
+  hotSizesStatus: "idle",
+  hotSizesError: null,
 }
 
 const categoriesSlice = createSlice({
@@ -107,6 +138,18 @@ const categoriesSlice = createSlice({
       })
       .addCase(deleteCategoryThunk.fulfilled, (state, action: PayloadAction<string>) => {
         state.items = state.items.filter((item) => item.id !== action.payload)
+      })
+      .addCase(fetchHotSizesThunk.pending, (state) => {
+        state.hotSizesStatus = "loading"
+        state.hotSizesError = null
+      })
+      .addCase(fetchHotSizesThunk.fulfilled, (state, action: PayloadAction<HotSizes>) => {
+        state.hotSizesStatus = "succeeded"
+        state.hotSizes = action.payload
+      })
+      .addCase(fetchHotSizesThunk.rejected, (state, action) => {
+        state.hotSizesStatus = "failed"
+        state.hotSizesError = action.payload ?? "Failed to load hot sizes."
       })
   },
 })
