@@ -37,11 +37,19 @@ const MANDATORY_STATUS_REASON: Partial<Record<OrderStatus, string>> = {
 const MANDATORY_STATUSES: OrderStatus[] = ["pending", "released"]
 
 function emptyDraft(): CategoryInput {
-  return { name: "", active: true, statusFlow: [...MANDATORY_STATUSES] }
+  return { name: "", active: true, statusFlow: [...MANDATORY_STATUSES], commonSizes: [] }
 }
 
 function draftFromCategory(category: Category): CategoryInput {
-  return { name: category.name, active: category.active, statusFlow: category.statusFlow }
+  // Preserves commonSizes as-is (never reset to []) — this dialog has no UI for editing
+  // quick sizes (that lives in App Settings), so saving a category here must not silently
+  // wipe out Settings-configured sizes.
+  return {
+    name: category.name,
+    active: category.active,
+    statusFlow: category.statusFlow,
+    commonSizes: category.commonSizes,
+  }
 }
 
 export function CategoryFormDialog({
