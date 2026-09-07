@@ -1,4 +1,5 @@
 import type { OrderItem, OrderItemPricing } from "@/lib/orders"
+import { isStickerLabelCategory } from "@/lib/order-line-item"
 import { scaleQuotation } from "@/lib/sticker-quotation"
 import { formatCurrency } from "@/lib/utils"
 
@@ -8,6 +9,13 @@ export type CopyableLineItem = {
   stickerQuotation: OrderItem["stickerQuotation"]
   quantity: number
   lineTotal: number
+  notes?: string
+}
+
+/** True for both sticker product lines ("Sticker"/"Sticker Label" and "Laminated Sticker") —
+ *  used to pick the compact copy-text template in `buildStickerCopyLines`. */
+export function usesCompactStickerCopyFormat(category: string | null | undefined): boolean {
+  return isStickerLabelCategory(category) || category?.trim().toLowerCase() === "laminated sticker"
 }
 
 /** Per-item detail lines for a copyable order/quote text — shared by the Order Summary panel
@@ -52,18 +60,54 @@ export function buildLineItemInfoLines(item: CopyableLineItem): string[] {
   return lines
 }
 
-/** Assembles per-item detail lines into the full copyable item section — item header, blank-line
- * separators between items, and trailing blank lines after the last item. */
+/** Compact copy-text layout for sticker items (see `usesCompactStickerCopyFormat`) — drops the
+ * Qty line and other option lines (e.g. "Type"), adds an item-notes line, and merges the
+ * "to receive" pcs count into the Amount line instead of listing them separately. Copy-text
+ * only: the visual Order Summary panel keeps using `buildLineItemInfoLines` unchanged. */
+export function buildStickerCopyLines(item: CopyableLineItem): string[] {
+  const lines: string[] = []
+
+  const trimmedNotes = item.notes?.trim()
+  if (trimmedNotes) lines.push(trimmedNotes)
+
+  if (item.pricing && item.stickerQuotation) {
+    lines.push(
+      `Size: ${item.stickerQuotation.width} × ${item.stickerQuotation.height} ${item.stickerQuotation.unit}`
+    )
+  }
+
+  const packageOption = item.options.find((option) => option.name === "Package" && option.value)
+  if (packageOption) lines.push(`Package: ${packageOption.value}`)
+
+  const totalQuotation = item.stickerQuotation ? scaleQuotation(item.stickerQuotation, item.quantity) : null
+  if (item.pricing && totalQuotation) {
+    lines.push(
+      `${formatCurrency(item.lineTotal)} = ${totalQuotation.quantity} pcs` +
+        (totalQuotation.free ? ` + ${totalQuotation.free} pcs free` : "")
+    )
+  } else if (item.pricing) {
+    lines.push(`Amount: ${formatCurrency(item.lineTotal)}`)
+  }
+
+  return lines
+}
+
+/** Assembles per-item detail lines into the full copyable item section — separators between
+ * items and after the last item. No item name/header is printed in the copied text. */
 export function buildCopyableOrderText(items: { name: string; lines: string[] }[]): string[] {
   const infoLines: string[] = []
 
   items.forEach((item, index) => {
-    if (index > 0) infoLines.push("")
-    infoLines.push(items.length > 1 ? `Item ${index + 1}: ${item.name}` : item.name)
+    if (index > 0) {
+      infoLines.push("")
+      infoLines.push("***************************")
+      infoLines.push("")
+    }
     infoLines.push(...item.lines)
 
     if (index + 1 === items.length) {
       infoLines.push("")
+      infoLines.push("***************************")
       infoLines.push("")
     }
   })
@@ -84,7 +128,7 @@ export type OrderSummaryTextInput = {
 
 /** Order summary as copyable plain text — omits fee/discount lines that are 0. */
 export function formatOrderSummaryText(input: OrderSummaryTextInput): string {
-  const lines = [...input.infoLines, `Subtotal: ${formatCurrency(input.subtotal)}`]
+  const lines = ["Order Summary:", "", ...input.infoLines, `Subtotal: ${formatCurrency(input.subtotal)}`]
 
   const trimmedNotes = input.notes?.trim()
   if (trimmedNotes) {
