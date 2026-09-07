@@ -68,6 +68,7 @@ export function QuickSizesCard() {
             isLoading={isLoading}
             onAdd={addTo(stickerLabelCategory)}
             onDelete={deleteFrom(stickerLabelCategory)}
+            defaultUnit={STICKER_UNITS[0]}
           />
         </div>
         <div className="flex flex-1 flex-col gap-1.5">
@@ -78,6 +79,7 @@ export function QuickSizesCard() {
             isLoading={isLoading}
             onAdd={addTo(tarpaulinCategory)}
             onDelete={deleteFrom(tarpaulinCategory)}
+            defaultUnit={LENGTH_UNITS[3]}
           />
         </div>
       </CardContent>

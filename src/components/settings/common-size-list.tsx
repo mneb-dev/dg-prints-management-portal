@@ -15,6 +15,8 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Spinner } from "@/components/ui/spinner"
 import type { CommonSize } from "@/lib/categories"
 import { formatSize } from "@/lib/quick-sizes"
+import type { StickerUnit } from "@/lib/sticker-quotation"
+import type { LengthUnit } from "@/lib/length-units"
 
 const MAX_SIZES = 8
 
@@ -30,12 +32,14 @@ export function CommonSizeList({
   isLoading,
   onAdd,
   onDelete,
+  defaultUnit
 }: {
   sizes: CommonSize[]
   unitOptions: readonly string[]
   isLoading?: boolean
   onAdd: (size: CommonSize) => Promise<void>
   onDelete: (index: number) => Promise<void>
+  defaultUnit: StickerUnit | LengthUnit
 }) {
   const [deletingIndex, setDeletingIndex] = useState<number | null>(null)
 
@@ -81,7 +85,7 @@ export function CommonSizeList({
           ))
         )}
         {!isLoading && (
-          <AddRow unitOptions={unitOptions} disabled={sizes.length >= MAX_SIZES} onAdd={onAdd} />
+          <AddRow unitOptions={unitOptions} disabled={sizes.length >= MAX_SIZES} onAdd={onAdd} defaultUnit={defaultUnit}/>
         )}
       </div>
       {!isLoading && sizes.length >= MAX_SIZES && (
@@ -95,14 +99,16 @@ function AddRow({
   unitOptions,
   disabled,
   onAdd,
+  defaultUnit
 }: {
   unitOptions: readonly string[]
   disabled: boolean
   onAdd: (size: CommonSize) => Promise<void>
+  defaultUnit: StickerUnit | LengthUnit
 }) {
   const [width, setWidth] = useState("")
   const [height, setHeight] = useState("")
-  const [unit, setUnit] = useState(unitOptions[3])
+  const [unit, setUnit] = useState(defaultUnit)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const widthNum = Number(width)
@@ -148,7 +154,7 @@ function AddRow({
         disabled={disabled || isSubmitting}
         className="h-7 w-16 text-sm"
       />
-      <Select value={unit} onValueChange={(value) => setUnit(value ?? unitOptions[0])} disabled={disabled || isSubmitting}>
+      <Select value={unit} onValueChange={(value) => setUnit(value ?? defaultUnit)} disabled={disabled || isSubmitting}>
         <SelectTrigger className="h-7 w-16 text-sm">
           <SelectValue />
         </SelectTrigger>
