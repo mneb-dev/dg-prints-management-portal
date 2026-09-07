@@ -38,7 +38,14 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { useAuth } from "@/lib/auth"
 import { useCategories } from "@/lib/categories"
 import { copyToClipboard, SPX_ADMIN_CREATE_ORDER_URL } from "@/lib/clipboard"
-import { buildCopyableOrderText, buildLineItemInfoLines, formatOrderSummaryText } from "@/lib/quote-text"
+import {
+  buildCopyableOrderText,
+  buildLineItemInfoLines,
+  buildStickerCopyLines,
+  formatOrderSummaryText,
+  usesCompactStickerCopyFormat,
+  type CopyableLineItem,
+} from "@/lib/quote-text"
 import {
   getOrderStatusOptions,
   isReleaseLockedForRole,
@@ -221,16 +228,23 @@ export function OrderDetailsPage() {
     )
 
     const infoLines = buildCopyableOrderText(
-      items.map((item) => ({
-        name: item.productName,
-        lines: buildLineItemInfoLines({
+      items.map((item) => {
+        const copyable: CopyableLineItem = {
           options: item.selectedOptions.map((option) => ({ name: option.optionName, value: option.value })),
           pricing: item.pricing,
           stickerQuotation: item.stickerQuotation,
           quantity: item.quantity,
           lineTotal: item.lineTotal,
-        }),
-      }))
+          notes: item.notes,
+        }
+
+        return {
+          name: item.productName,
+          lines: usesCompactStickerCopyFormat(item.productCategory)
+            ? buildStickerCopyLines(copyable)
+            : buildLineItemInfoLines(copyable),
+        }
+      })
     )
 
     copyToClipboard(

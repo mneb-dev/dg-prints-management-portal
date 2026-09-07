@@ -6,7 +6,14 @@ import { Separator } from "@/components/ui/separator"
 import { copyToClipboard } from "@/lib/clipboard"
 import type { OrderItem, OrderItemPricing } from "@/lib/orders"
 import type { Product } from "@/lib/products"
-import { buildCopyableOrderText, buildLineItemInfoLines, formatOrderSummaryText } from "@/lib/quote-text"
+import {
+  buildCopyableOrderText,
+  buildLineItemInfoLines,
+  buildStickerCopyLines,
+  formatOrderSummaryText,
+  usesCompactStickerCopyFormat,
+  type CopyableLineItem,
+} from "@/lib/quote-text"
 import { formatCurrency } from "@/lib/utils"
 
 export type LineItemSummary = {
@@ -19,11 +26,9 @@ export type LineItemSummary = {
   notes: string
 }
 
-function itemInfoLines(item: LineItemSummary): string[] {
-  if (!item.product) return []
-
-  return buildLineItemInfoLines({
-    options: item.product.options.map((option) => ({
+function toCopyableLineItem(item: LineItemSummary): CopyableLineItem {
+  return {
+    options: item.product!.options.map((option) => ({
       name: option.name,
       value: item.optionValues[option.id] ?? "",
     })),
@@ -31,7 +36,14 @@ function itemInfoLines(item: LineItemSummary): string[] {
     stickerQuotation: item.stickerQuotation,
     quantity: item.quantity,
     lineTotal: item.lineTotal,
-  })
+    notes: item.notes,
+  }
+}
+
+function itemInfoLines(item: LineItemSummary): string[] {
+  if (!item.product) return []
+
+  return buildLineItemInfoLines(toCopyableLineItem(item))
 }
 
 export function OrderSummaryPanel({
@@ -64,7 +76,9 @@ export function OrderSummaryPanel({
     const infoLines = buildCopyableOrderText(
       copyableItems.map((item) => ({
         name: item.product!.name,
-        lines: itemInfoLines(item),
+        lines: usesCompactStickerCopyFormat(item.product!.category)
+          ? buildStickerCopyLines(toCopyableLineItem(item))
+          : itemInfoLines(item),
       }))
     )
 
