@@ -30,9 +30,9 @@ import { cn, formatCurrency } from "@/lib/utils"
 import { validatePaymentAmount } from "@/lib/validation"
 
 import {
+  PAYMENT_STATUS_COLORS,
   PAYMENT_STATUS_ICONS,
   PAYMENT_STATUS_LABELS,
-  PAYMENT_STATUS_VARIANTS,
 } from "./payment-status-badge"
 
 export function PaymentFields({
@@ -139,8 +139,9 @@ export function PaymentFields({
                 <button
                   type="button"
                   className={cn(
-                    badgeVariants({ variant: PAYMENT_STATUS_VARIANTS[currentStatus] }),
-                    "h-8 cursor-pointer gap-1.5 px-3 text-sm transition-opacity hover:opacity-80 [&>svg]:size-4!"
+                    badgeVariants({ variant: "plain" }),
+                    PAYMENT_STATUS_COLORS[currentStatus].badge,
+                    "border-transparent h-8 cursor-pointer gap-1.5 px-3 text-sm transition-opacity hover:opacity-80 [&>svg]:size-4!"
                   )}
                 />
               }

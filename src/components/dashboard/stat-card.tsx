@@ -5,32 +5,16 @@ import { Link } from "react-router-dom"
 import { Card, CardContent } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
 
-const TONE_CLASSES = {
-  secondary: "bg-muted text-foreground",
-  info: "bg-status-info/10 text-status-info",
-  progress: "bg-status-progress/10 text-status-progress",
-  ready: "bg-status-ready/10 text-status-ready",
-  success: "bg-status-success/10 text-status-success",
-  warning: "bg-status-warning/10 text-status-warning",
-  destructive: "bg-destructive/10 text-destructive",
-} as const
-
-const TONE_RING_CLASSES = {
-  secondary: "group-hover/statcard:ring-foreground/15",
-  info: "group-hover/statcard:ring-status-info/30",
-  progress: "group-hover/statcard:ring-status-progress/30",
-  ready: "group-hover/statcard:ring-status-ready/30",
-  success: "group-hover/statcard:ring-status-success/30",
-  warning: "group-hover/statcard:ring-status-warning/30",
-  destructive: "group-hover/statcard:ring-destructive/30",
-} as const
+const DEFAULT_ICON_CLASSNAME = "bg-muted text-foreground"
+const DEFAULT_RING_CLASSNAME = "group-hover/statcard:ring-foreground/15"
 
 export function StatCard({
   icon: Icon,
   label,
   value,
   description,
-  tone = "secondary",
+  iconClassName = DEFAULT_ICON_CLASSNAME,
+  ringClassName = DEFAULT_RING_CLASSNAME,
   href,
   onClick,
 }: {
@@ -38,7 +22,10 @@ export function StatCard({
   label: string
   value: ReactNode
   description?: string
-  tone?: keyof typeof TONE_CLASSES
+  /** bg + text classes for the icon chip. Defaults to a neutral gray. */
+  iconClassName?: string
+  /** ring classes shown on hover (only visible when the card is clickable). Defaults to match `iconClassName`'s neutral gray. */
+  ringClassName?: string
   href?: string
   onClick?: () => void
 }) {
@@ -48,14 +35,14 @@ export function StatCard({
       size="sm"
       className={cn(
         "group/statcard transition-all",
-        isClickable && cn("h-full hover:-translate-y-0.5 hover:shadow-md", TONE_RING_CLASSES[tone])
+        isClickable && cn("h-full hover:-translate-y-0.5 hover:shadow-md", ringClassName)
       )}
     >
       <CardContent className="flex items-center gap-3">
         <div
           className={cn(
             "flex size-10 shrink-0 items-center justify-center rounded-xl transition-transform group-hover/statcard:scale-105",
-            TONE_CLASSES[tone]
+            iconClassName
           )}
         >
           <Icon className="size-5" />

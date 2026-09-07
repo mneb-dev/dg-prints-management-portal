@@ -2,8 +2,8 @@ import { PackageSearchIcon, TriangleAlertIcon } from "lucide-react"
 import { Bar, BarChart, CartesianGrid, Cell, XAxis, YAxis } from "recharts"
 
 import {
+  ORDER_STATUS_COLORS,
   ORDER_STATUS_LABELS,
-  ORDER_STATUS_VARIANTS,
 } from "@/components/orders/order-status-badge"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -22,16 +22,7 @@ const PIPELINE_STAGES: OrderStatus[] = [
   "cut",
   "pack",
   "pickup",
-  "released",
 ]
-
-const VARIANT_COLOR_VAR: Record<string, string> = {
-  secondary: "var(--color-muted-foreground)",
-  info: "var(--color-status-info)",
-  progress: "var(--color-status-progress)",
-  ready: "var(--color-status-ready)",
-  success: "var(--color-status-success)",
-}
 
 const chartConfig = { count: { label: "Orders" } } satisfies ChartConfig
 
@@ -47,7 +38,7 @@ export function StatusPipelineCard() {
     status,
     label: ORDER_STATUS_LABELS[status],
     count: stats?.byStatus[status] ?? 0,
-    fill: VARIANT_COLOR_VAR[ORDER_STATUS_VARIANTS[status]] ?? "var(--color-muted-foreground)",
+    fill: ORDER_STATUS_COLORS[status].color,
   }))
 
   return (

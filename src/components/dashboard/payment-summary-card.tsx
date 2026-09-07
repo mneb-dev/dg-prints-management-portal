@@ -1,7 +1,7 @@
 import { WalletIcon } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 
-import { PAYMENT_STATUS_LABELS } from "@/components/orders/payment-status-badge"
+import { PAYMENT_STATUS_COLORS, PAYMENT_STATUS_LABELS } from "@/components/orders/payment-status-badge"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -73,14 +73,24 @@ export function PaymentSummaryCard() {
             <div className="flex flex-col gap-4 border-t pt-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Badge variant="warning">{PAYMENT_STATUS_LABELS.unpaid}</Badge>
+                  <Badge
+                    variant="plain"
+                    className={cn(PAYMENT_STATUS_COLORS.unpaid.badge, "border-transparent")}
+                  >
+                    {PAYMENT_STATUS_LABELS.unpaid}
+                  </Badge>
                   <span className="text-sm text-muted-foreground">orders</span>
                 </div>
                 <span className="text-lg font-semibold tabular-nums">{unpaidCount}</span>
               </div>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Badge variant="secondary">{PAYMENT_STATUS_LABELS.partially_paid}</Badge>
+                  <Badge
+                    variant="plain"
+                    className={cn(PAYMENT_STATUS_COLORS.partially_paid.badge, "border-transparent")}
+                  >
+                    {PAYMENT_STATUS_LABELS.partially_paid}
+                  </Badge>
                   <span className="text-sm text-muted-foreground">orders</span>
                 </div>
                 <span className="text-lg font-semibold tabular-nums">{partiallyPaidCount}</span>

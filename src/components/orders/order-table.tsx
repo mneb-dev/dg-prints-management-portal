@@ -230,12 +230,13 @@ export function OrderTable({
         <TableBody>
           {orders.map((order) => {
             const isReleaseLocked = isReleaseLockedForRole(order.status, role)
+
             return (
               <TableRow key={order.id}>
                 <TableCell className="sticky left-0 bg-background font-medium">
                   <span className="inline-flex items-center gap-1.5">
                     {order.orderNumber}
-                    {order.shippingAddress && (
+                    {(order.shippingAddress || order.channel === "Shopee") && (
                       <Tooltip>
                         <TooltipTrigger
                           render={

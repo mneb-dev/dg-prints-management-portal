@@ -1,7 +1,7 @@
 import { PlusIcon } from "lucide-react"
 import { Link, useNavigate } from "react-router-dom"
 
-import { ORDER_STATUS_ICONS, ORDER_STATUS_VARIANTS } from "@/components/orders/order-status-badge"
+import { ORDER_STATUS_COLORS, ORDER_STATUS_ICONS } from "@/components/orders/order-status-badge"
 import { PageHeader } from "@/components/page-header"
 import { RefreshButton } from "@/components/refresh-button"
 import { Button } from "@/components/ui/button"
@@ -59,49 +59,56 @@ export function DashboardPage() {
           icon={ORDER_STATUS_ICONS.pending}
           label="Pending"
           value={pendingCount}
-          tone={ORDER_STATUS_VARIANTS.pending}
+          iconClassName={ORDER_STATUS_COLORS.pending.badge}
+          ringClassName={ORDER_STATUS_COLORS.pending.ring}
           onClick={() => goToOrders("pending")}
         />
         <StatCard
           icon={ORDER_STATUS_ICONS.layout}
           label="Awaiting layout"
           value={layoutCount}
-          tone={ORDER_STATUS_VARIANTS.layout}
+          iconClassName={ORDER_STATUS_COLORS.layout.badge}
+          ringClassName={ORDER_STATUS_COLORS.layout.ring}
           onClick={() => goToOrders("layout")}
         />
         <StatCard
           icon={ORDER_STATUS_ICONS.trace}
           label="Awaiting trace"
           value={traceCount}
-          tone={ORDER_STATUS_VARIANTS.trace}
+          iconClassName={ORDER_STATUS_COLORS.trace.badge}
+          ringClassName={ORDER_STATUS_COLORS.trace.ring}
           onClick={() => goToOrders("trace")}
         />
         <StatCard
           icon={ORDER_STATUS_ICONS.print}
           label="Awaiting print"
           value={printCount}
-          tone={ORDER_STATUS_VARIANTS.print}
+          iconClassName={ORDER_STATUS_COLORS.print.badge}
+          ringClassName={ORDER_STATUS_COLORS.print.ring}
           onClick={() => goToOrders("print")}
         />
         <StatCard
           icon={ORDER_STATUS_ICONS.cut}
           label="Awaiting cut"
           value={cutCount}
-          tone={ORDER_STATUS_VARIANTS.cut}
+          iconClassName={ORDER_STATUS_COLORS.cut.badge}
+          ringClassName={ORDER_STATUS_COLORS.cut.ring}
           onClick={() => goToOrders("cut")}
         />
         <StatCard
           icon={ORDER_STATUS_ICONS.pack}
           label="Awaiting pack"
           value={packCount}
-          tone={ORDER_STATUS_VARIANTS.pack}
+          iconClassName={ORDER_STATUS_COLORS.pack.badge}
+          ringClassName={ORDER_STATUS_COLORS.pack.ring}
           onClick={() => goToOrders("pack")}
         />
         <StatCard
           icon={ORDER_STATUS_ICONS.pickup}
           label="Ready for pickup"
           value={readyForPickupCount}
-          tone={ORDER_STATUS_VARIANTS.pickup}
+          iconClassName={ORDER_STATUS_COLORS.pickup.badge}
+          ringClassName={ORDER_STATUS_COLORS.pickup.ring}
           onClick={() => goToOrders("pickup")}
         />
       </div>
