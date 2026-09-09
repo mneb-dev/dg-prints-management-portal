@@ -38,6 +38,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { useAuth } from "@/lib/auth"
 import { useCategories } from "@/lib/categories"
 import { copyToClipboard, SPX_ADMIN_CREATE_ORDER_URL } from "@/lib/clipboard"
+import { useActiveOrderStatuses } from "@/lib/order-statuses"
 import {
   buildCopyableOrderText,
   buildLineItemInfoLines,
@@ -65,6 +66,7 @@ export function OrderDetailsPage() {
   const { role, hasPermission } = useAuth()
   const canManage = hasPermission("manage_orders")
   const { categories } = useCategories()
+  const { statuses } = useActiveOrderStatuses()
   const [cancelling, setCancelling] = useState(false)
   const [refunding, setRefunding] = useState(false)
   const [returning, setReturning] = useState(false)
@@ -209,7 +211,12 @@ export function OrderDetailsPage() {
   }
 
   const items = order.items
-  const statusOptions = getOrderStatusOptions(order, categories, role)
+  const statusOptions = getOrderStatusOptions(
+    order,
+    categories,
+    role,
+    statuses.map((s) => s.name)
+  )
   const releaseOption = statusOptions.find((option) => option.value === "released")
   const refundOption = statusOptions.find((option) => option.value === "refunded")
   const isReleaseLocked = isReleaseLockedForRole(order.status, role)
@@ -342,7 +349,11 @@ export function OrderDetailsPage() {
             <span className="sr-only">Back to Orders</span>
           </Button>
           <h1 className="text-2xl font-semibold">Order {order.orderNumber}</h1>
-          <OrderStatusBadge key={displayStatus} status={displayStatus} />
+          <OrderStatusBadge
+            key={displayStatus}
+            status={displayStatus}
+            statusUpdatedAt={order.statusUpdatedAt}
+          />
         </div>
         <div className="flex items-center gap-2">
           <Button variant="destructive" disabled={!canCancel} onClick={() => setCancelling(true)}>
@@ -584,7 +595,7 @@ export function OrderDetailsPage() {
             <CardContent className="flex flex-col gap-3">
               <div className="flex items-center gap-2">
                 {isReleaseLocked ? (
-                  <OrderStatusBadge status={order.status} />
+                  <OrderStatusBadge status={order.status} statusUpdatedAt={order.statusUpdatedAt} />
                 ) : (
                   <OrderStatusMenu
                     order={order}

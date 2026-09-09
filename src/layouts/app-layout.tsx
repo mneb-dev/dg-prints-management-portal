@@ -67,7 +67,7 @@ export function AppLayout() {
               )}
               <ThemeToggle className="ml-auto" />
             </header>
-            <div className="mx-auto flex w-full max-w-[1600px] flex-1 flex-col gap-4 p-4 md:p-6">
+            <div className="mx-auto flex w-full min-w-0 max-w-[1600px] flex-1 flex-col gap-4 p-4 md:p-6">
               <Outlet />
             </div>
           </SidebarInset>

@@ -1,7 +1,6 @@
 import { PlusIcon } from "lucide-react"
 import { Link, useNavigate } from "react-router-dom"
 
-import { ORDER_STATUS_COLORS, ORDER_STATUS_ICONS } from "@/components/orders/order-status-badge"
 import { PageHeader } from "@/components/page-header"
 import { RefreshButton } from "@/components/refresh-button"
 import { Button } from "@/components/ui/button"
@@ -14,7 +13,14 @@ import { StatCard } from "@/components/dashboard/stat-card"
 import { StatusPipelineCard } from "@/components/dashboard/status-pipeline-card"
 import { TopCustomersCard } from "@/components/dashboard/top-customers-card"
 import { useAuth } from "@/lib/auth"
-import { useDashboardRefresh, useOrderActions, useOrderStats } from "@/lib/orders"
+import { useActiveOrderStatuses, useOrderStatusLookup } from "@/lib/order-statuses"
+import {
+  DASHBOARD_EXCLUDED_STATUSES,
+  ORDER_TERMINAL_STATUSES,
+  useDashboardRefresh,
+  useOrderActions,
+  useOrderStats,
+} from "@/lib/orders"
 
 export function DashboardPage() {
   const { hasPermission } = useAuth()
@@ -22,14 +28,15 @@ export function DashboardPage() {
   const { setOrdersFilter } = useOrderActions()
   const { refresh, isRefreshing } = useDashboardRefresh()
   const navigate = useNavigate()
+  const { statuses } = useActiveOrderStatuses()
+  const { getLabel, getIcon, getColors } = useOrderStatusLookup()
 
-  const pendingCount = stats?.byStatus["pending"] ?? 0
-  const layoutCount = stats?.byStatus["layout"] ?? 0
-  const traceCount = stats?.byStatus["trace"] ?? 0
-  const printCount = stats?.byStatus["print"] ?? 0
-  const cutCount = stats?.byStatus["cut"] ?? 0
-  const packCount = stats?.byStatus["pack"] ?? 0
-  const readyForPickupCount = stats?.byStatus["pickup"] ?? 0
+  // Every active, non-terminal, non-excluded status gets a tile, in admin-configured order —
+  // including ones with a current count of 0, since the loop is driven by the master status
+  // list, not by which keys stats.byStatus happens to have.
+  const workflowStatuses = statuses.filter(
+    (s) => !ORDER_TERMINAL_STATUSES.includes(s.name) && !DASHBOARD_EXCLUDED_STATUSES.includes(s.name)
+  )
 
   function goToOrders(status: string) {
     setOrdersFilter({ status, page: 1 })
@@ -47,70 +54,26 @@ export function DashboardPage() {
             {hasPermission("manage_orders") ? (
               <Button render={<Link to="/orders/new" />} nativeButton={false}>
                 <PlusIcon data-icon="inline-start" />
-                New Order
+                <span className="hidden sm:inline">New Order</span>
               </Button>
             ) : undefined}
           </>
         }
       />
 
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-7">
-        <StatCard
-          icon={ORDER_STATUS_ICONS.pending}
-          label="Pending"
-          value={pendingCount}
-          iconClassName={ORDER_STATUS_COLORS.pending.badge}
-          ringClassName={ORDER_STATUS_COLORS.pending.ring}
-          onClick={() => goToOrders("pending")}
-        />
-        <StatCard
-          icon={ORDER_STATUS_ICONS.layout}
-          label="Awaiting layout"
-          value={layoutCount}
-          iconClassName={ORDER_STATUS_COLORS.layout.badge}
-          ringClassName={ORDER_STATUS_COLORS.layout.ring}
-          onClick={() => goToOrders("layout")}
-        />
-        <StatCard
-          icon={ORDER_STATUS_ICONS.trace}
-          label="Awaiting trace"
-          value={traceCount}
-          iconClassName={ORDER_STATUS_COLORS.trace.badge}
-          ringClassName={ORDER_STATUS_COLORS.trace.ring}
-          onClick={() => goToOrders("trace")}
-        />
-        <StatCard
-          icon={ORDER_STATUS_ICONS.print}
-          label="Awaiting print"
-          value={printCount}
-          iconClassName={ORDER_STATUS_COLORS.print.badge}
-          ringClassName={ORDER_STATUS_COLORS.print.ring}
-          onClick={() => goToOrders("print")}
-        />
-        <StatCard
-          icon={ORDER_STATUS_ICONS.cut}
-          label="Awaiting cut"
-          value={cutCount}
-          iconClassName={ORDER_STATUS_COLORS.cut.badge}
-          ringClassName={ORDER_STATUS_COLORS.cut.ring}
-          onClick={() => goToOrders("cut")}
-        />
-        <StatCard
-          icon={ORDER_STATUS_ICONS.pack}
-          label="Awaiting pack"
-          value={packCount}
-          iconClassName={ORDER_STATUS_COLORS.pack.badge}
-          ringClassName={ORDER_STATUS_COLORS.pack.ring}
-          onClick={() => goToOrders("pack")}
-        />
-        <StatCard
-          icon={ORDER_STATUS_ICONS.pickup}
-          label="Ready for pickup"
-          value={readyForPickupCount}
-          iconClassName={ORDER_STATUS_COLORS.pickup.badge}
-          ringClassName={ORDER_STATUS_COLORS.pickup.ring}
-          onClick={() => goToOrders("pickup")}
-        />
+      <div className="flex min-w-0 gap-3 overflow-x-auto overflow-y-visible p-2 sm:overflow-visible sm:p-0">
+        {workflowStatuses.map((item) => (
+          <div key={item.id} className="w-32 shrink-0 sm:w-0 sm:min-w-0 sm:flex-1">
+            <StatCard
+              icon={getIcon(item.name)}
+              label={getLabel(item.name)}
+              value={stats?.byStatus[item.name] ?? 0}
+              iconClassName={getColors(item.name).badge}
+              ringClassName={getColors(item.name).ring}
+              onClick={() => goToOrders(item.name)}
+            />
+          </div>
+        ))}
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">

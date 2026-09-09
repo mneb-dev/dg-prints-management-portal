@@ -1,13 +1,12 @@
 import { useEffect, useState } from "react"
 import { format, parseISO } from "date-fns"
-import { PlusIcon } from "lucide-react"
+import { PlusIcon, UserXIcon } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 import { toast } from "sonner"
 
 import { ArrangeOrderDialog } from "@/components/orders/arrange-order-dialog"
 import { CancelOrderDialog } from "@/components/orders/cancel-order-dialog"
 import { DeleteOrderDialog } from "@/components/orders/delete-order-dialog"
-import { ORDER_STATUS_LABELS } from "@/components/orders/order-status-badge"
 import { OrderTable } from "@/components/orders/order-table"
 import { PAYMENT_STATUS_LABELS } from "@/components/orders/payment-status-badge"
 import { RecordPaymentDialog } from "@/components/orders/record-payment-dialog"
@@ -32,15 +31,15 @@ import {
 import { useAuth } from "@/lib/auth"
 import { useCategories } from "@/lib/categories"
 import { SPX_ADMIN_CREATE_ORDER_URL } from "@/lib/clipboard"
+import { useActiveOrderStatuses, useOrderStatusLookup } from "@/lib/order-statuses"
 import { useDebouncedValue } from "@/lib/use-debounced-value"
+import { useUserOptions } from "@/lib/users"
 import {
   DEFAULT_ORDERS_PARAMS,
-  ORDER_STATUSES,
   PAYMENT_STATUSES,
   useOrderActions,
   useOrders,
   type Order,
-  type OrderStatus,
   type Payment,
   type PaymentStatus,
 } from "@/lib/orders"
@@ -48,6 +47,7 @@ import {
 const ANY_STATUS = "All Statuses"
 const ANY_PAYMENT_STATUS = "All Payment Statuses"
 const ANY_CATEGORY = "All Categories"
+const ANY_CREATED_BY = "All Creators"
 
 const SORT_OPTIONS = [
   { value: "created_at", label: "Date Created" },
@@ -58,11 +58,32 @@ const SORT_OPTIONS = [
 
 export function OrdersPage() {
   const navigate = useNavigate()
-  const { hasPermission, role } = useAuth()
+  const { hasPermission, role, user } = useAuth()
   const canManage = hasPermission("manage_orders")
   const { orders, total, params, setParams, refetch, isLoading, isFetching, isError, error } = useOrders()
   const { categories } = useCategories()
+  const { statuses } = useActiveOrderStatuses()
+  const { getLabel } = useOrderStatusLookup()
   const { setOrderStatus, updateOrder, deleteOrder } = useOrderActions()
+  // Fetched with includeInactive so a filter already applied to a former staff member's id still
+  // resolves to their name (chip label, dropdown value) instead of falling back to the raw id.
+  const { users: creatorOptionsRaw } = useUserOptions(true, true)
+  const creatorLabel = (creator: { id: string; firstName: string; lastName: string }) =>
+    creator.id === user?.id ? "Me" : `${creator.firstName} ${creator.lastName}`
+  // Current user's own entry ("Me") always sorts last in the dropdown, everyone else keeps their existing order.
+  const creatorOptions = [...creatorOptionsRaw].sort((a, b) =>
+    a.id === user?.id ? 1 : b.id === user?.id ? -1 : 0
+  )
+  // Inactive/deleted users aren't offered as pickable filter options for staff, but admins/superadmins
+  // can still filter by a former staff member's past orders — their name is suffixed "(Inactive)".
+  const canSeeInactiveCreators = role === "admin" || role === "superadmin"
+  const pickableCreatorOptions = canSeeInactiveCreators
+    ? creatorOptions
+    : creatorOptions.filter((creator) => creator.status === "active")
+  const getCreatedByLabel = (id: string) => {
+    const creator = creatorOptions.find((candidate) => candidate.id === id)
+    return creator ? creatorLabel(creator) : id
+  }
   const [searchInput, setSearchInput] = useState(params.search)
   const debouncedSearch = useDebouncedValue(searchInput, 400)
   const [cancellingOrder, setCancellingOrder] = useState<Order | null>(null)
@@ -166,6 +187,7 @@ export function OrdersPage() {
     params.status !== "" ||
     params.paymentStatus !== "" ||
     params.category !== "" ||
+    params.createdBy !== "" ||
     params.dateFrom !== "" ||
     params.dateTo !== "" ||
     params.sortBy !== "created_at" ||
@@ -187,7 +209,7 @@ export function OrdersPage() {
     },
     params.status && {
       key: "status",
-      label: ORDER_STATUS_LABELS[params.status as OrderStatus] ?? params.status,
+      label: getLabel(params.status),
       onRemove: () => setParams({ status: "", page: 1 }),
     },
     params.paymentStatus && {
@@ -199,6 +221,11 @@ export function OrdersPage() {
       key: "category",
       label: params.category,
       onRemove: () => setParams({ category: "", page: 1 }),
+    },
+    params.createdBy && {
+      key: "createdBy",
+      label: `Created by: ${getCreatedByLabel(params.createdBy)}`,
+      onRemove: () => setParams({ createdBy: "", page: 1 }),
     },
     params.dateFrom && {
       key: "dateFrom",
@@ -247,16 +274,14 @@ export function OrdersPage() {
         >
           <SelectTrigger>
             <SelectValue>
-              {(value: string | null) =>
-                (value && ORDER_STATUS_LABELS[value as OrderStatus]) || ANY_STATUS
-              }
+              {(value: string | null) => (value && getLabel(value)) || ANY_STATUS}
             </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={ANY_STATUS}>{ANY_STATUS}</SelectItem>
-            {ORDER_STATUSES.map((status) => (
-              <SelectItem key={status} value={status}>
-                {ORDER_STATUS_LABELS[status]}
+            {statuses.map((item) => (
+              <SelectItem key={item.id} value={item.name}>
+                {getLabel(item.name)}
               </SelectItem>
             ))}
           </SelectContent>
@@ -301,6 +326,42 @@ export function OrdersPage() {
             {categories.map((category) => (
               <SelectItem key={category.id} value={category.name}>
                 {category.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select
+          value={params.createdBy || ANY_CREATED_BY}
+          onValueChange={(value) =>
+            setParams({ createdBy: value === ANY_CREATED_BY ? "" : (value ?? ""), page: 1 })
+          }
+          disabled={isLoading || isError}
+        >
+          <SelectTrigger>
+            <SelectValue>
+              {(value: string | null) => {
+                if (!value || value === ANY_CREATED_BY) return ANY_CREATED_BY
+                const creator = creatorOptions.find((candidate) => candidate.id === value)
+                return (
+                  <span className="flex items-center gap-1.5">
+                    {getCreatedByLabel(value)}
+                    {creator && creator.status !== "active" ? (
+                      <UserXIcon className="size-3.5 shrink-0 text-muted-foreground" aria-label="Inactive user" />
+                    ) : null}
+                  </span>
+                )
+              }}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ANY_CREATED_BY}>{ANY_CREATED_BY}</SelectItem>
+            {pickableCreatorOptions.map((creator) => (
+              <SelectItem key={creator.id} value={creator.id}>
+                {creatorLabel(creator)}
+                {creator.status !== "active" ? (
+                  <UserXIcon className="size-3.5 shrink-0 text-muted-foreground" aria-label="Inactive user" />
+                ) : null}
               </SelectItem>
             ))}
           </SelectContent>

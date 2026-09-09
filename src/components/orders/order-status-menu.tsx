@@ -1,5 +1,17 @@
-import { ChevronDownIcon, Loader2Icon } from "lucide-react"
+import { useState } from "react"
+import { ChevronDownIcon, HourglassIcon, Loader2Icon } from "lucide-react"
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogMedia,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { badgeVariants } from "@/components/ui/badge"
 import {
   DropdownMenu,
@@ -7,18 +19,24 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Spinner } from "@/components/ui/spinner"
 import { useCategories } from "@/lib/categories"
-import { getOrderStatusOptions, useOrderStatusUpdate } from "@/lib/orders"
+import { useActiveOrderStatuses, useOrderStatusLookup } from "@/lib/order-statuses"
+import {
+  CURING_STATUS_NAME,
+  formatCuringDuration,
+  getOrderStatusOptions,
+  useOrderStatusUpdate,
+} from "@/lib/orders"
 import type { Order, OrderStatus } from "@/lib/orders"
 import type { Role } from "@/lib/users"
 import { cn } from "@/lib/utils"
 
-import { ORDER_STATUS_COLORS, ORDER_STATUS_ICONS, ORDER_STATUS_LABELS } from "./order-status-badge"
-
 /** Compact, click-to-change status control for the orders table row. Trigger matches the
  * read-only `OrderStatusBadge` it replaces (same size/color) so the column doesn't get wider —
- * only a chevron is added. `cancelled`/`refunded` route to the existing confirmation dialogs
- * instead of committing directly. */
+ * only a chevron is added. `cancelled`/`refunded`/`returned` route to the existing confirmation
+ * dialogs instead of committing directly; leaving `curing` for any other status shows an inline
+ * confirmation warning that the curing time will reset. */
 export function OrderStatusMenu({
   order,
   onCancel,
@@ -38,66 +56,120 @@ export function OrderStatusMenu({
 }) {
   const { updateStatus, isUpdating } = useOrderStatusUpdate()
   const { categories } = useCategories()
-  const options = getOrderStatusOptions(order, categories, role)
-  const Icon = ORDER_STATUS_ICONS[order.status]
+  const { statuses } = useActiveOrderStatuses()
+  const { getLabel, getIcon, getColors } = useOrderStatusLookup()
+  const [pendingStatus, setPendingStatus] = useState<OrderStatus | null>(null)
+  const options = getOrderStatusOptions(
+    order,
+    categories,
+    role,
+    statuses.map((s) => s.name)
+  )
+  const Icon = getIcon(order.status)
+  const curingDuration =
+    order.status === CURING_STATUS_NAME ? formatCuringDuration(order.statusUpdatedAt) : null
+
+  async function commitStatus(status: OrderStatus) {
+    onOptimisticChange?.(status)
+    await updateStatus(order, status)
+    onOptimisticChange?.(null)
+  }
 
   async function handleSelect(status: OrderStatus) {
     if (status === order.status || isUpdating) return
     if (status === "cancelled") return onCancel(order)
     if (status === "refunded") return onRefund(order)
     if (status === "returned") return onReturn(order)
-    onOptimisticChange?.(status)
-    await updateStatus(order, status)
-    onOptimisticChange?.(null)
+    if (order.status === CURING_STATUS_NAME) {
+      setPendingStatus(status)
+      return
+    }
+    await commitStatus(status)
+  }
+
+  async function handleConfirmCuringExit() {
+    if (!pendingStatus) return
+    const status = pendingStatus
+    setPendingStatus(null)
+    await commitStatus(status)
   }
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        disabled={isUpdating}
-        render={
-          <button
-            type="button"
-            className={cn(
-              badgeVariants({ variant: "plain" }),
-              ORDER_STATUS_COLORS[order.status].badge,
-              "border-transparent cursor-pointer pr-1.5 transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-60",
-              size === "lg" && "h-8 gap-1.5 px-3 text-sm [&>svg]:size-4!"
-            )}
-          />
-        }
-      >
-        {isUpdating ? (
-          <Loader2Icon data-icon="inline-start" className="animate-spin" />
-        ) : (
-          <Icon data-icon="inline-start" />
-        )}
-        {ORDER_STATUS_LABELS[order.status]}
-        <ChevronDownIcon className={cn("opacity-70", size === "lg" ? "size-4" : "size-3")} />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start">
-        {options.map((option) => {
-          const OptionIcon = ORDER_STATUS_ICONS[option.value]
-          const isCurrent = option.value === order.status
-          return (
-            <DropdownMenuItem
-              key={option.value}
-              disabled={option.disabled || isCurrent}
-              variant={
-                option.value === "cancelled" ||
-                option.value === "refunded" ||
-                option.value === "returned"
-                  ? "destructive"
-                  : "default"
-              }
-              onClick={() => void handleSelect(option.value)}
-            >
-              <OptionIcon />
-              {ORDER_STATUS_LABELS[option.value]}
-            </DropdownMenuItem>
-          )
-        })}
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          disabled={isUpdating}
+          render={
+            <button
+              type="button"
+              className={cn(
+                badgeVariants({ variant: "plain" }),
+                getColors(order.status).badge,
+                "border-transparent cursor-pointer pr-1.5 transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-60",
+                size === "lg" && "h-8 gap-1.5 px-3 text-sm [&>svg]:size-4!"
+              )}
+            />
+          }
+        >
+          {isUpdating ? (
+            <Loader2Icon data-icon="inline-start" className="animate-spin" />
+          ) : (
+            <Icon data-icon="inline-start" />
+          )}
+          {getLabel(order.status)}
+          {curingDuration && ` ${curingDuration}`}
+          <ChevronDownIcon className={cn("opacity-70", size === "lg" ? "size-4" : "size-3")} />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start">
+          {options.map((option) => {
+            const OptionIcon = getIcon(option.value)
+            const isCurrent = option.value === order.status
+            return (
+              <DropdownMenuItem
+                key={option.value}
+                disabled={option.disabled || isCurrent}
+                variant={
+                  option.value === "cancelled" ||
+                  option.value === "refunded" ||
+                  option.value === "returned"
+                    ? "destructive"
+                    : "default"
+                }
+                onClick={() => void handleSelect(option.value)}
+              >
+                <OptionIcon />
+                {getLabel(option.value)}
+              </DropdownMenuItem>
+            )
+          })}
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <AlertDialog open={!!pendingStatus} onOpenChange={(open) => !open && setPendingStatus(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogMedia className="bg-status-warning/10 text-status-warning">
+              <HourglassIcon />
+            </AlertDialogMedia>
+            <AlertDialogTitle>Change status?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Change this order from {getLabel(CURING_STATUS_NAME)}
+              {curingDuration && ` (${curingDuration})`} to{" "}
+              <span className="font-medium text-foreground">
+                {pendingStatus && getLabel(pendingStatus)}
+              </span>
+              ? The curing time will reset.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isUpdating}>Cancel</AlertDialogCancel>
+            <AlertDialogAction disabled={isUpdating} onClick={() => void handleConfirmCuringExit()}>
+              {isUpdating && <Spinner data-icon="inline-start" />}
+              {isUpdating ? "Changing..." : "Change Status"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   )
 }

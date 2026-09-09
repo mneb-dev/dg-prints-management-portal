@@ -51,6 +51,21 @@
     --color-order-status-pack: var(--order-status-pack);
     --color-order-status-refunded: var(--order-status-refunded);
     --color-order-status-returned: var(--order-status-returned);
+    /* Spare color slots for admin-created custom statuses, which have no bespoke token of
+       their own — see getColors() in order-statuses.tsx, which hashes a status's id into
+       one of these 6. */
+    --color-order-status-slot-1: var(--order-status-slot-1);
+    --color-order-status-slot-2: var(--order-status-slot-2);
+    --color-order-status-slot-3: var(--order-status-slot-3);
+    --color-order-status-slot-4: var(--order-status-slot-4);
+    --color-order-status-slot-5: var(--order-status-slot-5);
+    --color-order-status-slot-6: var(--order-status-slot-6);
+    --color-order-status-slot-7: var(--order-status-slot-7);
+    --color-order-status-slot-8: var(--order-status-slot-8);
+    --color-order-status-slot-9: var(--order-status-slot-9);
+    --color-order-status-slot-10: var(--order-status-slot-10);
+    --color-order-status-slot-11: var(--order-status-slot-11);
+    --color-order-status-slot-12: var(--order-status-slot-12);
     --radius-sm: calc(var(--radius) * 0.6);
     --radius-md: calc(var(--radius) * 0.8);
     --radius-lg: var(--radius);
@@ -95,6 +110,18 @@
     --order-status-pack: oklch(0.6 0.11 110);
     --order-status-refunded: oklch(0.58 0.16 296);
     --order-status-returned: oklch(0.6 0.17 324);
+    --order-status-slot-1: oklch(0.58 0.18 15);
+    --order-status-slot-2: oklch(0.62 0.14 95);
+    --order-status-slot-3: oklch(0.58 0.14 130);
+    --order-status-slot-4: oklch(0.58 0.13 160);
+    --order-status-slot-5: oklch(0.56 0.16 285);
+    --order-status-slot-6: oklch(0.58 0.18 340);
+    --order-status-slot-7: oklch(0.62 0.16 40);
+    --order-status-slot-8: oklch(0.58 0.12 178);
+    --order-status-slot-9: oklch(0.58 0.11 195);
+    --order-status-slot-10: oklch(0.56 0.14 232);
+    --order-status-slot-11: oklch(0.56 0.16 256);
+    --order-status-slot-12: oklch(0.56 0.17 310);
     --radius: 0.625rem;
     --sidebar: oklch(0.985 0 0);
     --sidebar-foreground: oklch(0.19 0.014 238);
@@ -142,6 +169,18 @@
     --order-status-pack: oklch(0.72 0.11 110);
     --order-status-refunded: oklch(0.7 0.15 296);
     --order-status-returned: oklch(0.72 0.16 324);
+    --order-status-slot-1: oklch(0.7 0.17 15);
+    --order-status-slot-2: oklch(0.74 0.13 95);
+    --order-status-slot-3: oklch(0.7 0.13 130);
+    --order-status-slot-4: oklch(0.7 0.12 160);
+    --order-status-slot-5: oklch(0.68 0.15 285);
+    --order-status-slot-6: oklch(0.7 0.17 340);
+    --order-status-slot-7: oklch(0.74 0.15 40);
+    --order-status-slot-8: oklch(0.7 0.11 178);
+    --order-status-slot-9: oklch(0.7 0.1 195);
+    --order-status-slot-10: oklch(0.68 0.13 232);
+    --order-status-slot-11: oklch(0.68 0.15 256);
+    --order-status-slot-12: oklch(0.68 0.16 310);
     --sidebar: oklch(0.15 0.012 238);
     --sidebar-foreground: oklch(0.96 0.004 238);
     --sidebar-primary: oklch(0.66 0.2 356);

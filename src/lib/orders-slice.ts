@@ -7,20 +7,9 @@ import type { PricingUnit, ProductCategory } from "@/lib/products"
 import type { RootState } from "@/lib/store"
 import type { StickerUnit } from "@/lib/sticker-quotation"
 
-export const ORDER_STATUSES = [
-  "pending",
-  "layout",
-  "trace",
-  "print",
-  "cut",
-  "pack",
-  "pickup",
-  "released",
-  "cancelled",
-  "refunded",
-  "returned",
-] as const
-export type OrderStatus = (typeof ORDER_STATUSES)[number]
+// Order statuses are now a managed, orderable list (see order-statuses.tsx) rather than a
+// fixed set of literals — same treatment as OrderChannel/PaymentMethod below.
+export type OrderStatus = string
 
 const LEGACY_STATUS_MAP: Partial<Record<string, OrderStatus>> = {
   confirmed: "layout",
@@ -214,6 +203,7 @@ export type OrdersQueryParams = {
   status: string
   paymentStatus: string
   category: string
+  createdBy: string
   dateFrom: string
   dateTo: string
   sortBy: string
@@ -227,6 +217,7 @@ export const DEFAULT_ORDERS_PARAMS: OrdersQueryParams = {
   status: "",
   paymentStatus: "",
   category: "",
+  createdBy: "",
   dateFrom: "",
   dateTo: "",
   sortBy: "created_at",
@@ -270,6 +261,7 @@ export const fetchOrdersThunk = createAsyncThunk<
         status: params.status || undefined,
         paymentStatus: params.paymentStatus || undefined,
         category: params.category || undefined,
+        createdBy: params.createdBy || undefined,
         dateFrom: params.dateFrom || undefined,
         dateTo: params.dateTo || undefined,
         sortBy: params.sortBy,

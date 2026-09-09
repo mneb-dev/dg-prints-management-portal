@@ -322,7 +322,7 @@ export function OrderTable({
                       role={role}
                     />
                   ) : (
-                    <OrderStatusBadge status={order.status} />
+                    <OrderStatusBadge status={order.status} statusUpdatedAt={order.statusUpdatedAt} />
                   )}
                 </TableCell>
                 <TableCell>

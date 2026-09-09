@@ -29,15 +29,17 @@ import type {
 export {
   DEFAULT_ORDERS_PARAMS,
   HOT_PRODUCT_TOP_N,
-  ORDER_STATUSES,
   PAYMENT_STATUSES,
 } from "@/lib/orders-slice"
 export {
-  CATEGORY_STATUS_FLOW_OPTIONS,
+  CURING_STATUS_NAME,
+  DASHBOARD_EXCLUDED_STATUSES,
   ORDER_TERMINAL_STATUSES,
   canEditOrderMetadata,
   canReleaseOrder,
   canRefundOrder,
+  formatCuringDuration,
+  getCategoryStatusFlowOptions,
   getOrderStatusOptions,
   getOrderWorkflowStatuses,
   getStatusFlowForCategory,
@@ -84,6 +86,7 @@ export function useOrders() {
     params.status,
     params.paymentStatus,
     params.category,
+    params.createdBy,
     params.dateFrom,
     params.dateTo,
     params.sortBy,

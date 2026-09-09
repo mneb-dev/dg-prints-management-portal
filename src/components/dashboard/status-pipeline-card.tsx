@@ -1,44 +1,36 @@
 import { PackageSearchIcon, TriangleAlertIcon } from "lucide-react"
 import { Bar, BarChart, CartesianGrid, Cell, XAxis, YAxis } from "recharts"
 
-import {
-  ORDER_STATUS_COLORS,
-  ORDER_STATUS_LABELS,
-} from "@/components/orders/order-status-badge"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
 import { Empty, EmptyDescription, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
 import { Skeleton } from "@/components/ui/skeleton"
-import { ORDER_TERMINAL_STATUSES } from "@/lib/order-status"
+import { DASHBOARD_EXCLUDED_STATUSES, ORDER_TERMINAL_STATUSES } from "@/lib/order-status"
+import { useActiveOrderStatuses, useOrderStatusLookup } from "@/lib/order-statuses"
 import { useOrderStats } from "@/lib/orders"
-import type { OrderStatus } from "@/lib/orders"
-
-const PIPELINE_STAGES: OrderStatus[] = [
-  "pending",
-  "layout",
-  "trace",
-  "print",
-  "cut",
-  "pack",
-  "pickup",
-]
 
 const chartConfig = { count: { label: "Orders" } } satisfies ChartConfig
 
 export function StatusPipelineCard() {
   const { stats, isLoading, isError } = useOrderStats()
+  const { statuses } = useActiveOrderStatuses()
+  const { getLabel, getColors } = useOrderStatusLookup()
+
+  const pipelineStages = statuses.filter(
+    (s) => !ORDER_TERMINAL_STATUSES.includes(s.name) && !DASHBOARD_EXCLUDED_STATUSES.includes(s.name)
+  )
 
   const cancelledCount = ORDER_TERMINAL_STATUSES.reduce(
     (sum, status) => sum + (stats?.byStatus[status] ?? 0),
     0
   )
 
-  const data = PIPELINE_STAGES.map((status) => ({
-    status,
-    label: ORDER_STATUS_LABELS[status],
-    count: stats?.byStatus[status] ?? 0,
-    fill: ORDER_STATUS_COLORS[status].color,
+  const data = pipelineStages.map((item) => ({
+    status: item.name,
+    label: getLabel(item.name),
+    count: stats?.byStatus[item.name] ?? 0,
+    fill: getColors(item.name).color,
   }))
 
   return (
@@ -57,8 +49,8 @@ export function StatusPipelineCard() {
       <CardContent>
         {isLoading ? (
           <div className="flex flex-col gap-2.5">
-            {PIPELINE_STAGES.map((status) => (
-              <Skeleton key={status} className="h-6 w-full" />
+            {pipelineStages.map((item) => (
+              <Skeleton key={item.id} className="h-6 w-full" />
             ))}
           </div>
         ) : isError ? (
