@@ -1,11 +1,15 @@
 import { badgeVariants } from "@/components/ui/badge"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useCategories } from "@/lib/categories"
-import { getOrderWorkflowStatuses, isTerminalStatus } from "@/lib/orders"
+import { useActiveOrderStatuses, useOrderStatusLookup } from "@/lib/order-statuses"
+import {
+  CURING_STATUS_NAME,
+  formatCuringDuration,
+  getOrderWorkflowStatuses,
+  isTerminalStatus,
+} from "@/lib/orders"
 import type { Order, OrderStatus } from "@/lib/orders"
 import { cn, formatDate, formatRelativeDate } from "@/lib/utils"
-
-import { ORDER_STATUS_COLORS, ORDER_STATUS_ICONS, ORDER_STATUS_LABELS } from "./order-status-badge"
 
 const ENTRANCE_ANIMATION =
   "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 motion-safe:duration-200"
@@ -16,13 +20,16 @@ const ENTRANCE_ANIMATION =
  * status the order is actually in). Showing this instead of a step track with nothing
  * highlighted keeps the component honest about what it can and can't display. */
 function StatusSummary({ order, status }: { order: Order; status: OrderStatus }) {
-  const Icon = ORDER_STATUS_ICONS[status]
+  const { getLabel, getIcon, getColors } = useOrderStatusLookup()
+  const Icon = getIcon(status)
+  const curingDuration =
+    status === CURING_STATUS_NAME ? formatCuringDuration(order.statusUpdatedAt) : null
   return (
     <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:gap-3">
       <span
         className={cn(
           badgeVariants({ variant: "plain" }),
-          ORDER_STATUS_COLORS[status].badge,
+          getColors(status).badge,
           "border-transparent size-10 shrink-0 rounded-full p-0 [&>svg]:size-5!",
           ENTRANCE_ANIMATION
         )}
@@ -30,7 +37,10 @@ function StatusSummary({ order, status }: { order: Order; status: OrderStatus })
         <Icon />
       </span>
       <div className="flex flex-col">
-        <span className="font-medium">{ORDER_STATUS_LABELS[status]}</span>
+        <span className="font-medium">
+          {getLabel(status)}
+          {curingDuration && ` + ${curingDuration}`}
+        </span>
         {order.statusUpdatedAt && (
           <span className="text-sm text-muted-foreground">
             on{" "}
@@ -57,12 +67,23 @@ function StatusSummary({ order, status }: { order: Order; status: OrderStatus })
  * step of an 8-step flow at once on a phone-width screen. */
 export function OrderStatusStepper({ order }: { order: Order }) {
   const { categories } = useCategories()
+  const { statuses } = useActiveOrderStatuses()
+  const { getLabel, getIcon, getColors } = useOrderStatusLookup()
 
   if (isTerminalStatus(order.status)) {
     return <StatusSummary order={order} status={order.status} />
   }
 
-  const workflowStatuses = getOrderWorkflowStatuses(order, categories)
+  function stepLabel(status: OrderStatus) {
+    if (status !== CURING_STATUS_NAME || status !== order.status) return getLabel(status)
+    return getLabel(status)
+  }
+
+  const workflowStatuses = getOrderWorkflowStatuses(
+    order,
+    categories,
+    statuses.map((s) => s.name)
+  )
   const currentIndex = workflowStatuses.indexOf(order.status)
 
   // The order's current status isn't part of its derived workflow (e.g. missing/unmapped
@@ -72,7 +93,7 @@ export function OrderStatusStepper({ order }: { order: Order }) {
     return <StatusSummary order={order} status={order.status} />
   }
 
-  const currentColor = ORDER_STATUS_COLORS[order.status]
+  const currentColor = getColors(order.status)
   const unreachedBadgeClass = "bg-secondary text-secondary-foreground"
 
   return (
@@ -87,7 +108,7 @@ export function OrderStatusStepper({ order }: { order: Order }) {
           const isCurrent = i === currentIndex
           const isReached = i <= currentIndex
           const badgeColorClass = isReached ? currentColor.badge : unreachedBadgeClass
-          const Icon = ORDER_STATUS_ICONS[status]
+          const Icon = getIcon(status)
           const isLast = i === workflowStatuses.length - 1
 
           return (
@@ -108,9 +129,9 @@ export function OrderStatusStepper({ order }: { order: Order }) {
                     }
                   >
                     <Icon />
-                    <span className="sr-only">{ORDER_STATUS_LABELS[status]}</span>
+                    <span className="sr-only">{getLabel(status)}</span>
                   </TooltipTrigger>
-                  <TooltipContent>{ORDER_STATUS_LABELS[status]}</TooltipContent>
+                  <TooltipContent>{getLabel(status)}</TooltipContent>
                 </Tooltip>
                 {!isLast && (
                   <div
@@ -128,7 +149,7 @@ export function OrderStatusStepper({ order }: { order: Order }) {
                     isCurrent ? "text-foreground" : "text-muted-foreground"
                   )}
                 >
-                  {ORDER_STATUS_LABELS[status]}
+                  {stepLabel(status)}
                 </span>
                 {isCurrent && order.statusUpdatedAt && (
                   <span className="text-xs text-muted-foreground">
@@ -158,7 +179,7 @@ export function OrderStatusStepper({ order }: { order: Order }) {
           const isCurrent = i === currentIndex
           const isReached = i <= currentIndex
           const badgeColorClass = isReached ? currentColor.badge : unreachedBadgeClass
-          const Icon = ORDER_STATUS_ICONS[status]
+          const Icon = getIcon(status)
           const isLast = i === workflowStatuses.length - 1
 
           return (
@@ -179,10 +200,10 @@ export function OrderStatusStepper({ order }: { order: Order }) {
                     }
                   >
                     <Icon />
-                    <span className="sr-only">{ORDER_STATUS_LABELS[status]}</span>
+                    <span className="sr-only">{getLabel(status)}</span>
                   </TooltipTrigger>
                   <TooltipContent>
-                    {ORDER_STATUS_LABELS[status]}
+                    {getLabel(status)}
                     {isCurrent && order.statusUpdatedAt && (
                       <div className="text-background/70">
                         {formatDate(order.statusUpdatedAt)} ·{" "}
@@ -197,7 +218,7 @@ export function OrderStatusStepper({ order }: { order: Order }) {
                     !isCurrent && "invisible"
                   )}
                 >
-                  {ORDER_STATUS_LABELS[status]}
+                  {stepLabel(status)}
                 </span>
               </div>
               {!isLast && (

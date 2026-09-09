@@ -21,12 +21,7 @@ import {
 } from "@/components/ui/table"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import type { Category } from "@/lib/categories"
-
-import {
-  ORDER_STATUS_COLORS,
-  ORDER_STATUS_ICONS,
-  ORDER_STATUS_LABELS,
-} from "@/components/orders/order-status-badge"
+import { useOrderStatusLookup } from "@/lib/order-statuses"
 import { cn } from "@/lib/utils"
 
 export function CategoryTable({
@@ -48,6 +43,8 @@ export function CategoryTable({
   onEdit: (category: Category) => void
   onDelete: (category: Category) => void
 }) {
+  const { getLabel, getIcon, getColors } = useOrderStatusLookup()
+
   if (isLoading) {
     return (
       <div className="rounded-lg border">
@@ -134,9 +131,7 @@ export function CategoryTable({
         </TableHeader>
         <TableBody>
           {categories.map((category) => {
-            const statusFlowSummary = category.statusFlow
-              .map((status) => ORDER_STATUS_LABELS[status])
-              .join(" → ")
+            const statusFlowSummary = category.statusFlow.map((status) => getLabel(status)).join(" → ")
             return (
               <TableRow key={category.id}>
                 <TableCell className="font-medium">{category.name}</TableCell>
@@ -156,13 +151,13 @@ export function CategoryTable({
                       }
                     >
                       {category.statusFlow.map((status) => {
-                        const Icon = ORDER_STATUS_ICONS[status]
+                        const Icon = getIcon(status)
                         return (
                           <Badge
                             key={status}
                             variant="plain"
                             className={cn(
-                              ORDER_STATUS_COLORS[status].badge,
+                              getColors(status).badge,
                               "border-transparent size-5 justify-center rounded-full p-0"
                             )}
                             aria-hidden

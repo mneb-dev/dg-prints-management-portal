@@ -62,9 +62,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton"
 import { Switch } from "@/components/ui/switch"
 import { useAuth } from "@/lib/auth"
-import { useSalesOrders } from "@/lib/orders"
+import { PAYMENT_STATUSES, useSalesOrders } from "@/lib/orders"
 import { useSalesVisibility } from "@/lib/sales-visibility"
-import type { Order } from "@/lib/orders"
+import type { Order, PaymentStatus } from "@/lib/orders"
+import { PAYMENT_STATUS_LABELS } from "@/components/orders/payment-status-badge"
 import { useUserOptions } from "@/lib/users"
 import type { UserOption } from "@/lib/users"
 import { cn, formatCurrency } from "@/lib/utils"
@@ -229,18 +230,36 @@ function buildCreatorSeries(orders: Order[], buckets: Bucket[], creatorIds: stri
   })
 }
 
+function buildPaymentStatusSeries(
+  orders: Order[],
+  buckets: Bucket[],
+  statuses: PaymentStatus[]
+): SalesPoint[] {
+  return buckets.map((bucket) => {
+    const point: SalesPoint = { label: bucket.label }
+    for (const status of statuses) {
+      point[status] = sumOrdersInRange(
+        orders.filter((order) => order.payment.status === status),
+        bucket.start,
+        bucket.end
+      )
+    }
+    return point
+  })
+}
+
 const DEFAULT_CHART_CONFIG = {
   total: { label: "Sales", color: "var(--color-chart-1)" },
 } satisfies ChartConfig
 
-const CREATOR_COLORS = [
+const LINE_COLORS = [
   "var(--color-chart-1)",
   "var(--color-chart-2)",
   "var(--color-chart-3)",
   "var(--color-chart-4)",
   "var(--color-chart-5)",
 ]
-const MAX_SELECTED_CREATORS = CREATOR_COLORS.length
+const MAX_SELECTED_CREATORS = LINE_COLORS.length
 
 function creatorFullName(user: UserOption): string {
   return `${user.firstName} ${user.lastName}`
@@ -257,7 +276,23 @@ function buildCreatorChartConfig(selectedIds: string[], userOptions: UserOption[
     const user = userOptions.find((candidate) => candidate.id === id)
     config[id] = {
       label: user ? creatorFullName(user) : "Unknown",
-      color: CREATOR_COLORS[colorIndex % CREATOR_COLORS.length],
+      color: LINE_COLORS[colorIndex % LINE_COLORS.length],
+    }
+  })
+  return config
+}
+
+// Colors are assigned by each status's stable position in PAYMENT_STATUSES (not selection order),
+// so a status's line color never shifts just because it was reselected in a different order.
+function buildPaymentStatusChartConfig(selectedStatuses: PaymentStatus[]): ChartConfig {
+  const sortedStatuses = [...selectedStatuses].sort(
+    (a, b) => PAYMENT_STATUSES.indexOf(a) - PAYMENT_STATUSES.indexOf(b)
+  )
+  const config: ChartConfig = {}
+  sortedStatuses.forEach((status, colorIndex) => {
+    config[status] = {
+      label: PAYMENT_STATUS_LABELS[status],
+      color: LINE_COLORS[colorIndex % LINE_COLORS.length],
     }
   })
   return config
@@ -275,6 +310,7 @@ export function SalesChartCard() {
   const [customTo, setCustomTo] = useState("")
   const [includeSunday, setIncludeSunday] = useState(true)
   const [selectedCreatorIds, setSelectedCreatorIds] = useState<string[]>([])
+  const [selectedPaymentStatuses, setSelectedPaymentStatuses] = useState<PaymentStatus[]>([])
 
   const range = useMemo(
     () => computePeriodRange(preset, customFrom, customTo, new Date()),
@@ -312,36 +348,67 @@ export function SalesChartCard() {
     if (selectedCreatorIds.length > 0) return new Set(selectedCreatorIds)
     return isStaffView && !isLoadingUsers ? allStaffIds : new Set<string>()
   }, [selectedCreatorIds, isStaffView, isLoadingUsers, allStaffIds])
+  const paymentStatusSet = useMemo(() => new Set(selectedPaymentStatuses), [selectedPaymentStatuses])
   const filteredCurrentOrders = useMemo(
     () =>
-      creatorIdSet.size === 0
-        ? currentOrders
-        : currentOrders.filter((order) => order.createdBy != null && creatorIdSet.has(order.createdBy)),
-    [currentOrders, creatorIdSet]
+      currentOrders.filter(
+        (order) =>
+          (creatorIdSet.size === 0 || (order.createdBy != null && creatorIdSet.has(order.createdBy))) &&
+          (paymentStatusSet.size === 0 || paymentStatusSet.has(order.payment.status))
+      ),
+    [currentOrders, creatorIdSet, paymentStatusSet]
   )
   const filteredPreviousOrders = useMemo(
     () =>
-      creatorIdSet.size === 0
-        ? previousOrders
-        : previousOrders.filter((order) => order.createdBy != null && creatorIdSet.has(order.createdBy)),
-    [previousOrders, creatorIdSet]
+      previousOrders.filter(
+        (order) =>
+          (creatorIdSet.size === 0 || (order.createdBy != null && creatorIdSet.has(order.createdBy))) &&
+          (paymentStatusSet.size === 0 || paymentStatusSet.has(order.payment.status))
+      ),
+    [previousOrders, creatorIdSet, paymentStatusSet]
   )
 
   const bucketUnit = range ? pickBucketUnit(range.currentStart, range.currentEnd) : "day"
-  const chartConfig = useMemo<ChartConfig>(
-    () =>
-      selectedCreatorIds.length > 1
-        ? buildCreatorChartConfig(selectedCreatorIds, userOptions)
-        : DEFAULT_CHART_CONFIG,
-    [selectedCreatorIds, userOptions]
+  // Only one dimension can drive the chart's lines at a time. Creator takes priority when both a
+  // multi-creator and a multi-payment-status selection are active — the payment-status selection
+  // still narrows which orders are included either way.
+  const isCreatorMultiLine = selectedCreatorIds.length > 1
+  const isPaymentStatusMultiLine = !isCreatorMultiLine && selectedPaymentStatuses.length > 1
+  const creatorChartConfig = useMemo<ChartConfig>(
+    () => (isCreatorMultiLine ? buildCreatorChartConfig(selectedCreatorIds, userOptions) : DEFAULT_CHART_CONFIG),
+    [isCreatorMultiLine, selectedCreatorIds, userOptions]
   )
+  const paymentStatusChartConfig = useMemo<ChartConfig>(
+    () => (isPaymentStatusMultiLine ? buildPaymentStatusChartConfig(selectedPaymentStatuses) : DEFAULT_CHART_CONFIG),
+    [isPaymentStatusMultiLine, selectedPaymentStatuses]
+  )
+  const chartConfig: ChartConfig = isCreatorMultiLine
+    ? creatorChartConfig
+    : isPaymentStatusMultiLine
+      ? paymentStatusChartConfig
+      : DEFAULT_CHART_CONFIG
+  const multiLineKeys: string[] | null = isCreatorMultiLine
+    ? selectedCreatorIds
+    : isPaymentStatusMultiLine
+      ? selectedPaymentStatuses
+      : null
   const series = useMemo(() => {
     if (!range) return []
     const buckets = buildBuckets(range, bucketUnit, includeSunday)
-    return selectedCreatorIds.length > 1
-      ? buildCreatorSeries(filteredCurrentOrders, buckets, selectedCreatorIds)
-      : buildSeries(filteredCurrentOrders, buckets)
-  }, [filteredCurrentOrders, range, bucketUnit, includeSunday, selectedCreatorIds])
+    if (isCreatorMultiLine) return buildCreatorSeries(filteredCurrentOrders, buckets, selectedCreatorIds)
+    if (isPaymentStatusMultiLine)
+      return buildPaymentStatusSeries(filteredCurrentOrders, buckets, selectedPaymentStatuses)
+    return buildSeries(filteredCurrentOrders, buckets)
+  }, [
+    filteredCurrentOrders,
+    range,
+    bucketUnit,
+    includeSunday,
+    isCreatorMultiLine,
+    isPaymentStatusMultiLine,
+    selectedCreatorIds,
+    selectedPaymentStatuses,
+  ])
 
   const periodTotal = filteredCurrentOrders.reduce((sum, order) => sum + order.total, 0)
   const previousTotal = filteredPreviousOrders.reduce((sum, order) => sum + order.total, 0)
@@ -359,6 +426,16 @@ export function SalesChartCard() {
 
   function removeCreator(id: string) {
     setSelectedCreatorIds((prev) => prev.filter((existing) => existing !== id))
+  }
+
+  function togglePaymentStatus(status: PaymentStatus, checked: boolean) {
+    setSelectedPaymentStatuses((prev) =>
+      checked ? [...prev, status] : prev.filter((existing) => existing !== status)
+    )
+  }
+
+  function removePaymentStatus(status: PaymentStatus) {
+    setSelectedPaymentStatuses((prev) => prev.filter((existing) => existing !== status))
   }
 
   return (
@@ -385,6 +462,54 @@ export function SalesChartCard() {
               ))}
             </SelectContent>
           </Select>
+          {!isStaffView ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="max-w-40 justify-between gap-1.5 text-xs"
+                  />
+                }
+              >
+                <span className="truncate">
+                  {selectedPaymentStatuses.length === 0
+                    ? "All"
+                    : selectedPaymentStatuses.length === 1
+                      ? PAYMENT_STATUS_LABELS[selectedPaymentStatuses[0]]
+                      : `${selectedPaymentStatuses.length} selected`}
+                </span>
+                <ChevronDownIcon className="size-3.5 shrink-0 opacity-60" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuGroup>
+                  <DropdownMenuLabel>Filter by payment status</DropdownMenuLabel>
+                </DropdownMenuGroup>
+                <DropdownMenuSeparator />
+                <DropdownMenuCheckboxItem
+                  checked={selectedPaymentStatuses.length === 0}
+                  onCheckedChange={() => setSelectedPaymentStatuses([])}
+                >
+                  All
+                </DropdownMenuCheckboxItem>
+                <DropdownMenuSeparator />
+                {PAYMENT_STATUSES.map((status) => {
+                  const isChecked = selectedPaymentStatuses.includes(status)
+                  return (
+                    <DropdownMenuCheckboxItem
+                      key={status}
+                      checked={isChecked}
+                      onCheckedChange={(checked) => togglePaymentStatus(status, !!checked)}
+                    >
+                      {PAYMENT_STATUS_LABELS[status]}
+                    </DropdownMenuCheckboxItem>
+                  )
+                })}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : null}
           <DropdownMenu>
             <DropdownMenuTrigger
               render={
@@ -495,13 +620,34 @@ export function SalesChartCard() {
           </div>
         ) : null}
 
-        {selectedCreatorIds.length > 0 ? (
+        {selectedPaymentStatuses.length > 0 || selectedCreatorIds.length > 0 ? (
           <div className="mb-4 flex flex-wrap items-center gap-1.5">
+            {selectedPaymentStatuses.map((status) => {
+              const name = PAYMENT_STATUS_LABELS[status]
+              const dotColor = isPaymentStatusMultiLine
+                ? (paymentStatusChartConfig[status]?.color as string)
+                : "var(--color-chart-1)"
+              return (
+                <Badge key={status} variant="secondary" className="gap-1.5 pr-1">
+                  <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: dotColor }} />
+                  {name}
+                  <button
+                    type="button"
+                    onClick={() => removePaymentStatus(status)}
+                    className="rounded-full p-0.5 hover:bg-foreground/10"
+                  >
+                    <XIcon className="size-3" />
+                    <span className="sr-only">Remove filter: {name}</span>
+                  </button>
+                </Badge>
+              )
+            })}
             {selectedCreatorIds.map((id) => {
               const user = userOptions.find((candidate) => candidate.id === id)
               const name = user ? creatorFullName(user) : "Unknown"
-              const dotColor =
-                selectedCreatorIds.length > 1 ? (chartConfig[id]?.color as string) : "var(--color-chart-1)"
+              const dotColor = isCreatorMultiLine
+                ? (creatorChartConfig[id]?.color as string)
+                : "var(--color-chart-1)"
               return (
                 <Badge key={id} variant="secondary" className="gap-1.5 pr-1">
                   <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: dotColor }} />
@@ -616,7 +762,7 @@ export function SalesChartCard() {
                   content={
                     <ChartTooltipContent
                       formatter={(value, name) => {
-                        const isMulti = selectedCreatorIds.length > 1
+                        const isMulti = multiLineKeys !== null
                         const key = String(name)
                         const displayName = isMulti ? (chartConfig[key]?.label ?? key) : "Sales"
                         const swatch = isMulti ? (chartConfig[key]?.color as string) : "var(--color-chart-1)"
@@ -633,14 +779,14 @@ export function SalesChartCard() {
                     />
                   }
                 />
-                {selectedCreatorIds.length > 1 ? (
-                  selectedCreatorIds.map((id) => (
+                {multiLineKeys ? (
+                  multiLineKeys.map((key) => (
                     <Area
-                      key={id}
+                      key={key}
                       type="monotone"
-                      dataKey={id}
-                      name={id}
-                      stroke={`var(--color-${id})`}
+                      dataKey={key}
+                      name={key}
+                      stroke={`var(--color-${key})`}
                       strokeWidth={2}
                       fillOpacity={0}
                     />
@@ -648,7 +794,7 @@ export function SalesChartCard() {
                 ) : (
                   <Area type="monotone" dataKey="total" stroke="var(--color-total)" strokeWidth={2} fill="url(#salesFill)" />
                 )}
-                {selectedCreatorIds.length > 1 ? <ChartLegend content={<ChartLegendContent />} /> : null}
+                {multiLineKeys ? <ChartLegend content={<ChartLegendContent />} /> : null}
               </AreaChart>
             </ChartContainer>
           </>

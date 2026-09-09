@@ -20,10 +20,9 @@ import { ToggleGroup } from "@/components/ui/toggle-group"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { useCategoryActions, type Category, type CategoryInput } from "@/lib/categories"
-import { CATEGORY_STATUS_FLOW_OPTIONS, type OrderStatus } from "@/lib/orders"
+import { useActiveOrderStatuses, useOrderStatusLookup } from "@/lib/order-statuses"
+import { getCategoryStatusFlowOptions, type OrderStatus } from "@/lib/orders"
 import { maxLengthMessage, requiredMessage } from "@/lib/validation"
-
-import { ORDER_STATUS_ICONS, ORDER_STATUS_LABELS } from "@/components/orders/order-status-badge"
 
 // Why each locked status can't be unchecked — shown in a tooltip so the lock reads as
 // intentional rather than a bug (see the status picker below).
@@ -64,6 +63,9 @@ export function CategoryFormDialog({
   onSaved?: () => void
 }) {
   const { addCategory, updateCategory } = useCategoryActions()
+  const { statuses } = useActiveOrderStatuses()
+  const { getLabel, getIcon } = useOrderStatusLookup()
+  const statusFlowOptions = getCategoryStatusFlowOptions(statuses)
   const [draft, setDraft] = useState<CategoryInput>(emptyDraft)
   const [nameError, setNameError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -107,7 +109,7 @@ export function CategoryFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl">
+      <DialogContent className="sm:max-w-4xl">
         <DialogHeader>
           <DialogTitle>{category ? "Edit Category" : "Add Category"}</DialogTitle>
           <DialogDescription>
@@ -158,16 +160,14 @@ export function CategoryFormDialog({
                   const withMandatory = new Set([...next, ...MANDATORY_STATUSES])
                   setDraft((prev) => ({
                     ...prev,
-                    statusFlow: CATEGORY_STATUS_FLOW_OPTIONS.filter((status) =>
-                      withMandatory.has(status)
-                    ),
+                    statusFlow: statusFlowOptions.filter((status) => withMandatory.has(status)),
                   }))
                 }}
                 className="flex-nowrap items-center gap-1"
               >
-                {CATEGORY_STATUS_FLOW_OPTIONS.map((status) => {
+                {statusFlowOptions.map((status) => {
                   const locked = MANDATORY_STATUSES.includes(status)
-                  const Icon = ORDER_STATUS_ICONS[status]
+                  const Icon = getIcon(status)
                   const chip = (
                     <Toggle
                       key={status}
@@ -179,7 +179,7 @@ export function CategoryFormDialog({
                       )}
                     >
                       <Icon className="size-3" />
-                      {ORDER_STATUS_LABELS[status]}
+                      {getLabel(status)}
                       {locked && <LockIcon className="size-2.5 opacity-70" />}
                     </Toggle>
                   )

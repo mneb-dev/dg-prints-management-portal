@@ -10,12 +10,12 @@ export function PageHeader({
   actions?: ReactNode
 }) {
   return (
-    <div className="flex items-center justify-between">
-      <div>
-        <h1 className="text-2xl font-semibold">{title}</h1>
-        {description ? <p className="text-muted-foreground">{description}</p> : null}
+    <div className="flex items-center justify-between gap-3">
+      <div className="min-w-0">
+        <h1 className="truncate text-2xl font-semibold">{title}</h1>
+        {description ? <p className="truncate text-muted-foreground">{description}</p> : null}
       </div>
-      {actions ? <div className="flex items-center gap-2">{actions}</div> : null}
+      {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
     </div>
   )
 }
