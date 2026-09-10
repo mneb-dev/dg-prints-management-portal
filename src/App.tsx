@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from "react-router-dom"
 import { AppLayout } from "@/layouts/app-layout"
 import { ProtectedRoute, PublicOnlyRoute } from "@/lib/route-guards"
 import { CalculatorPage } from "@/pages/calculator-page"
+import { CommissionPage } from "@/pages/commission-page"
 import { CreateOrderPage } from "@/pages/create-order-page"
 import { DashboardPage } from "@/pages/dashboard-page"
 import { EditOrderPage } from "@/pages/edit-order-page"
@@ -79,6 +80,14 @@ function App() {
           element={
             <ProtectedRoute roles={["admin", "superadmin"]}>
               <FinancePage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/commissions"
+          element={
+            <ProtectedRoute permission="manage_commissions">
+              <CommissionPage />
             </ProtectedRoute>
           }
         />

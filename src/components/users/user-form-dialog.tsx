@@ -44,6 +44,8 @@ function emptyDraft(): UserInput {
     role: "staff",
     permissions: [],
     status: "active",
+    commissionRate: 100,
+    dailyRate: null,
   }
 }
 
@@ -55,6 +57,8 @@ function draftFromUser(user: User): UserInput {
     role: user.role,
     permissions: user.permissions,
     status: user.status,
+    commissionRate: user.commissionRate,
+    dailyRate: user.dailyRate,
   }
 }
 
@@ -225,6 +229,45 @@ export function UserFormDialog({
                 {user && user.id === currentUserId ? (
                   <FieldDescription>You cannot deactivate your own account.</FieldDescription>
                 ) : null}
+              </Field>
+
+              <Field>
+                <FieldLabel htmlFor="user-commission-rate">Commission Rate (%)</FieldLabel>
+                <Input
+                  id="user-commission-rate"
+                  type="number"
+                  min={0}
+                  max={100}
+                  step={0.01}
+                  value={draft.commissionRate}
+                  onChange={(event) =>
+                    setDraft((prev) => ({ ...prev, commissionRate: Number(event.target.value) }))
+                  }
+                />
+                <FieldDescription>
+                  Percentage of an order's layout fee paid as commission when this user is set as
+                  Layout by.
+                </FieldDescription>
+              </Field>
+
+              <Field>
+                <FieldLabel htmlFor="user-daily-rate">Daily Rate</FieldLabel>
+                <Input
+                  id="user-daily-rate"
+                  type="number"
+                  min={0}
+                  step={0.01}
+                  value={draft.dailyRate ?? ""}
+                  placeholder="No daily rate"
+                  onChange={(event) => {
+                    const value = event.target.value
+                    setDraft((prev) => ({ ...prev, dailyRate: value === "" ? null : Number(value) }))
+                  }}
+                />
+                <FieldDescription>
+                  Fixed per-day rate in addition to commission, paid out via the Run Payroll action
+                  on the Expenses page.
+                </FieldDescription>
               </Field>
 
               <Field>

@@ -19,6 +19,7 @@ export const PERMISSION_KEYS = [
   "manage_users",
   "manage_expenses",
   "manage_settings",
+  "manage_commissions",
 ] as const
 export type PermissionKey = (typeof PERMISSION_KEYS)[number]
 
@@ -28,6 +29,7 @@ export const PERMISSION_LABELS: Record<PermissionKey, string> = {
   manage_users: "Manage Users",
   manage_expenses: "Manage Expenses",
   manage_settings: "Manage App Settings",
+  manage_commissions: "Manage Commissions",
 }
 
 export const USER_STATUSES = ["active", "inactive"] as const
@@ -42,6 +44,8 @@ export type User = {
   permissions: PermissionKey[]
   avatar: string | null
   status: UserStatus
+  commissionRate: number
+  dailyRate: number | null
   createdAt: string
   updatedAt: string
 }
@@ -53,6 +57,8 @@ export type UserInput = {
   role: Role
   permissions: PermissionKey[]
   status: UserStatus
+  commissionRate: number
+  dailyRate: number | null
 }
 
 /** An admin cannot edit, delete, or reset the password of a superadmin account. */

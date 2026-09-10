@@ -25,6 +25,7 @@ export {
 } from "@/lib/expenses-slice"
 export type {
   Expense,
+  ExpenseAutoSource,
   ExpenseCategory,
   ExpenseInput,
   ExpensesQueryParams,

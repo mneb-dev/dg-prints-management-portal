@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react"
 import { format, parseISO } from "date-fns"
-import { CalendarCogIcon, PlusIcon } from "lucide-react"
+import { CalendarCogIcon, HandCoinsIcon, PlusIcon } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 import { toast } from "sonner"
 
 import { DeleteExpenseDialog } from "@/components/expenses/delete-expense-dialog"
 import { ExpenseFormDialog } from "@/components/expenses/expense-form-dialog"
 import { ExpenseTable } from "@/components/expenses/expense-table"
+import { RunPayrollDialog } from "@/components/expenses/run-payroll-dialog"
 import { ActiveFilterChips, FilterSearchInput, FilterToolbar, type ActiveFilter } from "@/components/filter-toolbar"
 import { PageHeader } from "@/components/page-header"
 import { PaginationBar } from "@/components/pagination-bar"
@@ -51,6 +52,7 @@ export function ExpensesPage() {
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null)
   const [deletingExpense, setDeletingExpense] = useState<Expense | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [runPayrollOpen, setRunPayrollOpen] = useState(false)
 
   useEffect(() => {
     if (debouncedSearch !== params.search) {
@@ -147,6 +149,12 @@ export function ExpensesPage() {
               <Button variant="outline" onClick={() => navigate("/expenses/recurring")}>
                 <CalendarCogIcon data-icon="inline-start" />
                 Manage Recurring
+              </Button>
+            )}
+            {canManage && (
+              <Button variant="outline" onClick={() => setRunPayrollOpen(true)}>
+                <HandCoinsIcon data-icon="inline-start" />
+                Run Payroll
               </Button>
             )}
             <Button onClick={handleAdd}>
@@ -318,6 +326,8 @@ export function ExpensesPage() {
         onOpenChange={(open) => !open && setDeletingExpense(null)}
         onConfirm={handleConfirmDelete}
       />
+
+      <RunPayrollDialog open={runPayrollOpen} onOpenChange={setRunPayrollOpen} onCreated={refetch} />
     </div>
   )
 }

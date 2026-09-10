@@ -10,7 +10,7 @@ import {
   setUsersParams,
   updateUserThunk,
 } from "@/lib/users-slice"
-import type { Role, UserInput, UserOption, UsersQueryParams } from "@/lib/users-slice"
+import type { Role, User, UserInput, UserOption, UsersQueryParams } from "@/lib/users-slice"
 
 export {
   canManageUser,
@@ -108,6 +108,40 @@ export function useUserOptions(enabled = true, includeInactive = false, role?: R
   }, [dispatch, enabled, includeInactive, role])
 
   return { users, isLoading }
+}
+
+/**
+ * One-off fetch of active staff with a configured daily rate, for the Expenses page's
+ * "Run Payroll" staff picker. Kept in local component state (not the shared `state.users.items`)
+ * so it doesn't disturb the Users page's own paginated view, same independence reasoning as
+ * useUserOptions above. Capped at 50 staff -- fine for a shop this size; revisit if it isn't.
+ */
+export function useStaffWithDailyRate(enabled: boolean) {
+  const dispatch = useAppDispatch()
+  const [staff, setStaff] = useState<User[]>([])
+  const [isLoading, setIsLoading] = useState(enabled)
+
+  useEffect(() => {
+    if (!enabled) return
+    let cancelled = false
+    setIsLoading(true)
+    dispatch(
+      fetchUsersThunk({ page: 1, pageSize: 50, search: "", role: "staff", status: "active", sortBy: "name", sortDir: "asc" })
+    )
+      .unwrap()
+      .then((result) => {
+        if (!cancelled) setStaff(result.items.filter((u) => u.dailyRate != null && u.dailyRate > 0))
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setIsLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [dispatch, enabled])
+
+  return { staff, isLoading }
 }
 
 /** User create/update/delete only — no list fetch. For dialogs and the Users page's delete action. */
