@@ -7,6 +7,7 @@ import { CreateOrderPage } from "@/pages/create-order-page"
 import { DashboardPage } from "@/pages/dashboard-page"
 import { EditOrderPage } from "@/pages/edit-order-page"
 import { ExpensesPage } from "@/pages/expenses-page"
+import { FinancePage } from "@/pages/finance-page"
 import { LoginPage } from "@/pages/login-page"
 import { NotFoundPage } from "@/pages/not-found-page"
 import { OrderDetailsPage } from "@/pages/order-details-page"
@@ -70,6 +71,14 @@ function App() {
           element={
             <ProtectedRoute roles={["admin", "superadmin"]}>
               <RecurringExpensesPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/finance"
+          element={
+            <ProtectedRoute roles={["admin", "superadmin"]}>
+              <FinancePage />
             </ProtectedRoute>
           }
         />

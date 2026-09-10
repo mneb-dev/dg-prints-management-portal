@@ -3,6 +3,7 @@ import { configureStore } from "@reduxjs/toolkit"
 import authReducer from "@/lib/auth-slice"
 import categoriesReducer from "@/lib/categories-slice"
 import expensesReducer from "@/lib/expenses-slice"
+import financeReducer from "@/lib/finance-slice"
 import orderChannelsReducer from "@/lib/order-channels-slice"
 import orderStatusesReducer from "@/lib/order-statuses-slice"
 import ordersReducer from "@/lib/orders-slice"
@@ -23,6 +24,7 @@ export const store = configureStore({
     orders: ordersReducer,
     users: usersReducer,
     expenses: expensesReducer,
+    finance: financeReducer,
     settings: settingsReducer,
     paymentMethods: paymentMethodsReducer,
     orderChannels: orderChannelsReducer,

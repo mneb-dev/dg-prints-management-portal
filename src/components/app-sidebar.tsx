@@ -2,6 +2,7 @@ import type { ComponentProps, MouseEvent } from "react"
 import {
   CalculatorIcon,
   LayoutDashboardIcon,
+  LineChartIcon,
   PackageIcon,
   ReceiptTextIcon,
   ShoppingCartIcon,
@@ -35,6 +36,7 @@ const navItems = [
   { title: "Products", url: "/products", icon: PackageIcon },
   { title: "Calculator", url: "/calculator", icon: CalculatorIcon },
   { title: "Expenses", url: "/expenses", icon: ReceiptTextIcon },
+  { title: "Finance", url: "/finance", icon: LineChartIcon },
   { title: "Users", url: "/users", icon: UsersIcon },
 ]
 
@@ -45,7 +47,8 @@ export function AppSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
   const visibleNavItems = navItems.filter(
     (item) =>
       (item.title !== "Users" || role !== "staff") &&
-      (item.title !== "Expenses" || hasPermission("manage_expenses"))
+      (item.title !== "Expenses" || hasPermission("manage_expenses")) &&
+      (item.title !== "Finance" || role === "admin" || role === "superadmin")
   )
 
   function guardedNavClick(url: string) {
