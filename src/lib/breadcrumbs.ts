@@ -20,6 +20,7 @@ const ROUTES: { pattern: RegExp; segments: BreadcrumbSegment[] }[] = [
     segments: [{ label: "Orders", href: "/orders" }, { label: "Order Details" }],
   },
   { pattern: /^\/products$/, segments: [{ label: "Products" }] },
+  { pattern: /^\/finance$/, segments: [{ label: "Finance" }] },
   { pattern: /^\/users$/, segments: [{ label: "Users" }] },
   { pattern: /^\/profile$/, segments: [{ label: "Profile" }] },
 ]
