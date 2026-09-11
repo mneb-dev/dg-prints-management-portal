@@ -19,7 +19,7 @@ import { SintraBoardCustomFields } from "@/components/orders/sintra-board-custom
 import { StickerQuotationFields } from "@/components/orders/sticker-quotation-fields"
 import { PageHeader } from "@/components/page-header"
 import { Button } from "@/components/ui/button"
-import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
@@ -308,11 +308,6 @@ export function CalculatorPage() {
         <Card className="animate-in fade-in-0 duration-150">
           <CardHeader>
             <CardTitle>Sticker Quotation</CardTitle>
-            <CardAction>
-              <Button type="button" variant="ghost" size="sm" onClick={handleClearCurrent}>
-                Clear
-              </Button>
-            </CardAction>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
             {categoryProducts.length === 0 ? (
@@ -361,6 +356,7 @@ export function CalculatorPage() {
                   unit={stickerUnit}
                   onUnitChange={setStickerUnit}
                   candidates={stickerCandidates}
+                  onClear={handleClearCurrent}
                 />
               </>
             )}
@@ -372,11 +368,6 @@ export function CalculatorPage() {
         <Card className="animate-in fade-in-0 duration-150">
           <CardHeader>
             <CardTitle>Laminated Sticker Quotation</CardTitle>
-            <CardAction>
-              <Button type="button" variant="ghost" size="sm" onClick={handleClearCurrent}>
-                Clear
-              </Button>
-            </CardAction>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
             {categoryProducts.length === 0 ? (
@@ -426,6 +417,7 @@ export function CalculatorPage() {
                   onUnitChange={setStickerUnit}
                   candidates={laminatedCandidates}
                   showAmount
+                  onClear={handleClearCurrent}
                 />
               </>
             )}
@@ -437,11 +429,6 @@ export function CalculatorPage() {
         <Card className="animate-in fade-in-0 duration-150">
           <CardHeader>
             <CardTitle>{category} Quotation</CardTitle>
-            <CardAction>
-              <Button type="button" variant="ghost" size="sm" onClick={handleClearCurrent}>
-                Clear
-              </Button>
-            </CardAction>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
             {categoryProducts.length === 0 ? (
@@ -509,6 +496,7 @@ export function CalculatorPage() {
                     onThicknessChange={setCustomThickness}
                     backToBack={customBackToBack}
                     onBackToBackChange={setCustomBackToBack}
+                    onClear={handleClearCurrent}
                   />
                 ) : (
                   <>
@@ -558,6 +546,9 @@ export function CalculatorPage() {
                               ))}
                             </SelectContent>
                           </Select>
+                          <Button type="button" variant="ghost" size="sm" onClick={handleClearCurrent}>
+                            Clear
+                          </Button>
                         </div>
                       </Field>
                     )}

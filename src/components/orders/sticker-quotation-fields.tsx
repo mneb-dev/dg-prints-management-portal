@@ -1,5 +1,6 @@
 import { CheckIcon } from "lucide-react"
 
+import { Button } from "@/components/ui/button"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { QuantityInput } from "@/components/ui/quantity-input"
@@ -31,6 +32,7 @@ export function StickerQuotationFields({
   selectedEntryId,
   quantity,
   onQuantityChange,
+  onClear,
 }: {
   width: string
   onWidthChange: (value: string) => void
@@ -43,6 +45,7 @@ export function StickerQuotationFields({
   selectedEntryId?: string | null
   quantity?: string
   onQuantityChange?: (value: string) => void
+  onClear?: () => void
 }) {
   const w = Number(width)
   const h = Number(height)
@@ -83,6 +86,11 @@ export function StickerQuotationFields({
             ))}
           </SelectContent>
         </Select>
+        {onClear && (
+          <Button type="button" variant="ghost" size="sm" onClick={onClear}>
+            Clear
+          </Button>
+        )}
         {onQuantityChange && (
           <>
             <span className="text-sm text-muted-foreground">Qty</span>

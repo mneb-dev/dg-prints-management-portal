@@ -3,9 +3,10 @@ import { format } from "date-fns"
 import { toast } from "sonner"
 
 import { CommissionByStaffTable } from "@/components/commission/commission-by-staff-table"
-import { CommissionFilterBar } from "@/components/commission/commission-filter-bar"
+import { CommissionFilterBar, type CommissionReleaseFilter } from "@/components/commission/commission-filter-bar"
 import { CommissionOrdersTable } from "@/components/commission/commission-orders-table"
 import { CommissionSummaryCards } from "@/components/commission/commission-summary-cards"
+import { getCommissionReleaseStatus } from "@/components/commission/commission-release-badge"
 import { PageHeader } from "@/components/page-header"
 import { useAuth } from "@/lib/auth"
 import {
@@ -26,6 +27,7 @@ export function CommissionPage() {
   const [customFrom, setCustomFrom] = useState("")
   const [customTo, setCustomTo] = useState("")
   const [selectedStaffId, setSelectedStaffId] = useState("")
+  const [releaseFilter, setReleaseFilter] = useState<CommissionReleaseFilter>("all")
   const [isMutating, setIsMutating] = useState(false)
 
   const range = useMemo(
@@ -48,6 +50,14 @@ export function CommissionPage() {
     refetch: refetchOrders,
   } = useCommissionOrders(dateFrom, dateTo, layoutBy)
   const { release, unrelease } = useCommissionReleaseActions()
+
+  const filteredOrderRows = useMemo(() => {
+    if (releaseFilter === "all") return orderRows
+    return orderRows.filter((row) => {
+      const status = getCommissionReleaseStatus(row.paymentStatus, row.releasedAt)
+      return releaseFilter === "released" ? status === "released" : status !== "released"
+    })
+  }, [orderRows, releaseFilter])
 
   // Once rows have loaded once, keep them visible while a filter change refetches in the
   // background instead of flashing every card back to a skeleton — only the first load blocks.
@@ -112,6 +122,8 @@ export function CommissionPage() {
         staffOptions={isStaffView ? undefined : staffOptions}
         selectedStaffId={isStaffView ? undefined : selectedStaffId}
         onSelectedStaffIdChange={isStaffView ? undefined : setSelectedStaffId}
+        releaseFilter={releaseFilter}
+        onReleaseFilterChange={setReleaseFilter}
       />
 
       <CommissionSummaryCards
@@ -131,7 +143,7 @@ export function CommissionPage() {
       {!isStaffView ? <CommissionByStaffTable rows={rows} isLoading={showSkeleton} isError={isError} /> : null}
 
       <CommissionOrdersTable
-        rows={orderRows}
+        rows={filteredOrderRows}
         isLoading={showOrdersSkeleton}
         isError={isOrdersError}
         isStaffView={isStaffView}

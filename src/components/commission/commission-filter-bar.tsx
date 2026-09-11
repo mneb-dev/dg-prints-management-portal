@@ -9,6 +9,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { PERIOD_PRESET_LABELS, type PeriodPreset } from "@/lib/finance-period"
 import type { UserOption } from "@/lib/users"
 
+export type CommissionReleaseFilter = "all" | "released" | "unreleased"
+
+const RELEASE_FILTER_LABELS: Record<CommissionReleaseFilter, string> = {
+  all: "All",
+  released: "Released",
+  unreleased: "Unreleased",
+}
+
 export function CommissionFilterBar({
   presets,
   preset,
@@ -20,6 +28,8 @@ export function CommissionFilterBar({
   staffOptions,
   selectedStaffId,
   onSelectedStaffIdChange,
+  releaseFilter,
+  onReleaseFilterChange,
 }: {
   presets: PeriodPreset[]
   preset: PeriodPreset
@@ -32,6 +42,8 @@ export function CommissionFilterBar({
   staffOptions?: UserOption[]
   selectedStaffId?: string
   onSelectedStaffIdChange?: (id: string) => void
+  releaseFilter: CommissionReleaseFilter
+  onReleaseFilterChange: (value: CommissionReleaseFilter) => void
 }) {
   return (
     <Card size="sm">
@@ -129,6 +141,22 @@ export function CommissionFilterBar({
             </SelectContent>
           </Select>
         ) : null}
+
+        <Select
+          value={releaseFilter}
+          onValueChange={(value) => value && onReleaseFilterChange(value as CommissionReleaseFilter)}
+        >
+          <SelectTrigger size="sm" className="w-32 text-xs">
+            <SelectValue>{(value: string | null) => RELEASE_FILTER_LABELS[(value as CommissionReleaseFilter) ?? releaseFilter]}</SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            {(Object.keys(RELEASE_FILTER_LABELS) as CommissionReleaseFilter[]).map((value) => (
+              <SelectItem key={value} value={value}>
+                {RELEASE_FILTER_LABELS[value]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </CardContent>
     </Card>
   )

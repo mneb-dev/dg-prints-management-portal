@@ -1,3 +1,4 @@
+import { Button } from "@/components/ui/button"
 import { Field, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { QuantityInput } from "@/components/ui/quantity-input"
@@ -28,6 +29,7 @@ export function SintraBoardCustomFields({
   quantity,
   onQuantityChange,
   idPrefix = "",
+  onClear,
 }: {
   width: string
   onWidthChange: (value: string) => void
@@ -40,6 +42,7 @@ export function SintraBoardCustomFields({
   quantity?: string
   onQuantityChange?: (value: string) => void
   idPrefix?: string
+  onClear?: () => void
 }) {
   const w = Number(width)
   const h = Number(height)
@@ -63,7 +66,14 @@ export function SintraBoardCustomFields({
           />
         </Field>
         <Field>
-          <FieldLabel htmlFor={`${idPrefix}sintra-custom-height`}>Height (in)</FieldLabel>
+          <div className="flex items-center justify-between">
+            <FieldLabel htmlFor={`${idPrefix}sintra-custom-height`}>Height (in)</FieldLabel>
+            {onClear && (
+              <Button type="button" variant="ghost" size="sm" onClick={onClear}>
+                Clear
+              </Button>
+            )}
+          </div>
           <Input
             id={`${idPrefix}sintra-custom-height`}
             type="number"

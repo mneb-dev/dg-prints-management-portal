@@ -24,7 +24,7 @@ import {
 } from "@/components/commission/commission-release-badge"
 import { PaymentStatusBadge } from "@/components/orders/payment-status-badge"
 import type { CommissionOrderRow } from "@/lib/commission"
-import { formatCurrency } from "@/lib/utils"
+import { formatCurrency, formatDate } from "@/lib/utils"
 
 export function CommissionOrdersTable({
   rows,
@@ -97,6 +97,7 @@ export function CommissionOrdersTable({
                 {showStaffColumn ? <TableHead>Staff</TableHead> : null}
                 <TableHead className="text-right">Layout Fee</TableHead>
                 <TableHead className="text-right">Commission</TableHead>
+                <TableHead>Created</TableHead>
                 <TableHead>Payment</TableHead>
                 <TableHead>Release</TableHead>
                 {!isStaffView ? <TableHead className="text-right">Actions</TableHead> : null}
@@ -114,6 +115,7 @@ export function CommissionOrdersTable({
                     <TableCell className="text-right tabular-nums font-medium">
                       {formatCurrency(row.commissionAmount)}
                     </TableCell>
+                    <TableCell>{formatDate(row.createdAt)}</TableCell>
                     <TableCell>
                       <PaymentStatusBadge status={row.paymentStatus} />
                     </TableCell>
