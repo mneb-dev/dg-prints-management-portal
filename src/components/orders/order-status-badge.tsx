@@ -7,11 +7,13 @@ import { cn } from "@/lib/utils"
 export function OrderStatusBadge({
   status,
   statusUpdatedAt,
+  className,
 }: {
   status: OrderStatus
   /** When the order entered `status` — pass `order.statusUpdatedAt` so a Curing badge can
    * show elapsed time ("Curing + 3h"). Statuses other than Curing ignore this. */
   statusUpdatedAt?: string | null
+  className?: string
 }) {
   const { getLabel, getIcon, getColors } = useOrderStatusLookup()
   const Icon = getIcon(status)
@@ -23,7 +25,8 @@ export function OrderStatusBadge({
       variant="plain"
       className={cn(
         getColors(status).badge,
-        "border-transparent animate-in fade-in-0 zoom-in-95 duration-200"
+        "border-transparent animate-in fade-in-0 zoom-in-95 duration-200",
+        className
       )}
     >
       <Icon data-icon="inline-start" />

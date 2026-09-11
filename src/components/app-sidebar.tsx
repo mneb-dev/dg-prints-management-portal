@@ -48,10 +48,10 @@ export function AppSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
   const { requestNavigation } = useNavGuard()
   const visibleNavItems = navItems.filter(
     (item) =>
-      (item.title !== "Users" || role !== "staff") &&
-      (item.title !== "Expenses" || hasPermission("manage_expenses")) &&
-      (item.title !== "Finance" || role === "admin" || role === "superadmin") &&
-      (item.title !== "Commissions" || hasPermission("manage_commissions"))
+      (item.url !== "/users" || role !== "staff") &&
+      (item.url !== "/expenses" || hasPermission("manage_expenses")) &&
+      (item.url !== "/finance" || role === "admin" || role === "superadmin") &&
+      (item.url !== "/commissions" || hasPermission("manage_commissions"))
   )
 
   function guardedNavClick(url: string) {
@@ -89,7 +89,7 @@ export function AppSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
         <SidebarGroup>
           <SidebarGroupLabel>Platform</SidebarGroupLabel>
           <SidebarGroupContent>
-            <SidebarMenu>
+            <SidebarMenu className="gap-1">
               {visibleNavItems.map((item) => {
                 const isActive =
                   location.pathname === item.url ||

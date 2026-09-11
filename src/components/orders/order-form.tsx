@@ -39,6 +39,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Spinner } from "@/components/ui/spinner"
+import { Switch } from "@/components/ui/switch"
 import { useAuth } from "@/lib/auth"
 import { useCategories } from "@/lib/categories"
 import { SPX_ADMIN_CREATE_ORDER_URL, copyToClipboard } from "@/lib/clipboard"
@@ -190,7 +191,7 @@ function fieldsFromOrder(order: Order): OrderDraftFields {
     layoutBy: order.layoutBy ?? "",
     shippingEnabled: !!shipping,
     sameName: shipping ? shipping.name === order.customerName : true,
-    samePhone: shipping ? shipping.phone === order.customerPhone : true,
+    samePhone: false,
     shippingName: shipping?.name ?? "",
     shippingPhone: shipping?.phone ?? "",
     shippingAddress: shipping?.address ?? "",
@@ -265,7 +266,7 @@ export function OrderForm({
   const [layoutBy, setLayoutBy] = useState("")
   const [shippingEnabled, setShippingEnabled] = useState(false)
   const [sameName, setSameName] = useState(true)
-  const [samePhone, setSamePhone] = useState(true)
+  const [samePhone, setSamePhone] = useState(false)
   const [shippingName, setShippingName] = useState("")
   const [shippingPhone, setShippingPhone] = useState("")
   const [shippingAddress, setShippingAddress] = useState("")
@@ -282,11 +283,12 @@ export function OrderForm({
   const [statusUpdatedAtLocal, setStatusUpdatedAtLocal] = useState("")
   const [statusUpdatedByValue, setStatusUpdatedByValue] = useState("")
 
-  // "Same as customer" can only take effect once there's something to copy — an empty
-  // customer name/phone falls back to the recipient fields being editable, regardless of the
+  // "Same as customer"/"Same as shipping" can only take effect once there's something to copy —
+  // an empty source value falls back to the dependent field being editable, regardless of the
   // toggle's last recorded state. Used for both the UI (via the props below) and the payload.
   const effectiveSameName = sameName && !!customerName.trim()
-  const effectiveSamePhone = samePhone && !!customerPhone.trim()
+  const effectiveSamePhone = samePhone && shippingEnabled && !!shippingPhone.trim()
+  const resolvedCustomerPhone = effectiveSamePhone ? shippingPhone : customerPhone
 
   function buildCurrentFields(): OrderDraftFields {
     return {
@@ -351,7 +353,7 @@ export function OrderForm({
       setShippingEnabled(true)
       setSameName(details.shippingAddress.name.trim() === name.trim())
       setShippingName(details.shippingAddress.name)
-      setSamePhone(details.shippingAddress.phone.trim() === details.customerPhone.trim())
+      setSamePhone(false)
       setShippingPhone(details.shippingAddress.phone)
       setShippingAddress(details.shippingAddress.address)
       setShippingFee(resolvedDefaultShippingFee)
@@ -398,7 +400,7 @@ export function OrderForm({
     if (order.shippingAddress) {
       setShippingEnabled(true)
       setSameName(order.shippingAddress.name === order.customerName)
-      setSamePhone(order.shippingAddress.phone === order.customerPhone)
+      setSamePhone(false)
       setShippingName(order.shippingAddress.name)
       setShippingPhone(order.shippingAddress.phone)
       setShippingAddress(order.shippingAddress.address)
@@ -560,7 +562,7 @@ export function OrderForm({
     if (!shippingEnabled) return null
     return {
       name: (effectiveSameName ? customerName : shippingName).trim(),
-      phone: (effectiveSamePhone ? customerPhone : shippingPhone).trim(),
+      phone: shippingPhone.trim(),
       address: shippingAddress.trim(),
       fee: shippingFeeNum,
     }
@@ -598,7 +600,7 @@ export function OrderForm({
       nextErrors.customerName = maxLengthMessage("Customer name", 60)
     }
 
-    if (customerPhone.trim() && !isValidPhMobileNumber(customerPhone.trim())) {
+    if (resolvedCustomerPhone.trim() && !isValidPhMobileNumber(resolvedCustomerPhone.trim())) {
       nextErrors.customerPhone = PHONE_FORMAT_MESSAGE
     }
 
@@ -618,7 +620,6 @@ export function OrderForm({
 
     if (shippingEnabled) {
       const resolvedName = effectiveSameName ? customerName : shippingName
-      const resolvedPhone = effectiveSamePhone ? customerPhone : shippingPhone
 
       if (!resolvedName.trim()) {
         nextErrors.shippingName = requiredMessage("Recipient name")
@@ -626,9 +627,9 @@ export function OrderForm({
         nextErrors.shippingName = maxLengthMessage("Recipient name", 60)
       }
 
-      if (!resolvedPhone.trim()) {
+      if (!shippingPhone.trim()) {
         nextErrors.shippingPhone = requiredMessage("Recipient phone")
-      } else if (!isValidPhMobileNumber(resolvedPhone.trim())) {
+      } else if (!isValidPhMobileNumber(shippingPhone.trim())) {
         nextErrors.shippingPhone = PHONE_FORMAT_MESSAGE
       }
 
@@ -719,7 +720,7 @@ export function OrderForm({
         const status = validStatuses.includes(order.status) ? order.status : "pending"
         await updateOrder(order.id, {
           customerName: customerName.trim(),
-          customerPhone: customerPhone.trim(),
+          customerPhone: resolvedCustomerPhone.trim(),
           status,
           items: builtItems,
           subtotal: subtotalFinal,
@@ -739,7 +740,7 @@ export function OrderForm({
       } else {
         const created = await addOrder({
           customerName: customerName.trim(),
-          customerPhone: customerPhone.trim(),
+          customerPhone: resolvedCustomerPhone.trim(),
           status: "pending",
           items: builtItems,
           subtotal: subtotalFinal,
@@ -842,15 +843,30 @@ export function OrderForm({
                   </Autocomplete>
                   <FieldError>{errors.customerName}</FieldError>
                 </Field>
-                <Field data-invalid={!!errors.customerPhone}>
-                  <FieldLabel htmlFor="order-customer-phone">Phone</FieldLabel>
+                <Field
+                  className={effectiveSamePhone ? "opacity-70" : undefined}
+                  data-invalid={!!errors.customerPhone}
+                >
+                  <div className="flex items-center justify-between">
+                    <FieldLabel htmlFor="order-customer-phone">Phone</FieldLabel>
+                    <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <Switch
+                        size="sm"
+                        checked={effectiveSamePhone}
+                        disabled={!shippingEnabled || !shippingPhone.trim()}
+                        onCheckedChange={(checked) => setSamePhone(!!checked)}
+                      />
+                      Same as shipping
+                    </label>
+                  </div>
                   <Input
                     id="order-customer-phone"
-                    value={customerPhone}
+                    value={effectiveSamePhone ? shippingPhone : customerPhone}
                     onChange={(event) => {
                       setCustomerPhone(event.target.value)
                       clearError("customerPhone")
                     }}
+                    disabled={effectiveSamePhone}
                     placeholder="09XX XXX XXXX"
                     aria-invalid={!!errors.customerPhone}
                   />
@@ -945,11 +961,8 @@ export function OrderForm({
                 clearError("shippingAddress")
               }}
               customerName={customerName}
-              customerPhone={customerPhone}
               sameName={effectiveSameName}
               onSameNameChange={setSameName}
-              samePhone={effectiveSamePhone}
-              onSamePhoneChange={setSamePhone}
               name={shippingName}
               onNameChange={(value) => {
                 setShippingName(value)

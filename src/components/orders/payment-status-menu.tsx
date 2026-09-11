@@ -25,10 +25,14 @@ export function PaymentStatusMenu({
   order,
   onRequestPayment,
   size = "sm",
+  triggerClassName,
 }: {
   order: Order
   onRequestPayment: (order: Order, targetStatus: "paid" | "partially_paid") => void
   size?: "sm" | "lg"
+  /** Extra classes for the trigger button — e.g. a fixed width so the column doesn't reflow
+   * as the status changes. Left unset, the trigger stays `w-fit` (badgeVariants' default). */
+  triggerClassName?: string
 }) {
   const { updatePayment, isUpdating } = usePaymentStatusUpdate()
   const Icon = PAYMENT_STATUS_ICONS[order.payment.status]
@@ -60,7 +64,8 @@ export function PaymentStatusMenu({
               badgeVariants({ variant: "plain" }),
               PAYMENT_STATUS_COLORS[order.payment.status].badge,
               "border-transparent cursor-pointer pr-1.5 transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-60",
-              size === "lg" && "h-8 gap-1.5 px-3 text-sm [&>svg]:size-4!"
+              size === "lg" && "h-8 gap-1.5 px-3 text-sm [&>svg]:size-4!",
+              triggerClassName
             )}
           />
         }

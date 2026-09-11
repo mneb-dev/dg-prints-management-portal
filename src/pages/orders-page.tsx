@@ -261,7 +261,7 @@ export function OrdersPage() {
         <FilterSearchInput
           value={searchInput}
           onChange={setSearchInput}
-          placeholder="Search order #, customer..."
+          placeholder="Search order #, customer, notes..."
           disabled={isLoading || isError}
         />
 

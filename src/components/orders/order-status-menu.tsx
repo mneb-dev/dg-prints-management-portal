@@ -45,6 +45,7 @@ export function OrderStatusMenu({
   onOptimisticChange,
   size = "sm",
   role,
+  triggerClassName,
 }: {
   order: Order
   onCancel: (order: Order) => void
@@ -53,6 +54,9 @@ export function OrderStatusMenu({
   onOptimisticChange?: (status: OrderStatus | null) => void
   size?: "sm" | "lg"
   role?: Role | null
+  /** Extra classes for the trigger button — e.g. a fixed width so the column doesn't reflow
+   * as the status changes. Left unset, the trigger stays `w-fit` (badgeVariants' default). */
+  triggerClassName?: string
 }) {
   const { updateStatus, isUpdating } = useOrderStatusUpdate()
   const { categories } = useCategories()
@@ -106,7 +110,8 @@ export function OrderStatusMenu({
                 badgeVariants({ variant: "plain" }),
                 getColors(order.status).badge,
                 "border-transparent cursor-pointer pr-1.5 transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-60",
-                size === "lg" && "h-8 gap-1.5 px-3 text-sm [&>svg]:size-4!"
+                size === "lg" && "h-8 gap-1.5 px-3 text-sm [&>svg]:size-4!",
+                triggerClassName
               )}
             />
           }

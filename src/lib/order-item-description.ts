@@ -1,7 +1,7 @@
 import { perUnitDisplayDimensions } from "@/lib/order-line-item"
 import type { OrderItem } from "@/lib/orders"
 
-const NOTES_TOKEN_LENGTH = 6
+const NOTES_TOKEN_LENGTH = 8
 
 /** Compact, no-space size token for the table's Description column — e.g. "2x2in",
  * "12x18ft", or "3mm|2x2in" for a Sintra custom size (thickness/back-to-back

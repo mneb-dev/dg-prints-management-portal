@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils"
 
 const STATUS_LABELS: Record<PaymentStatus, string> = {
   unpaid: "Unpaid",
-  partially_paid: "Partially Paid",
+  partially_paid: "Partial",
   paid: "Paid",
   refunded: "Refunded",
 }
@@ -47,10 +47,19 @@ const STATUS_ICONS: Record<PaymentStatus, LucideIcon> = {
   refunded: RotateCcwIcon,
 }
 
-export function PaymentStatusBadge({ status }: { status: PaymentStatus }) {
+export function PaymentStatusBadge({
+  status,
+  className,
+}: {
+  status: PaymentStatus
+  className?: string
+}) {
   const Icon = STATUS_ICONS[status]
   return (
-    <Badge variant="plain" className={cn(STATUS_COLORS[status].badge, "border-transparent")}>
+    <Badge
+      variant="plain"
+      className={cn(STATUS_COLORS[status].badge, "border-transparent", className)}
+    >
       <Icon data-icon="inline-start" />
       {STATUS_LABELS[status]}
     </Badge>

@@ -9,11 +9,8 @@ export function ShippingAddressFields({
   enabled,
   onEnabledChange,
   customerName,
-  customerPhone,
   sameName,
   onSameNameChange,
-  samePhone,
-  onSamePhoneChange,
   name,
   onNameChange,
   phone,
@@ -29,11 +26,8 @@ export function ShippingAddressFields({
   enabled: boolean
   onEnabledChange: (value: boolean) => void
   customerName: string
-  customerPhone: string
   sameName: boolean
   onSameNameChange: (value: boolean) => void
-  samePhone: boolean
-  onSamePhoneChange: (value: boolean) => void
   name: string
   onNameChange: (value: string) => void
   phone: string
@@ -46,10 +40,9 @@ export function ShippingAddressFields({
   stickerLabelSubtotal?: number
   errors?: { name?: string; phone?: string; address?: string }
 }) {
-  // The parent (order-form.tsx) already resolves `sameName`/`samePhone` against whether the
-  // customer fields are actually filled in, so the display here and the submitted payload agree.
+  // The parent (order-form.tsx) already resolves `sameName` against whether the customer name is
+  // actually filled in, so the display here and the submitted payload agree.
   const hasCustomerName = !!customerName.trim()
-  const hasCustomerPhone = !!customerPhone.trim()
 
   return (
     <div className="flex flex-col gap-3">
@@ -85,24 +78,12 @@ export function ShippingAddressFields({
             <FieldError>{errors?.name}</FieldError>
           </Field>
 
-          <Field className={samePhone ? "opacity-70" : undefined} data-invalid={!!errors?.phone}>
-            <div className="flex items-center justify-between">
-              <FieldLabel htmlFor="shipping-phone">Phone</FieldLabel>
-              <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <Switch
-                  size="sm"
-                  checked={samePhone}
-                  disabled={!hasCustomerPhone}
-                  onCheckedChange={(checked) => onSamePhoneChange(!!checked)}
-                />
-                Same as customer
-              </label>
-            </div>
+          <Field data-invalid={!!errors?.phone}>
+            <FieldLabel htmlFor="shipping-phone">Phone</FieldLabel>
             <Input
               id="shipping-phone"
-              value={samePhone ? customerPhone : phone}
+              value={phone}
               onChange={(event) => onPhoneChange(event.target.value)}
-              disabled={samePhone}
               placeholder="09XX XXX XXXX"
               aria-invalid={!!errors?.phone}
             />

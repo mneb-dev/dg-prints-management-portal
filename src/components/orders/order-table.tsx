@@ -1,21 +1,17 @@
 import {
-  EllipsisVerticalIcon,
+  EyeIcon,
   Loader2Icon,
+  PackageCheckIcon,
   PackageSearchIcon,
+  PencilIcon,
   PlusIcon,
+  Trash2Icon,
   TriangleAlertIcon,
-  TruckIcon,
   XIcon,
 } from "lucide-react"
+import type { ReactNode } from "react"
 
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import {
   Empty,
   EmptyContent,
@@ -98,15 +94,13 @@ export function OrderTable({
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="sticky left-0 bg-background">Order</TableHead>
-              <TableHead>Customer</TableHead>
-              <TableHead>Product</TableHead>
-              <TableHead>Notes</TableHead>
-              <TableHead>Total</TableHead>
-              <TableHead>Created</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Payment</TableHead>
-              <TableHead className="text-right">
+              <TableHead className="sticky left-0 bg-background px-4">Order</TableHead>
+              <TableHead className="px-4">Customer</TableHead>
+              <TableHead className="px-4">Product</TableHead>
+              <TableHead className="px-4 text-right">Total</TableHead>
+              <TableHead className="px-4">Payment</TableHead>
+              <TableHead className="px-4">Status</TableHead>
+              <TableHead className="px-4 text-right">
                 <span className="sr-only">Actions</span>
               </TableHead>
             </TableRow>
@@ -114,32 +108,32 @@ export function OrderTable({
           <TableBody>
             {Array.from({ length: 10 }).map((_, index) => (
               <TableRow key={index}>
-                <TableCell className="sticky left-0 bg-background">
+                <TableCell className="sticky left-0 bg-background px-4">
                   <Skeleton className="h-4 w-20" />
+                  <Skeleton className="mt-1.5 h-3 w-16" />
                 </TableCell>
-                <TableCell>
+                <TableCell className="px-4">
                   <Skeleton className="h-4 w-32" />
+                  <Skeleton className="mt-1.5 h-3 w-14" />
                 </TableCell>
-                <TableCell>
+                <TableCell className="px-4">
                   <Skeleton className="h-4 w-28" />
                 </TableCell>
-                <TableCell>
-                  <Skeleton className="h-4 w-20" />
+                <TableCell className="px-4 text-right">
+                  <Skeleton className="ml-auto h-4 w-16" />
                 </TableCell>
-                <TableCell>
-                  <Skeleton className="h-4 w-16" />
+                <TableCell className="px-4">
+                  <Skeleton className="h-5 w-20 rounded-full" />
                 </TableCell>
-                <TableCell>
-                  <Skeleton className="h-4 w-20" />
-                </TableCell>
-                <TableCell>
+                <TableCell className="px-4">
                   <Skeleton className="h-5 w-16 rounded-full" />
                 </TableCell>
-                <TableCell>
-                  <Skeleton className="h-5 w-16 rounded-full" />
-                </TableCell>
-                <TableCell className="text-right">
-                  <Skeleton className="ml-auto size-7 rounded-md" />
+                <TableCell className="px-4 text-right">
+                  <div className="flex justify-end gap-1">
+                    <Skeleton className="size-7 rounded-md" />
+                    <Skeleton className="size-7 rounded-md" />
+                    <Skeleton className="size-7 rounded-md" />
+                  </div>
                 </TableCell>
               </TableRow>
             ))}
@@ -214,15 +208,13 @@ export function OrderTable({
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="sticky left-0 bg-background">Order</TableHead>
-            <TableHead>Customer</TableHead>
-            <TableHead>Product</TableHead>
-            <TableHead>Notes</TableHead>
-            <TableHead>Total</TableHead>
-            <TableHead>Created</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead>Payment</TableHead>
-            <TableHead className="text-right">
+            <TableHead className="sticky left-0 bg-background px-4">Order</TableHead>
+            <TableHead className="px-4">Customer</TableHead>
+            <TableHead className="px-4">Product</TableHead>
+            <TableHead className="px-4 text-right">Total</TableHead>
+            <TableHead className="px-4">Payment</TableHead>
+            <TableHead className="px-4">Status</TableHead>
+            <TableHead className="px-4 text-right">
               <span className="sr-only">Actions</span>
             </TableHead>
           </TableRow>
@@ -233,61 +225,43 @@ export function OrderTable({
 
             return (
               <TableRow key={order.id}>
-                <TableCell className="sticky left-0 bg-background font-medium">
-                  <span className="inline-flex items-center gap-1.5">
-                    {order.orderNumber}
-                    {(order.shippingAddress || order.channel === "Shopee") && (
-                      <Tooltip>
-                        <TooltipTrigger
-                          render={
-                            <button
-                              type="button"
-                              className="inline-flex cursor-default items-center"
-                            />
-                          }
-                        >
-                          <TruckIcon className="size-3.5 text-muted-foreground" />
-                          <span className="sr-only">Has shipping address on file</span>
-                        </TooltipTrigger>
-                        <TooltipContent>Has shipping address on file</TooltipContent>
-                      </Tooltip>
-                    )}
-                  </span>
+                <TableCell className="sticky left-0 bg-background px-4 font-medium">
+                  {order.orderNumber}
+                  <div className="mt-0.5 text-xs font-normal text-muted-foreground">
+                    Created {formatDate(order.createdAt)}
+                  </div>
                 </TableCell>
-                <TableCell>{order.customerName}</TableCell>
-                <TableCell className="text-muted-foreground">
-                  {order.items[0]?.productName ?? "—"}
-                  {order.items.length > 1 && (
-                    <Badge variant="secondary" className="ml-1.5">
-                      +{order.items.length - 1} more
-                    </Badge>
-                  )}
+                <TableCell className="px-4">
+                  <div>{order.customerName}</div>
+                  <div className="text-xs font-normal text-muted-foreground">{order.channel}</div>
                 </TableCell>
-                <TableCell className="text-muted-foreground">
+                <TableCell className="px-4 text-muted-foreground">
+                  <div>{order.items[0]?.productName ?? "—"}</div>
                   {(() => {
                     const withNotes = notedItems(order.items)
-                    const item = withNotes[0]
-                    const parts = item ? describeOrderItemParts(item) : null
-                    if (!item || !parts?.notes) return "—"
+                    const parts = withNotes[0] ? describeOrderItemParts(withNotes[0]) : null
+                    if (!parts?.notes) {
+                      return <span className="mt-0.5 block text-xs">—</span>
+                    }
                     return (
                       <Tooltip>
                         <TooltipTrigger
                           render={
                             <button
                               type="button"
-                              className="inline-flex cursor-default items-center gap-1.5"
+                              className="mt-0.5 inline-flex cursor-default items-center gap-1"
                             />
                           }
                         >
-                          <span
-                            className={cn(
-                              "text-foreground",
-                              "underline decoration-muted-foreground/50 decoration-dotted underline-offset-2"
-                            )}
-                          >
+                          <span className="text-xs">
                             {parts.notes}
-                            {parts.notesTruncated ? "… " : " "}
-                            {parts.size && parts.size}
+                            {parts.notesTruncated && "…"}
+                            {parts.size && (
+                              <span className="text-muted-foreground/70"> | {parts.size}</span>
+                            )}
+                            {withNotes.length > 1 && (
+                              <span className="text-muted-foreground/70"> +{withNotes.length - 1}</span>
+                            )}
                           </span>
                         </TooltipTrigger>
                         <TooltipContent className="max-w-sm text-[11px]">
@@ -308,11 +282,21 @@ export function OrderTable({
                     )
                   })()}
                 </TableCell>
-                <TableCell>{formatCurrency(order.total)}</TableCell>
-                <TableCell className="text-muted-foreground">
-                  {formatDate(order.createdAt)}
+                <TableCell className="px-4 text-right tabular-nums">
+                  {formatCurrency(order.total)}
                 </TableCell>
-                <TableCell>
+                <TableCell className="px-4">
+                  {canManage && !isReleaseLocked ? (
+                    <PaymentStatusMenu
+                      order={order}
+                      onRequestPayment={onRequestPayment}
+                      triggerClassName="w-28"
+                    />
+                  ) : (
+                    <PaymentStatusBadge status={order.payment.status} className="w-28" />
+                  )}
+                </TableCell>
+                <TableCell className="px-4">
                   {canManage && !isReleaseLocked ? (
                     <OrderStatusMenu
                       order={order}
@@ -320,50 +304,63 @@ export function OrderTable({
                       onRefund={onRefund}
                       onReturn={onReturn}
                       role={role}
+                      triggerClassName="w-36 truncate"
                     />
                   ) : (
-                    <OrderStatusBadge status={order.status} statusUpdatedAt={order.statusUpdatedAt} />
+                    <OrderStatusBadge
+                      status={order.status}
+                      statusUpdatedAt={order.statusUpdatedAt}
+                      className="w-36 truncate"
+                    />
                   )}
                 </TableCell>
-                <TableCell>
-                  {canManage && !isReleaseLocked ? (
-                    <PaymentStatusMenu order={order} onRequestPayment={onRequestPayment} />
-                  ) : (
-                    <PaymentStatusBadge status={order.payment.status} />
-                  )}
-                </TableCell>
-                <TableCell className="text-right">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" />}>
-                      <EllipsisVerticalIcon />
-                      <span className="sr-only">Actions for {order.orderNumber}</span>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => onView(order)}>View</DropdownMenuItem>
-                      {isAdminTier && (
-                        <DropdownMenuItem
-                          disabled={!order.shippingAddress || order.payment.status !== "paid"}
-                          onClick={() => onArrange(order)}
-                        >
-                          Arrange
-                        </DropdownMenuItem>
-                      )}
-                      {canManage && (
-                        <>
-                          <DropdownMenuItem disabled={isReleaseLocked} onClick={() => onEdit(order)}>
-                            Edit
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            variant="destructive"
-                            disabled={isReleaseLocked}
-                            onClick={() => onDelete(order)}
-                          >
-                            Delete
-                          </DropdownMenuItem>
-                        </>
-                      )}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                <TableCell className="px-4 text-right">
+                  <div className="flex justify-end gap-1">
+                    <RowActionButton
+                      label={`View ${order.orderNumber}`}
+                      tooltip="View order"
+                      icon={<EyeIcon />}
+                      onClick={() => onView(order)}
+                    />
+                    {isAdminTier && (
+                      <RowActionButton
+                        label={`Arrange ${order.orderNumber}`}
+                        tooltip={
+                          !order.shippingAddress
+                            ? "Requires a shipping address"
+                            : order.payment.status !== "paid"
+                              ? "Requires payment marked Paid"
+                              : "Arrange shipment"
+                        }
+                        icon={<PackageCheckIcon />}
+                        disabled={!order.shippingAddress || order.payment.status !== "paid"}
+                        onClick={() => onArrange(order)}
+                      />
+                    )}
+                    {canManage && (
+                      <>
+                        <RowActionButton
+                          label={`Edit ${order.orderNumber}`}
+                          tooltip={
+                            isReleaseLocked ? "Released orders are locked for your role." : "Edit order"
+                          }
+                          icon={<PencilIcon />}
+                          disabled={isReleaseLocked}
+                          onClick={() => onEdit(order)}
+                        />
+                        <RowActionButton
+                          label={`Delete ${order.orderNumber}`}
+                          tooltip={
+                            isReleaseLocked ? "Released orders are locked for your role." : "Delete order"
+                          }
+                          icon={<Trash2Icon />}
+                          disabled={isReleaseLocked}
+                          destructive
+                          onClick={() => onDelete(order)}
+                        />
+                      </>
+                    )}
+                  </div>
                 </TableCell>
               </TableRow>
             )
@@ -378,5 +375,39 @@ export function OrderTable({
         </div>
       )}
     </div>
+  )
+}
+
+function RowActionButton({
+  label,
+  tooltip,
+  icon,
+  onClick,
+  disabled,
+  destructive,
+}: {
+  label: string
+  tooltip: string
+  icon: ReactNode
+  onClick: () => void
+  disabled?: boolean
+  destructive?: boolean
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger render={<span tabIndex={disabled ? 0 : -1} className="inline-flex" />}>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          disabled={disabled}
+          onClick={onClick}
+          className={cn(destructive && "hover:bg-destructive/10 hover:text-destructive")}
+        >
+          {icon}
+          <span className="sr-only">{label}</span>
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{tooltip}</TooltipContent>
+    </Tooltip>
   )
 }

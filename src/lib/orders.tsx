@@ -264,12 +264,25 @@ export function useOrder(id: string | undefined) {
 export function useOrderActions() {
   const dispatch = useAppDispatch()
 
+  // The cached customer ranking (phone/shipping used to auto-fill the order form when a
+  // suggested customer is picked) is fetched once per session — without this, creating or
+  // editing an order wouldn't be reflected there until the whole app reloaded, so picking the
+  // same customer again later in the same session could auto-fill stale contact info.
+  function refreshCustomerRankings() {
+    dispatch(markDashboardStale())
+    dispatch(fetchTopCustomersThunk())
+  }
+
   async function addOrder(input: OrderInput): Promise<Order> {
-    return await dispatch(createOrderThunk(input)).unwrap()
+    const created = await dispatch(createOrderThunk(input)).unwrap()
+    refreshCustomerRankings()
+    return created
   }
 
   async function updateOrder(id: string, changes: OrderUpdateInput): Promise<Order> {
-    return await dispatch(updateOrderThunk({ id, changes })).unwrap()
+    const updated = await dispatch(updateOrderThunk({ id, changes })).unwrap()
+    refreshCustomerRankings()
+    return updated
   }
 
   async function setOrderStatus(id: string, status: OrderStatus): Promise<Order> {
@@ -278,6 +291,7 @@ export function useOrderActions() {
 
   async function deleteOrder(id: string): Promise<void> {
     await dispatch(deleteOrderThunk(id)).unwrap()
+    refreshCustomerRankings()
   }
 
   /** Sets the Orders list page's filter params ahead of navigating there — e.g. a dashboard
