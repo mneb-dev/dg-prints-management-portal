@@ -3,6 +3,7 @@ import type { OrderStatusItem } from "@/lib/order-statuses-slice"
 import type { ProductCategory } from "@/lib/products"
 import type { Order, OrderStatus, PaymentStatus } from "@/lib/orders-slice"
 import type { Role } from "@/lib/users-slice"
+import { formatDuration } from "@/lib/utils"
 
 export const ORDER_TERMINAL_STATUSES: OrderStatus[] = ["cancelled", "refunded", "returned"]
 
@@ -25,24 +26,18 @@ export function isTerminalStatus(status: OrderStatus): boolean {
   return ORDER_TERMINAL_STATUSES.includes(status)
 }
 
-/** "3h", "2d 4h", "45m" — elapsed time since `statusUpdatedAt`, for the "Curing + {duration}"
- * readout shown wherever an order's status label appears while it's in Curing. Returns null
- * when there's no timestamp to measure from (shouldn't happen in practice — every status
- * change stamps statusUpdatedAt — but the field is nullable on the Order type). */
+/** "45s", "3h", "2d 4h", "3 mo", "1 yr" — elapsed time since `statusUpdatedAt`, for the
+ * "Curing + {duration}" readout shown wherever an order's status label appears while it's in
+ * Curing. Same bucketing as the Orders table's "Last Update" column (`formatDuration`), minus
+ * the " ago" suffix. Returns null when there's no timestamp to measure from (shouldn't happen
+ * in practice — every status change stamps statusUpdatedAt — but the field is nullable on the
+ * Order type) or when the timestamp is in the future (clock skew). */
 export function formatCuringDuration(statusUpdatedAt: string | null): string | null {
   if (!statusUpdatedAt) return null
   const elapsedMs = Date.now() - new Date(statusUpdatedAt).getTime()
   if (elapsedMs < 0) return null
 
-  const totalMinutes = Math.floor(elapsedMs / 60000)
-  if (totalMinutes < 60) return `${Math.max(1, totalMinutes)}m`
-
-  const totalHours = Math.floor(totalMinutes / 60)
-  if (totalHours < 24) return `${totalHours}h`
-
-  const days = Math.floor(totalHours / 24)
-  const remainingHours = totalHours % 24
-  return remainingHours > 0 ? `${days}d ${remainingHours}h` : `${days}d`
+  return formatDuration(elapsedMs)
 }
 
 /** The full ordered sequence a category's status flow can be built from — the master list

@@ -9,7 +9,7 @@ import {
   TriangleAlertIcon,
   XIcon,
 } from "lucide-react"
-import type { ReactNode } from "react"
+import { useEffect, useState, type ReactNode } from "react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -38,7 +38,7 @@ import {
 import { canEditOrderMetadata, isReleaseLockedForRole } from "@/lib/orders"
 import type { Order } from "@/lib/orders"
 import type { Role } from "@/lib/users"
-import { cn, formatCurrency, formatDate } from "@/lib/utils"
+import { cn, formatCurrency, formatDate, formatTimeAgo } from "@/lib/utils"
 
 import { OrderStatusBadge } from "./order-status-badge"
 import { OrderStatusMenu } from "./order-status-menu"
@@ -88,6 +88,12 @@ export function OrderTable({
 }) {
   const isAdminTier = canEditOrderMetadata(role)
 
+  const [, forceTick] = useState(0)
+  useEffect(() => {
+    const id = setInterval(() => forceTick((t) => t + 1), 30_000)
+    return () => clearInterval(id)
+  }, [])
+
   if (isLoading) {
     return (
       <div className="rounded-lg border">
@@ -100,6 +106,7 @@ export function OrderTable({
               <TableHead className="px-4 text-right">Total</TableHead>
               <TableHead className="px-4">Payment</TableHead>
               <TableHead className="px-4">Status</TableHead>
+              <TableHead className="px-4">Last Status Update</TableHead>
               <TableHead className="px-4 text-right">
                 <span className="sr-only">Actions</span>
               </TableHead>
@@ -127,6 +134,9 @@ export function OrderTable({
                 </TableCell>
                 <TableCell className="px-4">
                   <Skeleton className="h-5 w-16 rounded-full" />
+                </TableCell>
+                <TableCell className="px-4">
+                  <Skeleton className="h-4 w-16" />
                 </TableCell>
                 <TableCell className="px-4 text-right">
                   <div className="flex justify-end gap-1">
@@ -214,6 +224,7 @@ export function OrderTable({
             <TableHead className="px-4 text-right">Total</TableHead>
             <TableHead className="px-4">Payment</TableHead>
             <TableHead className="px-4">Status</TableHead>
+            <TableHead className="px-4">Last Status Update</TableHead>
             <TableHead className="px-4 text-right">
               <span className="sr-only">Actions</span>
             </TableHead>
@@ -313,6 +324,9 @@ export function OrderTable({
                       className="w-36 truncate"
                     />
                   )}
+                </TableCell>
+                <TableCell className="px-4 text-muted-foreground">
+                  {formatTimeAgo(order.statusUpdatedAt)}
                 </TableCell>
                 <TableCell className="px-4 text-right">
                   <div className="flex justify-end gap-1">

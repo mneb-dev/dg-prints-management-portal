@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { ChevronDownIcon, HourglassIcon, Loader2Icon } from "lucide-react"
 
 import {
@@ -63,6 +63,14 @@ export function OrderStatusMenu({
   const { statuses } = useActiveOrderStatuses()
   const { getLabel, getIcon, getColors } = useOrderStatusLookup()
   const [pendingStatus, setPendingStatus] = useState<OrderStatus | null>(null)
+
+  const [, forceTick] = useState(0)
+  useEffect(() => {
+    if (order.status !== CURING_STATUS_NAME) return
+    const id = setInterval(() => forceTick((t) => t + 1), 30_000)
+    return () => clearInterval(id)
+  }, [order.status])
+
   const options = getOrderStatusOptions(
     order,
     categories,
