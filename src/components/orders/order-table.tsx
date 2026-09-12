@@ -1,10 +1,13 @@
 import {
+  CheckIcon,
+  CircleAlertIcon,
   EyeIcon,
   Loader2Icon,
   PackageCheckIcon,
   PackageSearchIcon,
   PencilIcon,
   PlusIcon,
+  ReceiptTextIcon,
   Trash2Icon,
   TriangleAlertIcon,
   XIcon,
@@ -65,6 +68,7 @@ export function OrderTable({
   onDelete,
   onRequestPayment,
   onArrange,
+  onRequestOR,
 }: {
   orders: Order[]
   isLoading?: boolean
@@ -85,6 +89,7 @@ export function OrderTable({
   onDelete: (order: Order) => void
   onRequestPayment: (order: Order, targetStatus: "paid" | "partially_paid") => void
   onArrange: (order: Order) => void
+  onRequestOR: (order: Order) => void
 }) {
   const isAdminTier = canEditOrderMetadata(role)
 
@@ -363,6 +368,18 @@ export function OrderTable({
                           onClick={() => onEdit(order)}
                         />
                         <RowActionButton
+                          label={`Request OR for ${order.orderNumber}`}
+                          tooltip={
+                            !order.orRequest
+                              ? "Request OR"
+                              : order.orRequest.invoiceNumber
+                                ? "Update OR request"
+                                : "Update OR request (missing invoice number)"
+                          }
+                          icon={<OrRequestIcon orRequest={order.orRequest} />}
+                          onClick={() => onRequestOR(order)}
+                        />
+                        <RowActionButton
                           label={`Delete ${order.orderNumber}`}
                           tooltip={
                             isReleaseLocked ? "Released orders are locked for your role." : "Delete order"
@@ -389,6 +406,21 @@ export function OrderTable({
         </div>
       )}
     </div>
+  )
+}
+
+function OrRequestIcon({ orRequest }: { orRequest: Order["orRequest"] }) {
+  if (!orRequest) return <ReceiptTextIcon />
+
+  return (
+    <span className="relative inline-flex">
+      <ReceiptTextIcon />
+      {orRequest.invoiceNumber ? (
+        <CheckIcon className="absolute -right-1 -bottom-1 size-2.5 rounded-full bg-background stroke-3 text-primary ring-1 ring-background" />
+      ) : (
+        <CircleAlertIcon className="absolute -right-1 -bottom-1 size-2.5 rounded-full bg-background text-destructive ring-1 ring-background" />
+      )}
+    </span>
   )
 }
 

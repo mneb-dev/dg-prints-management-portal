@@ -99,6 +99,23 @@ export type ShippingAddress = {
   fee: number
 }
 
+export type OrRequest = {
+  id: string
+  name: string
+  address: string
+  tin: string | null
+  invoiceNumber: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type OrRequestInput = {
+  name: string
+  address: string
+  tin?: string
+  invoiceNumber?: string
+}
+
 // Order channels and payment methods are now managed, orderable lists (see
 // payment-methods.tsx / order-channels.tsx) rather than a fixed set of literals.
 export type OrderChannel = string
@@ -140,6 +157,7 @@ export type Order = {
   statusUpdatedBy: string | null
   statusUpdatedByName: string
   statusUpdatedAt: string | null
+  orRequest: OrRequest | null
 }
 
 export type OrderInput = Omit<
@@ -154,6 +172,7 @@ export type OrderInput = Omit<
   | "statusUpdatedBy"
   | "statusUpdatedByName"
   | "statusUpdatedAt"
+  | "orRequest"
 >
 
 // Fields only an admin/superadmin may include when updating an order (enforced
@@ -189,6 +208,7 @@ function normalizeOrder(order: Order): Order {
     shippingAddress: order.shippingAddress
       ? { ...order.shippingAddress, fee: order.shippingAddress.fee ?? 0 }
       : null,
+    orRequest: order.orRequest ?? null,
     items: order.items.map((item) => ({
       ...item,
       stickerQuotation: item.stickerQuotation ?? null,
@@ -208,6 +228,8 @@ export type OrdersQueryParams = {
   dateTo: string
   sortBy: string
   sortDir: "asc" | "desc"
+  channel: string
+  hasOr: string
 }
 
 export const DEFAULT_ORDERS_PARAMS: OrdersQueryParams = {
@@ -222,6 +244,8 @@ export const DEFAULT_ORDERS_PARAMS: OrdersQueryParams = {
   dateTo: "",
   sortBy: "created_at",
   sortDir: "desc",
+  channel: "",
+  hasOr: "",
 }
 
 export type OrdersListResponse = {
@@ -266,6 +290,8 @@ export const fetchOrdersThunk = createAsyncThunk<
         dateTo: params.dateTo || undefined,
         sortBy: params.sortBy,
         sortDir: params.sortDir,
+        channel: params.channel || undefined,
+        hasOr: params.hasOr || undefined,
       },
     })
     return data
@@ -429,6 +455,19 @@ export const updateOrderThunk = createAsyncThunk<
   }
 })
 
+export const saveOrRequestThunk = createAsyncThunk<
+  Order,
+  { id: string; input: OrRequestInput },
+  { rejectValue: string }
+>("orders/saveOrRequest", async ({ id, input }, { rejectWithValue }) => {
+  try {
+    const { data } = await apiClient.put<Order>(`/orders/${id}/or-request`, input)
+    return data
+  } catch (err) {
+    return rejectWithValue(getErrorMessage(err))
+  }
+})
+
 export const deleteOrderThunk = createAsyncThunk<string, string, { rejectValue: string }>(
   "orders/delete",
   async (id, { rejectWithValue }) => {
@@ -543,6 +582,16 @@ const ordersSlice = createSlice({
         state.current = normalizeOrder(action.payload)
       })
       .addCase(updateOrderThunk.fulfilled, (state, action: PayloadAction<Order>) => {
+        const normalized = normalizeOrder(action.payload)
+        if (state.current?.id === action.payload.id) {
+          state.current = normalized
+        }
+        const idx = state.items.findIndex((order) => order.id === action.payload.id)
+        if (idx !== -1) {
+          state.items[idx] = normalized
+        }
+      })
+      .addCase(saveOrRequestThunk.fulfilled, (state, action: PayloadAction<Order>) => {
         const normalized = normalizeOrder(action.payload)
         if (state.current?.id === action.payload.id) {
           state.current = normalized

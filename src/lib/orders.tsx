@@ -13,6 +13,7 @@ import {
   fetchSalesOrdersThunk,
   fetchTopCustomersThunk,
   markDashboardStale,
+  saveOrRequestThunk,
   SALES_ORDERS_LIMIT,
   setOrdersParams,
   updateOrderThunk,
@@ -23,6 +24,7 @@ import type {
   OrderStatus,
   OrdersQueryParams,
   OrderUpdateInput,
+  OrRequestInput,
   Payment,
 } from "@/lib/orders-slice"
 
@@ -59,6 +61,8 @@ export type {
   OrderStatus,
   OrdersQueryParams,
   OrderUpdateInput,
+  OrRequest,
+  OrRequestInput,
   Payment,
   PaymentMethod,
   PaymentStatus,
@@ -91,6 +95,8 @@ export function useOrders() {
     params.dateTo,
     params.sortBy,
     params.sortDir,
+    params.channel,
+    params.hasOr,
   ])
 
   function setParams(patch: Partial<OrdersQueryParams>) {
@@ -294,13 +300,17 @@ export function useOrderActions() {
     refreshCustomerRankings()
   }
 
+  async function saveOrRequest(id: string, input: OrRequestInput): Promise<Order> {
+    return dispatch(saveOrRequestThunk({ id, input })).unwrap()
+  }
+
   /** Sets the Orders list page's filter params ahead of navigating there — e.g. a dashboard
    * widget linking to "unpaid orders" first primes the filter, then the caller navigates to /orders. */
   function setOrdersFilter(patch: Partial<OrdersQueryParams>) {
     dispatch(setOrdersParams({ ...DEFAULT_ORDERS_PARAMS, ...patch }))
   }
 
-  return { addOrder, updateOrder, setOrderStatus, deleteOrder, setOrdersFilter }
+  return { addOrder, updateOrder, setOrderStatus, deleteOrder, saveOrRequest, setOrdersFilter }
 }
 
 /** Shared optimistic-update + toast behavior for changing an order's status — used by the

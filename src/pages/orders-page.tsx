@@ -11,6 +11,7 @@ import { OrderTable } from "@/components/orders/order-table"
 import { PAYMENT_STATUS_LABELS } from "@/components/orders/payment-status-badge"
 import { RecordPaymentDialog } from "@/components/orders/record-payment-dialog"
 import { RefundOrderDialog } from "@/components/orders/refund-order-dialog"
+import { RequestOrDialog } from "@/components/orders/request-or-dialog"
 import { ReturnOrderDialog } from "@/components/orders/return-order-dialog"
 import { ActiveFilterChips, FilterSearchInput, FilterToolbar, type ActiveFilter } from "@/components/filter-toolbar"
 import { PageHeader } from "@/components/page-header"
@@ -31,6 +32,7 @@ import {
 import { useAuth } from "@/lib/auth"
 import { useCategories } from "@/lib/categories"
 import { SPX_ADMIN_CREATE_ORDER_URL } from "@/lib/clipboard"
+import { useOrderChannels } from "@/lib/order-channels"
 import { useActiveOrderStatuses, useOrderStatusLookup } from "@/lib/order-statuses"
 import { useDebouncedValue } from "@/lib/use-debounced-value"
 import { useUserOptions } from "@/lib/users"
@@ -40,6 +42,7 @@ import {
   useOrderActions,
   useOrders,
   type Order,
+  type OrRequestInput,
   type Payment,
   type PaymentStatus,
 } from "@/lib/orders"
@@ -48,6 +51,8 @@ const ANY_STATUS = "All Statuses"
 const ANY_PAYMENT_STATUS = "All Payment Statuses"
 const ANY_CATEGORY = "All Categories"
 const ANY_CREATED_BY = "All Creators"
+const ANY_CHANNEL = "All Channels"
+const ANY_OR = "Any OR Status"
 
 const SORT_OPTIONS = [
   { value: "created_at", label: "Date Created" },
@@ -64,7 +69,8 @@ export function OrdersPage() {
   const { categories } = useCategories()
   const { statuses } = useActiveOrderStatuses()
   const { getLabel } = useOrderStatusLookup()
-  const { setOrderStatus, updateOrder, deleteOrder } = useOrderActions()
+  const { orderChannels } = useOrderChannels()
+  const { setOrderStatus, updateOrder, deleteOrder, saveOrRequest } = useOrderActions()
   // Fetched with includeInactive so a filter already applied to a former staff member's id still
   // resolves to their name (chip label, dropdown value) instead of falling back to the raw id.
   const { users: creatorOptionsRaw } = useUserOptions(true, true)
@@ -93,11 +99,13 @@ export function OrdersPage() {
   const [deletingOrder, setDeletingOrder] = useState<Order | null>(null)
   const [payingOrder, setPayingOrder] = useState<Order | null>(null)
   const [payingTargetStatus, setPayingTargetStatus] = useState<"paid" | "partially_paid" | null>(null)
+  const [requestingOrOrder, setRequestingOrOrder] = useState<Order | null>(null)
   const [isCancelling, setIsCancelling] = useState(false)
   const [isRefunding, setIsRefunding] = useState(false)
   const [isReturning, setIsReturning] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [isPaying, setIsPaying] = useState(false)
+  const [isSavingOrRequest, setIsSavingOrRequest] = useState(false)
 
   useEffect(() => {
     if (debouncedSearch !== params.search) {
@@ -182,6 +190,20 @@ export function OrdersPage() {
     }
   }
 
+  async function handleConfirmRequestOr(order: Order, input: OrRequestInput) {
+    setIsSavingOrRequest(true)
+    try {
+      await saveOrRequest(order.id, input)
+      toast.success(order.orRequest ? "OR request updated." : "OR request saved.")
+      setRequestingOrOrder(null)
+      refetch()
+    } catch (err) {
+      toast.error(typeof err === "string" ? err : "Failed to save OR request.")
+    } finally {
+      setIsSavingOrRequest(false)
+    }
+  }
+
   const hasActiveFilters =
     params.search !== "" ||
     params.status !== "" ||
@@ -190,6 +212,8 @@ export function OrdersPage() {
     params.createdBy !== "" ||
     params.dateFrom !== "" ||
     params.dateTo !== "" ||
+    params.channel !== "" ||
+    params.hasOr !== "" ||
     params.sortBy !== "created_at" ||
     params.sortDir !== "desc"
 
@@ -236,6 +260,16 @@ export function OrdersPage() {
       key: "dateTo",
       label: `To: ${params.dateTo}`,
       onRemove: () => setParams({ dateTo: "", page: 1 }),
+    },
+    params.channel && {
+      key: "channel",
+      label: params.channel,
+      onRemove: () => setParams({ channel: "", page: 1 }),
+    },
+    params.hasOr && {
+      key: "hasOr",
+      label: params.hasOr === "true" ? "With OR" : "Without OR",
+      onRemove: () => setParams({ hasOr: "", page: 1 }),
     },
   ].filter((filter): filter is ActiveFilter => Boolean(filter))
 
@@ -367,6 +401,43 @@ export function OrdersPage() {
           </SelectContent>
         </Select>
 
+        <Select
+          value={params.channel || ANY_CHANNEL}
+          onValueChange={(value) =>
+            setParams({ channel: value === ANY_CHANNEL ? "" : (value ?? ""), page: 1 })
+          }
+          disabled={isLoading || isError}
+        >
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ANY_CHANNEL}>{ANY_CHANNEL}</SelectItem>
+            {orderChannels.map((channel) => (
+              <SelectItem key={channel.id} value={channel.name}>
+                {channel.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select
+          value={params.hasOr === "true" ? "with" : params.hasOr === "false" ? "without" : ANY_OR}
+          onValueChange={(value) =>
+            setParams({ hasOr: value === "with" ? "true" : value === "without" ? "false" : "", page: 1 })
+          }
+          disabled={isLoading || isError}
+        >
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ANY_OR}>{ANY_OR}</SelectItem>
+            <SelectItem value="with">With OR</SelectItem>
+            <SelectItem value="without">Without OR</SelectItem>
+          </SelectContent>
+        </Select>
+
         <div className="flex items-center gap-3 rounded-lg border border-input px-2.5">
           <div className="flex items-center gap-1.5">
             <Label htmlFor="orders-date-from" className="text-sm text-muted-foreground">
@@ -475,6 +546,7 @@ export function OrdersPage() {
           setPayingOrder(order)
           setPayingTargetStatus(targetStatus)
         }}
+        onRequestOR={setRequestingOrOrder}
       />
 
       {total > 0 && (
@@ -534,6 +606,13 @@ export function OrdersPage() {
           }
         }}
         onConfirm={handleConfirmPayment}
+      />
+
+      <RequestOrDialog
+        order={requestingOrOrder}
+        isPending={isSavingOrRequest}
+        onOpenChange={(open) => !open && setRequestingOrOrder(null)}
+        onConfirm={handleConfirmRequestOr}
       />
     </div>
   )
