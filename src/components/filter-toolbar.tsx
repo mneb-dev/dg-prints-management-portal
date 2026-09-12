@@ -49,6 +49,11 @@ export function FilterSearchInput({
   )
 }
 
+/** Tint for a filter trigger (Select/Popover button) holding a non-default value, so an
+ *  applied filter is visible on the control itself, not just in the chip row below it. */
+export const ACTIVE_FILTER_TRIGGER_CLASS =
+  "border-primary/30 bg-primary/5 dark:border-primary/20 dark:bg-primary/10"
+
 export type ActiveFilter = {
   key: string
   label: string
@@ -60,15 +65,19 @@ export function ActiveFilterChips({
   filters,
   onClearAll,
   disabled,
+  label,
 }: {
   filters: ActiveFilter[]
   onClearAll?: () => void
   disabled?: boolean
+  /** Optional leading caption (e.g. "Active filters:") shown before the chips. */
+  label?: string
 }) {
   if (filters.length === 0) return null
 
   return (
-    <div className="flex w-full flex-wrap items-center gap-1.5">
+    <div className="flex w-full flex-wrap items-center gap-1.5 border-t pt-2.5">
+      {label && <span className="text-xs text-muted-foreground">{label}</span>}
       {filters.map((filter) => (
         <Badge key={filter.key} variant="secondary" className="gap-1 pr-1">
           {filter.label}

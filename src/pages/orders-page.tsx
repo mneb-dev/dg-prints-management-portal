@@ -1,6 +1,18 @@
 import { useEffect, useState } from "react"
 import { format, parseISO } from "date-fns"
-import { PlusIcon, UserXIcon } from "lucide-react"
+import {
+  ArrowUpDownIcon,
+  CalendarIcon,
+  CreditCardIcon,
+  ListChecksIcon,
+  PlusIcon,
+  ReceiptTextIcon,
+  StoreIcon,
+  TagIcon,
+  UserIcon,
+  UserXIcon,
+} from "lucide-react"
+import type { DateRange } from "react-day-picker"
 import { useNavigate } from "react-router-dom"
 import { toast } from "sonner"
 
@@ -13,14 +25,19 @@ import { RecordPaymentDialog } from "@/components/orders/record-payment-dialog"
 import { RefundOrderDialog } from "@/components/orders/refund-order-dialog"
 import { RequestOrDialog } from "@/components/orders/request-or-dialog"
 import { ReturnOrderDialog } from "@/components/orders/return-order-dialog"
-import { ActiveFilterChips, FilterSearchInput, FilterToolbar, type ActiveFilter } from "@/components/filter-toolbar"
+import {
+  ACTIVE_FILTER_TRIGGER_CLASS,
+  ActiveFilterChips,
+  FilterSearchInput,
+  FilterToolbar,
+  type ActiveFilter,
+} from "@/components/filter-toolbar"
 import { PageHeader } from "@/components/page-header"
 import { PaginationBar } from "@/components/pagination-bar"
 import { RefreshButton } from "@/components/refresh-button"
 import { SortControl } from "@/components/sort-control"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
-import { Label } from "@/components/ui/label"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import {
   Select,
@@ -35,6 +52,7 @@ import { SPX_ADMIN_CREATE_ORDER_URL } from "@/lib/clipboard"
 import { useOrderChannels } from "@/lib/order-channels"
 import { useActiveOrderStatuses, useOrderStatusLookup } from "@/lib/order-statuses"
 import { useDebouncedValue } from "@/lib/use-debounced-value"
+import { cn } from "@/lib/utils"
 import { useUserOptions } from "@/lib/users"
 import {
   DEFAULT_ORDERS_PARAMS,
@@ -222,6 +240,28 @@ export function OrdersPage() {
     setParams(DEFAULT_ORDERS_PARAMS)
   }
 
+  const dateRange: DateRange | undefined =
+    params.dateFrom || params.dateTo
+      ? {
+          from: params.dateFrom ? parseISO(params.dateFrom) : undefined,
+          to: params.dateTo ? parseISO(params.dateTo) : undefined,
+        }
+      : undefined
+
+  function handleDateRangeSelect(range: DateRange | undefined) {
+    setParams({
+      dateFrom: range?.from ? format(range.from, "yyyy-MM-dd") : "",
+      dateTo: range?.to ? format(range.to, "yyyy-MM-dd") : "",
+      page: 1,
+    })
+  }
+
+  function formatDateRangeLabel(range: DateRange | undefined) {
+    if (!range?.from) return "Select date range"
+    if (!range.to) return `${format(range.from, "MMM d, yyyy")} – …`
+    return `${format(range.from, "MMM d, yyyy")} – ${format(range.to, "MMM d, yyyy")}`
+  }
+
   const activeFilters: ActiveFilter[] = [
     params.search && {
       key: "search",
@@ -291,235 +331,234 @@ export function OrdersPage() {
         }
       />
 
-      <FilterToolbar>
+      <FilterToolbar className="flex-col items-stretch gap-3">
         <FilterSearchInput
           value={searchInput}
           onChange={setSearchInput}
           placeholder="Search order #, customer, notes..."
           disabled={isLoading || isError}
+          className="w-full"
         />
 
-        <Select
-          value={params.status || ANY_STATUS}
-          onValueChange={(value) =>
-            setParams({ status: value === ANY_STATUS ? "" : (value ?? ""), page: 1 })
-          }
-          disabled={isLoading || isError}
-        >
-          <SelectTrigger>
-            <SelectValue>
-              {(value: string | null) => (value && getLabel(value)) || ANY_STATUS}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ANY_STATUS}>{ANY_STATUS}</SelectItem>
-            {statuses.map((item) => (
-              <SelectItem key={item.id} value={item.name}>
-                {getLabel(item.name)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="flex flex-wrap items-center gap-2">
+          <Select
+            value={params.status || ANY_STATUS}
+            onValueChange={(value) =>
+              setParams({ status: value === ANY_STATUS ? "" : (value ?? ""), page: 1 })
+            }
+            disabled={isLoading || isError}
+          >
+            <SelectTrigger
+              aria-label="Filter by status"
+              title="Status"
+              className={cn("min-w-40 flex-1", params.status && ACTIVE_FILTER_TRIGGER_CLASS)}
+            >
+              <ListChecksIcon className="size-4 shrink-0 text-muted-foreground" />
+              <SelectValue>
+                {(value: string | null) => (value && getLabel(value)) || ANY_STATUS}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ANY_STATUS}>{ANY_STATUS}</SelectItem>
+              {statuses.map((item) => (
+                <SelectItem key={item.id} value={item.name}>
+                  {getLabel(item.name)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
-        <Select
-          value={params.paymentStatus || ANY_PAYMENT_STATUS}
-          onValueChange={(value) =>
-            setParams({ paymentStatus: value === ANY_PAYMENT_STATUS ? "" : (value ?? ""), page: 1 })
-          }
-          disabled={isLoading || isError}
-        >
-          <SelectTrigger>
-            <SelectValue>
-              {(value: string | null) =>
-                (value && PAYMENT_STATUS_LABELS[value as PaymentStatus]) || ANY_PAYMENT_STATUS
+          <Select
+            value={params.paymentStatus || ANY_PAYMENT_STATUS}
+            onValueChange={(value) =>
+              setParams({ paymentStatus: value === ANY_PAYMENT_STATUS ? "" : (value ?? ""), page: 1 })
+            }
+            disabled={isLoading || isError}
+          >
+            <SelectTrigger
+              aria-label="Filter by payment status"
+              title="Payment"
+              className={cn("min-w-40 flex-1", params.paymentStatus && ACTIVE_FILTER_TRIGGER_CLASS)}
+            >
+              <CreditCardIcon className="size-4 shrink-0 text-muted-foreground" />
+              <SelectValue>
+                {(value: string | null) =>
+                  (value && PAYMENT_STATUS_LABELS[value as PaymentStatus]) || ANY_PAYMENT_STATUS
+                }
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ANY_PAYMENT_STATUS}>{ANY_PAYMENT_STATUS}</SelectItem>
+              {PAYMENT_STATUSES.map((status) => (
+                <SelectItem key={status} value={status}>
+                  {PAYMENT_STATUS_LABELS[status]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select
+            value={params.category || ANY_CATEGORY}
+            onValueChange={(value) =>
+              setParams({ category: value === ANY_CATEGORY ? "" : (value ?? ""), page: 1 })
+            }
+            disabled={isLoading || isError}
+          >
+            <SelectTrigger
+              aria-label="Filter by category"
+              title="Category"
+              className={cn("min-w-40 flex-1", params.category && ACTIVE_FILTER_TRIGGER_CLASS)}
+            >
+              <TagIcon className="size-4 shrink-0 text-muted-foreground" />
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ANY_CATEGORY}>{ANY_CATEGORY}</SelectItem>
+              {categories.map((category) => (
+                <SelectItem key={category.id} value={category.name}>
+                  {category.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select
+            value={params.createdBy || ANY_CREATED_BY}
+            onValueChange={(value) =>
+              setParams({ createdBy: value === ANY_CREATED_BY ? "" : (value ?? ""), page: 1 })
+            }
+            disabled={isLoading || isError}
+          >
+            <SelectTrigger
+              aria-label="Filter by creator"
+              title="Created By"
+              className={cn("min-w-40 flex-1", params.createdBy && ACTIVE_FILTER_TRIGGER_CLASS)}
+            >
+              <UserIcon className="size-4 shrink-0 text-muted-foreground" />
+              <SelectValue>
+                {(value: string | null) => {
+                  if (!value || value === ANY_CREATED_BY) return ANY_CREATED_BY
+                  const creator = creatorOptions.find((candidate) => candidate.id === value)
+                  return (
+                    <span className="flex items-center gap-1.5">
+                      {getCreatedByLabel(value)}
+                      {creator && creator.status !== "active" ? (
+                        <UserXIcon className="size-3.5 shrink-0 text-muted-foreground" aria-label="Inactive user" />
+                      ) : null}
+                    </span>
+                  )
+                }}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ANY_CREATED_BY}>{ANY_CREATED_BY}</SelectItem>
+              {pickableCreatorOptions.map((creator) => (
+                <SelectItem key={creator.id} value={creator.id}>
+                  {creatorLabel(creator)}
+                  {creator.status !== "active" ? (
+                    <UserXIcon className="size-3.5 shrink-0 text-muted-foreground" aria-label="Inactive user" />
+                  ) : null}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select
+            value={params.channel || ANY_CHANNEL}
+            onValueChange={(value) =>
+              setParams({ channel: value === ANY_CHANNEL ? "" : (value ?? ""), page: 1 })
+            }
+            disabled={isLoading || isError}
+          >
+            <SelectTrigger
+              aria-label="Filter by channel"
+              title="Channel"
+              className={cn("min-w-40 flex-1", params.channel && ACTIVE_FILTER_TRIGGER_CLASS)}
+            >
+              <StoreIcon className="size-4 shrink-0 text-muted-foreground" />
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ANY_CHANNEL}>{ANY_CHANNEL}</SelectItem>
+              {orderChannels.map((channel) => (
+                <SelectItem key={channel.id} value={channel.name}>
+                  {channel.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select
+            value={params.hasOr === "true" ? "With OR" : params.hasOr === "false" ? "Without OR" : ANY_OR}
+            onValueChange={(value) =>
+              setParams({ hasOr: value === "with" ? "true" : value === "without" ? "false" : "", page: 1 })
+            }
+            disabled={isLoading || isError}
+          >
+            <SelectTrigger
+              aria-label="Filter by OR status"
+              title="OR Status"
+              className={cn("min-w-40 flex-1", params.hasOr && ACTIVE_FILTER_TRIGGER_CLASS)}
+            >
+              <ReceiptTextIcon className="size-4 shrink-0 text-muted-foreground" />
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ANY_OR}>{ANY_OR}</SelectItem>
+              <SelectItem value="with">With OR</SelectItem>
+              <SelectItem value="without">Without OR</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <Popover>
+            <PopoverTrigger
+              disabled={isLoading || isError}
+              aria-label="Filter by date range"
+              title="Date range"
+              render={
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className={cn(
+                    "h-8 min-w-56 flex-1 justify-start font-normal",
+                    dateRange && ACTIVE_FILTER_TRIGGER_CLASS
+                  )}
+                />
               }
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ANY_PAYMENT_STATUS}>{ANY_PAYMENT_STATUS}</SelectItem>
-            {PAYMENT_STATUSES.map((status) => (
-              <SelectItem key={status} value={status}>
-                {PAYMENT_STATUS_LABELS[status]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+            >
+              <CalendarIcon data-icon="inline-start" />
+              {formatDateRangeLabel(dateRange)}
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar
+                mode="range"
+                selected={dateRange}
+                onSelect={handleDateRangeSelect}
+                disabled={{ after: new Date() }}
+                resetOnSelect
+                autoFocus
+              />
+            </PopoverContent>
+          </Popover>
 
-        <Select
-          value={params.category || ANY_CATEGORY}
-          onValueChange={(value) =>
-            setParams({ category: value === ANY_CATEGORY ? "" : (value ?? ""), page: 1 })
-          }
-          disabled={isLoading || isError}
-        >
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ANY_CATEGORY}>{ANY_CATEGORY}</SelectItem>
-            {categories.map((category) => (
-              <SelectItem key={category.id} value={category.name}>
-                {category.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select
-          value={params.createdBy || ANY_CREATED_BY}
-          onValueChange={(value) =>
-            setParams({ createdBy: value === ANY_CREATED_BY ? "" : (value ?? ""), page: 1 })
-          }
-          disabled={isLoading || isError}
-        >
-          <SelectTrigger>
-            <SelectValue>
-              {(value: string | null) => {
-                if (!value || value === ANY_CREATED_BY) return ANY_CREATED_BY
-                const creator = creatorOptions.find((candidate) => candidate.id === value)
-                return (
-                  <span className="flex items-center gap-1.5">
-                    {getCreatedByLabel(value)}
-                    {creator && creator.status !== "active" ? (
-                      <UserXIcon className="size-3.5 shrink-0 text-muted-foreground" aria-label="Inactive user" />
-                    ) : null}
-                  </span>
-                )
-              }}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ANY_CREATED_BY}>{ANY_CREATED_BY}</SelectItem>
-            {pickableCreatorOptions.map((creator) => (
-              <SelectItem key={creator.id} value={creator.id}>
-                {creatorLabel(creator)}
-                {creator.status !== "active" ? (
-                  <UserXIcon className="size-3.5 shrink-0 text-muted-foreground" aria-label="Inactive user" />
-                ) : null}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select
-          value={params.channel || ANY_CHANNEL}
-          onValueChange={(value) =>
-            setParams({ channel: value === ANY_CHANNEL ? "" : (value ?? ""), page: 1 })
-          }
-          disabled={isLoading || isError}
-        >
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ANY_CHANNEL}>{ANY_CHANNEL}</SelectItem>
-            {orderChannels.map((channel) => (
-              <SelectItem key={channel.id} value={channel.name}>
-                {channel.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select
-          value={params.hasOr === "true" ? "with" : params.hasOr === "false" ? "without" : ANY_OR}
-          onValueChange={(value) =>
-            setParams({ hasOr: value === "with" ? "true" : value === "without" ? "false" : "", page: 1 })
-          }
-          disabled={isLoading || isError}
-        >
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ANY_OR}>{ANY_OR}</SelectItem>
-            <SelectItem value="with">With OR</SelectItem>
-            <SelectItem value="without">Without OR</SelectItem>
-          </SelectContent>
-        </Select>
-
-        <div className="flex items-center gap-3 rounded-lg border border-input px-2.5">
-          <div className="flex items-center gap-1.5">
-            <Label htmlFor="orders-date-from" className="text-sm text-muted-foreground">
-              From
-            </Label>
-            <Popover>
-              <PopoverTrigger
-                id="orders-date-from"
-                disabled={isLoading || isError}
-                render={
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 px-1.5 font-normal"
-                  />
-                }
-              >
-                <span className={params.dateFrom ? undefined : "text-muted-foreground"}>
-                  {params.dateFrom ? format(parseISO(params.dateFrom), "MMM d, yyyy") : "Select date"}
-                </span>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  mode="single"
-                  selected={params.dateFrom ? parseISO(params.dateFrom) : undefined}
-                  onSelect={(date) =>
-                    setParams({ dateFrom: date ? format(date, "yyyy-MM-dd") : "", page: 1 })
-                  }
-                  disabled={params.dateTo ? { after: parseISO(params.dateTo) } : undefined}
-                  autoFocus
-                />
-              </PopoverContent>
-            </Popover>
-          </div>
-          <div className="h-5 w-px bg-border" />
-          <div className="flex items-center gap-1.5">
-            <Label htmlFor="orders-date-to" className="text-sm text-muted-foreground">
-              To
-            </Label>
-            <Popover>
-              <PopoverTrigger
-                id="orders-date-to"
-                disabled={isLoading || isError}
-                render={
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 px-1.5 font-normal"
-                  />
-                }
-              >
-                <span className={params.dateTo ? undefined : "text-muted-foreground"}>
-                  {params.dateTo ? format(parseISO(params.dateTo), "MMM d, yyyy") : "Select date"}
-                </span>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  mode="single"
-                  selected={params.dateTo ? parseISO(params.dateTo) : undefined}
-                  onSelect={(date) =>
-                    setParams({ dateTo: date ? format(date, "yyyy-MM-dd") : "", page: 1 })
-                  }
-                  disabled={params.dateFrom ? { before: parseISO(params.dateFrom) } : undefined}
-                  autoFocus
-                />
-              </PopoverContent>
-            </Popover>
+          <div className="flex min-w-40 flex-1 items-center gap-1.5" title="Sort">
+            <ArrowUpDownIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+            <SortControl
+              value={params.sortBy}
+              direction={params.sortDir}
+              options={SORT_OPTIONS}
+              onChange={(sortBy, sortDir) => setParams({ sortBy, sortDir, page: 1 })}
+              disabled={isLoading || isError}
+              className="min-w-0 flex-1"
+            />
           </div>
         </div>
-
-        <SortControl
-          value={params.sortBy}
-          direction={params.sortDir}
-          options={SORT_OPTIONS}
-          onChange={(sortBy, sortDir) => setParams({ sortBy, sortDir, page: 1 })}
-          disabled={isLoading || isError}
-        />
 
         <ActiveFilterChips
           filters={activeFilters}
           onClearAll={hasActiveFilters ? clearFilters : undefined}
           disabled={isLoading || isError}
+          label="Active filters:"
         />
       </FilterToolbar>
 

@@ -8,6 +8,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { cn } from "@/lib/utils"
 
 export type SortDirection = "asc" | "desc"
 
@@ -17,22 +18,24 @@ export function SortControl({
   options,
   onChange,
   disabled,
+  className,
 }: {
   value: string
   direction: SortDirection
   options: { value: string; label: string }[]
   onChange: (value: string, direction: SortDirection) => void
   disabled?: boolean
+  className?: string
 }) {
   return (
-    <div className="inline-flex items-center">
+    <div className={cn("inline-flex items-center", className)}>
       <Select
         value={value}
         onValueChange={(next) => next && onChange(next, direction)}
         disabled={disabled}
         items={options}
       >
-        <SelectTrigger className="rounded-r-none border-r-0">
+        <SelectTrigger className="min-w-0 flex-1 rounded-r-none border-r-0">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
