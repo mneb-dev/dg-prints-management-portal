@@ -5,6 +5,7 @@ import categoriesReducer from "@/lib/categories-slice"
 import commissionReducer from "@/lib/commission-slice"
 import expensesReducer from "@/lib/expenses-slice"
 import financeReducer from "@/lib/finance-slice"
+import incentiveTiersReducer from "@/lib/incentive-tiers-slice"
 import orderChannelsReducer from "@/lib/order-channels-slice"
 import orderStatusesReducer from "@/lib/order-statuses-slice"
 import ordersReducer from "@/lib/orders-slice"
@@ -28,6 +29,7 @@ export const store = configureStore({
     finance: financeReducer,
     commission: commissionReducer,
     settings: settingsReducer,
+    incentiveTiers: incentiveTiersReducer,
     paymentMethods: paymentMethodsReducer,
     orderChannels: orderChannelsReducer,
     orderStatuses: orderStatusesReducer,

@@ -1,15 +1,17 @@
 import { useEffect, useState } from "react"
-import { CreditCardIcon, ShoppingCartIcon, TruckIcon } from "lucide-react"
+import { CreditCardIcon, ShoppingCartIcon, TrophyIcon, TruckIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { PageHeader } from "@/components/page-header"
 import { CatalogList } from "@/components/settings/catalog-list"
+import { IncentiveTierList } from "@/components/settings/incentive-tier-list"
 import { QuickSizesCard } from "@/components/settings/quick-sizes-card"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { CurrencyInput } from "@/components/ui/currency-input"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Spinner } from "@/components/ui/spinner"
+import { useIncentiveTierActions, useIncentiveTiers } from "@/lib/incentive-tiers"
 import { useOrderChannelActions, useOrderChannels } from "@/lib/order-channels"
 import { usePaymentMethodActions, usePaymentMethods } from "@/lib/payment-methods"
 import { useSettings, useSettingsActions } from "@/lib/settings"
@@ -32,6 +34,9 @@ export function SettingsPage() {
     deleteOrderChannel,
     reorderOrderChannels,
   } = useOrderChannelActions()
+
+  const { tiers, isLoading: tiersLoading } = useIncentiveTiers()
+  const { addIncentiveTier, updateIncentiveTier, deleteIncentiveTier } = useIncentiveTierActions()
 
   const { settings, isLoading: settingsLoading } = useSettings()
   const { updateSettings } = useSettingsActions()
@@ -107,6 +112,28 @@ export function SettingsPage() {
               onToggle={toggleOrderChannel}
               onDelete={deleteOrderChannel}
               onReorder={reorderOrderChannels}
+            />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <TrophyIcon className="size-4 text-muted-foreground" />
+              Sales-Target Bonus Tiers
+            </CardTitle>
+            <CardDescription>
+              Team-wide monthly sales thresholds and the bonus pool each one unlocks. Changes apply
+              immediately to the current (and any unreleased past) month.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <IncentiveTierList
+              tiers={tiers}
+              isLoading={tiersLoading}
+              onAdd={addIncentiveTier}
+              onUpdate={updateIncentiveTier}
+              onDelete={deleteIncentiveTier}
             />
           </CardContent>
         </Card>

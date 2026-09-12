@@ -3,12 +3,12 @@ import { Navigate, Route, Routes } from "react-router-dom"
 import { AppLayout } from "@/layouts/app-layout"
 import { ProtectedRoute, PublicOnlyRoute } from "@/lib/route-guards"
 import { CalculatorPage } from "@/pages/calculator-page"
-import { CommissionPage } from "@/pages/commission-page"
 import { CreateOrderPage } from "@/pages/create-order-page"
 import { DashboardPage } from "@/pages/dashboard-page"
 import { EditOrderPage } from "@/pages/edit-order-page"
 import { ExpensesPage } from "@/pages/expenses-page"
 import { FinancePage } from "@/pages/finance-page"
+import { IncentivesPage } from "@/pages/incentives-page"
 import { LoginPage } from "@/pages/login-page"
 import { NotFoundPage } from "@/pages/not-found-page"
 import { OrderDetailsPage } from "@/pages/order-details-page"
@@ -84,10 +84,10 @@ function App() {
           }
         />
         <Route
-          path="/commissions"
+          path="/incentives"
           element={
-            <ProtectedRoute permission="manage_commissions">
-              <CommissionPage />
+            <ProtectedRoute permission="manage_incentives">
+              <IncentivesPage />
             </ProtectedRoute>
           }
         />

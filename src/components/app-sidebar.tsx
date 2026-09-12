@@ -1,12 +1,12 @@
 import type { ComponentProps, MouseEvent } from "react"
 import {
   CalculatorIcon,
-  HandCoinsIcon,
   LayoutDashboardIcon,
   LineChartIcon,
   PackageIcon,
   ReceiptTextIcon,
   ShoppingCartIcon,
+  TrophyIcon,
   UsersIcon,
 } from "lucide-react"
 import { NavLink, useLocation } from "react-router-dom"
@@ -38,7 +38,7 @@ const navItems = [
   { title: "Calculator", url: "/calculator", icon: CalculatorIcon },
   { title: "Expenses", url: "/expenses", icon: ReceiptTextIcon },
   { title: "Finance", url: "/finance", icon: LineChartIcon },
-  { title: "Commissions", url: "/commissions", icon: HandCoinsIcon },
+  { title: "Incentives", url: "/incentives", icon: TrophyIcon },
   { title: "Users", url: "/users", icon: UsersIcon },
 ]
 
@@ -51,7 +51,7 @@ export function AppSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
       (item.url !== "/users" || role !== "staff") &&
       (item.url !== "/expenses" || hasPermission("manage_expenses")) &&
       (item.url !== "/finance" || role === "admin" || role === "superadmin") &&
-      (item.url !== "/commissions" || hasPermission("manage_commissions"))
+      (item.url !== "/incentives" || hasPermission("manage_incentives"))
   )
 
   function guardedNavClick(url: string) {
