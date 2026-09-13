@@ -32,7 +32,7 @@ import {
 } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { useAuth } from "@/lib/auth"
-import { useCategories, useHotSizes, type CommonSize } from "@/lib/categories"
+import { useCategories, type CommonSize } from "@/lib/categories"
 import { copyToClipboard } from "@/lib/clipboard"
 import { calculateLaminatedStickerQuotation } from "@/lib/laminated-sticker-quotation"
 import { convertToFeet, LENGTH_UNITS, type LengthUnit } from "@/lib/length-units"
@@ -56,8 +56,7 @@ export function CalculatorPage() {
   const { hasPermission } = useAuth()
   const canCreateOrder = hasPermission("manage_orders")
   const { products } = useProductCatalog()
-  const { categories } = useCategories()
-  const { hotSizes, isLoading: hotSizesLoading } = useHotSizes()
+  const { categories, isLoading: categoriesLoading } = useCategories()
   const { settings } = useSettings()
 
   const [category, setCategory] = useState<ProductCategory | null>(null)
@@ -153,9 +152,9 @@ export function CalculatorPage() {
   const tarpaulinCategory = categories.find((c) => c.name === "Tarpaulin")
   const quickSizes: CommonSize[] | null =
     category === "Sticker" || category === "Laminated Sticker"
-      ? [...(stickerLabelCategory?.commonSizes ?? []), ...(hotSizes?.stickerLabel ?? [])]
+      ? (stickerLabelCategory?.commonSizes ?? [])
       : category === "Tarpaulin"
-        ? [...(tarpaulinCategory?.commonSizes ?? []), ...(hotSizes?.tarpaulin ?? [])]
+        ? (tarpaulinCategory?.commonSizes ?? [])
         : null
   const width_ = Number(width)
   const height_ = Number(height)
@@ -343,7 +342,7 @@ export function CalculatorPage() {
 
                 <QuickSizeChips
                   sizes={quickSizes ?? []}
-                  isLoading={hotSizesLoading}
+                  isLoading={categoriesLoading}
                   onSelect={handleSelectStickerSize}
                 />
 
@@ -403,7 +402,7 @@ export function CalculatorPage() {
 
                 <QuickSizeChips
                   sizes={quickSizes ?? []}
-                  isLoading={hotSizesLoading}
+                  isLoading={categoriesLoading}
                   onSelect={handleSelectStickerSize}
                 />
 
@@ -502,7 +501,7 @@ export function CalculatorPage() {
                     {selectedProduct && category === "Tarpaulin" && showsDimensions && (
                       <QuickSizeChips
                         sizes={quickSizes ?? []}
-                        isLoading={hotSizesLoading}
+                        isLoading={categoriesLoading}
                         onSelect={handleSelectTarpaulinSize}
                       />
                     )}

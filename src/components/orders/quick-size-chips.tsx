@@ -3,9 +3,7 @@ import { formatSize } from "@/lib/quick-sizes"
 import { cn } from "@/lib/utils"
 import { Skeleton } from "@/components/ui/skeleton"
 
-/** One merged, undifferentiated row of quick-select size chips — admin-configured common
- * sizes and computed hot sizes are already merged/deduped by the caller (calculator-page.tsx)
- * before reaching here, so this component never distinguishes "common" from "hot". Clicking
+/** Quick-select size chips sourced from a category's admin-configured `commonSizes`. Clicking
  * a chip is a one-shot prefill action, not a persistent choice, so chips carry no selected
  * state. Kept external to StickerQuotationFields/LaminatedStickerQuotationFields — those are
  * shared with the real Order Form and must not change shape for this feature. */
