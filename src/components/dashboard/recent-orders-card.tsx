@@ -60,8 +60,12 @@ export function RecentOrdersCard() {
                     {formatRelativeDate(order.createdAt)} · {order.channel}
                   </span>
                 </div>
-                <OrderStatusBadge status={order.status} statusUpdatedAt={order.statusUpdatedAt} />
-                <PaymentStatusBadge status={order.payment.status} />
+                <OrderStatusBadge
+                  status={order.status}
+                  statusUpdatedAt={order.statusUpdatedAt}
+                  className="min-w-28 justify-center"
+                />
+                <PaymentStatusBadge status={order.payment.status} className="min-w-28 justify-center" />
                 <span className="text-right font-medium tabular-nums">
                   {formatCurrency(order.total)}
                 </span>

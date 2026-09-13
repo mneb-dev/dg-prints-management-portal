@@ -4,15 +4,10 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Empty, EmptyDescription, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
 import { Skeleton } from "@/components/ui/skeleton"
+import { RANK_BADGE_CLASSES } from "@/lib/rank-badge"
 import { cn } from "@/lib/utils"
 import { HOT_PRODUCT_TOP_N, useHotProductIds } from "@/lib/orders"
 import { useProductCatalog } from "@/lib/products"
-
-const RANK_BADGE_CLASSES = [
-  "bg-status-warning text-white",
-  "bg-muted-foreground/70 text-white",
-  "bg-status-progress/80 text-white",
-] as const
 
 // Always featured regardless of order-count ranking; remaining slots still rank by order count.
 const PINNED_HOT_PRODUCT_NAMES = ["Sticker Label", "Tarpaulin", "Sintra"]

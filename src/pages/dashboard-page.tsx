@@ -29,7 +29,7 @@ export function DashboardPage() {
   const { refresh, isRefreshing } = useDashboardRefresh()
   const navigate = useNavigate()
   const { statuses } = useActiveOrderStatuses()
-  const { getLabel, getIcon, getColors } = useOrderStatusLookup()
+  const { getLabel, getIcon } = useOrderStatusLookup()
 
   // Every active, non-terminal, non-excluded status gets a tile, in admin-configured order —
   // including ones with a current count of 0, since the loop is driven by the master status
@@ -44,7 +44,7 @@ export function DashboardPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-8">
       <PageHeader
         title="Dashboard"
         description="Snapshot of orders, payments, and demand."
@@ -68,20 +68,25 @@ export function DashboardPage() {
               icon={getIcon(item.name)}
               label={getLabel(item.name)}
               value={stats?.byStatus[item.name] ?? 0}
-              iconClassName={getColors(item.name).badge}
-              ringClassName={getColors(item.name).ring}
               onClick={() => goToOrders(item.name)}
             />
           </div>
         ))}
       </div>
 
+      <SalesChartCard />
+
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <StatusPipelineCard />
         <PaymentSummaryCard />
-        <SalesChartCard />
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <RecentOrdersCard />
         <TopCustomersCard />
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <HotProductsCard className="lg:col-span-2" />
         <ChannelMixCard />
       </div>

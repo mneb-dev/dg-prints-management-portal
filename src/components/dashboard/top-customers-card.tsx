@@ -4,32 +4,15 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Empty, EmptyDescription, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
 import { Skeleton } from "@/components/ui/skeleton"
+import { RANK_BADGE_CLASSES } from "@/lib/rank-badge"
 import { cn, formatCurrency } from "@/lib/utils"
 import { useCustomerRankings } from "@/lib/orders"
 
-const RANK_BADGE_CLASSES = [
-  "bg-status-warning text-white",
-  "bg-muted-foreground/70 text-white",
-  "bg-status-progress/80 text-white",
-] as const
-
-const AVATAR_TONE_CLASSES = [
-  "bg-primary/15 text-primary",
-  "bg-status-info/15 text-status-info",
-  "bg-status-success/15 text-status-success",
-  "bg-status-progress/15 text-status-progress",
-  "bg-status-ready/15 text-status-ready",
-  "bg-status-warning/15 text-status-warning",
-] as const
+const AVATAR_TONE_CLASSES = "bg-muted text-muted-foreground"
 
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/)
   return (parts[0]?.[0] ?? "").concat(parts.length > 1 ? (parts.at(-1)?.[0] ?? "") : "").toUpperCase()
-}
-
-function avatarTone(name: string): string {
-  const hash = name.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0)
-  return AVATAR_TONE_CLASSES[hash % AVATAR_TONE_CLASSES.length]
 }
 
 export function TopCustomersCard() {
@@ -84,7 +67,7 @@ export function TopCustomersCard() {
                     </span>
                   )}
                   <Avatar size="sm">
-                    <AvatarFallback className={avatarTone(customer.customerName)}>
+                    <AvatarFallback className={AVATAR_TONE_CLASSES}>
                       {initials(customer.customerName)}
                     </AvatarFallback>
                   </Avatar>
