@@ -2,6 +2,7 @@ import { createAsyncThunk, createSlice, type PayloadAction } from "@reduxjs/tool
 
 import { apiClient } from "@/lib/api-client"
 import { getErrorMessage } from "@/lib/api-error"
+import type { RootState } from "@/lib/store"
 
 export type OrderChannelItem = {
   id: string
@@ -12,18 +13,27 @@ export type OrderChannelItem = {
   updatedAt: string
 }
 
+// See order-statuses-slice.ts's fetchOrderStatusesThunk for why `condition` (checked
+// synchronously against live state at dispatch time) is needed instead of relying solely on the
+// component-level `if (status === "idle")` guard in order-channels.tsx's useOrderChannels().
 export const fetchOrderChannelsThunk = createAsyncThunk<
   OrderChannelItem[],
   void,
-  { rejectValue: string }
->("orderChannels/fetchAll", async (_arg, { rejectWithValue }) => {
-  try {
-    const { data } = await apiClient.get<OrderChannelItem[]>("/order-channels")
-    return data
-  } catch (err) {
-    return rejectWithValue(getErrorMessage(err))
+  { rejectValue: string; state: RootState }
+>(
+  "orderChannels/fetchAll",
+  async (_arg, { rejectWithValue }) => {
+    try {
+      const { data } = await apiClient.get<OrderChannelItem[]>("/order-channels")
+      return data
+    } catch (err) {
+      return rejectWithValue(getErrorMessage(err))
+    }
+  },
+  {
+    condition: (_arg, { getState }) => getState().orderChannels.status === "idle",
   }
-})
+)
 
 export const createOrderChannelThunk = createAsyncThunk<
   OrderChannelItem,

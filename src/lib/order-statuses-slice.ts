@@ -2,6 +2,7 @@ import { createAsyncThunk, createSlice, type PayloadAction } from "@reduxjs/tool
 
 import { apiClient } from "@/lib/api-client"
 import { getErrorMessage } from "@/lib/api-error"
+import type { RootState } from "@/lib/store"
 
 export type OrderStatusItem = {
   id: string
@@ -23,18 +24,29 @@ export type OrderStatusInput = {
   color?: string
 }
 
+// `condition` is checked synchronously at dispatch time against the freshest state, unlike the
+// component-level `if (status === "idle")` guard in order-statuses.tsx's useOrderStatuses(),
+// which races when several sibling components mount together (all read "idle" before the first
+// dispatch's `pending` case has a chance to flip it) -- this is what caused the same
+// GET /order-statuses to fire multiple times on a single dashboard load.
 export const fetchOrderStatusesThunk = createAsyncThunk<
   OrderStatusItem[],
   void,
-  { rejectValue: string }
->("orderStatuses/fetchAll", async (_arg, { rejectWithValue }) => {
-  try {
-    const { data } = await apiClient.get<OrderStatusItem[]>("/order-statuses")
-    return data
-  } catch (err) {
-    return rejectWithValue(getErrorMessage(err))
+  { rejectValue: string; state: RootState }
+>(
+  "orderStatuses/fetchAll",
+  async (_arg, { rejectWithValue }) => {
+    try {
+      const { data } = await apiClient.get<OrderStatusItem[]>("/order-statuses")
+      return data
+    } catch (err) {
+      return rejectWithValue(getErrorMessage(err))
+    }
+  },
+  {
+    condition: (_arg, { getState }) => getState().orderStatuses.status === "idle",
   }
-})
+)
 
 export const createOrderStatusThunk = createAsyncThunk<
   OrderStatusItem,

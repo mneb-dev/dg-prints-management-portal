@@ -9,8 +9,9 @@ import {
   resetUserPasswordThunk,
   setUsersParams,
   updateUserThunk,
+  userOptionsRequestKey,
 } from "@/lib/users-slice"
-import type { Role, User, UserInput, UserOption, UsersQueryParams } from "@/lib/users-slice"
+import type { Role, User, UserInput, UsersQueryParams } from "@/lib/users-slice"
 
 export {
   canManageUser,
@@ -86,28 +87,20 @@ export function useUsers() {
  */
 export function useUserOptions(enabled = true, includeInactive = false, role?: Role) {
   const dispatch = useAppDispatch()
-  const [users, setUsers] = useState<UserOption[]>([])
-  const [isLoading, setIsLoading] = useState(enabled)
+  const key = userOptionsRequestKey({ includeInactive, role })
+  // Cached in Redux (fetched once per session per distinct args), same convention as every other
+  // reference-data hook in this codebase — this used to be local component state with no
+  // dedup, so several components mounting with the same args each fired their own identical
+  // request to /users/options.
+  const users = useAppSelector((state) => state.users.optionsCache[key])
+  const isCached = users !== undefined
 
   useEffect(() => {
-    if (!enabled) return
-    let cancelled = false
-    setIsLoading(true)
+    if (!enabled || isCached) return
     dispatch(fetchUserOptionsThunk({ includeInactive, role }))
-      .unwrap()
-      .then((result) => {
-        if (!cancelled) setUsers(result)
-      })
-      .catch(() => {})
-      .finally(() => {
-        if (!cancelled) setIsLoading(false)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [dispatch, enabled, includeInactive, role])
+  }, [dispatch, enabled, includeInactive, role, isCached])
 
-  return { users, isLoading }
+  return { users: users ?? [], isLoading: enabled && !isCached }
 }
 
 /**

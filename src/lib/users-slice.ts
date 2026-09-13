@@ -115,28 +115,51 @@ export const fetchUsersThunk = createAsyncThunk<
   }
 })
 
+/** Serializes fetchUserOptionsThunk's args into a stable key so `condition`, optionsCache, and
+ * the in-flight tracker can tell two identical-args requests apart from two genuinely different
+ * ones (e.g. one caller wanting `{role: "staff"}` and another wanting everyone). */
+export function userOptionsRequestKey(arg: { includeInactive?: boolean; role?: Role } | undefined): string {
+  return JSON.stringify({ includeInactive: !!arg?.includeInactive, role: arg?.role ?? null })
+}
+
 /** Not gated behind manage_users — any authenticated role can fetch user options for pickers
  *  (e.g. the order "Layout by" field, or the dashboard sales-by-creator filter). Defaults to
  *  active users only; pass `{ includeInactive: true }` to list everyone. Pass `{ role: "staff" }`
  *  to further restrict the roster to one role (e.g. a staff viewer's sales filter should never see
- *  admin/superadmin as pickable names). See users.tsx#useUserOptions. */
+ *  admin/superadmin as pickable names). See users.tsx#useUserOptions.
+ *
+ *  `condition` dedupes concurrent requests sharing the same args (checked synchronously against
+ *  live state at dispatch time) -- useUserOptions() has no Redux-level caching of its own (it
+ *  keeps results in local component state so different callers can pass different args), so
+ *  without this, several components mounting with the same args each fired their own identical
+ *  request to /users/options. */
 export const fetchUserOptionsThunk = createAsyncThunk<
   UserOption[],
   { includeInactive?: boolean; role?: Role } | undefined,
-  { rejectValue: string }
->("users/fetchOptions", async (arg, { rejectWithValue }) => {
-  try {
-    const { data } = await apiClient.get<UserOption[]>("/users/options", {
-      params: {
-        ...(arg?.includeInactive ? { includeInactive: true } : undefined),
-        ...(arg?.role ? { role: arg.role } : undefined),
-      },
-    })
-    return data
-  } catch (err) {
-    return rejectWithValue(getErrorMessage(err))
+  { rejectValue: string; state: RootState }
+>(
+  "users/fetchOptions",
+  async (arg, { rejectWithValue }) => {
+    try {
+      const { data } = await apiClient.get<UserOption[]>("/users/options", {
+        params: {
+          ...(arg?.includeInactive ? { includeInactive: true } : undefined),
+          ...(arg?.role ? { role: arg.role } : undefined),
+        },
+      })
+      return data
+    } catch (err) {
+      return rejectWithValue(getErrorMessage(err))
+    }
+  },
+  {
+    condition: (arg, { getState }) => {
+      const key = userOptionsRequestKey(arg)
+      const state = getState().users
+      return !(key in state.optionsCache) && !state.optionsInFlightKeys.includes(key)
+    },
   }
-})
+)
 
 export const createUserThunk = createAsyncThunk<User, UserInput, { rejectValue: string }>(
   "users/create",
@@ -195,6 +218,16 @@ type UsersState = {
   error: string | null
   latestRequestId: string | null
   params: UsersQueryParams
+  // Cached fetchUserOptionsThunk results, keyed by userOptionsRequestKey(args) -- fetched once
+  // per session per distinct (includeInactive, role) combination, same "fetch once and share via
+  // Redux" convention as every other reference-data hook in this codebase (categories,
+  // order-statuses, order-channels, ...). useUserOptions() used to keep its result in local
+  // component state instead, so without this, several components mounting with the same args
+  // each fired their own identical request to /users/options.
+  optionsCache: Record<string, UserOption[]>
+  // Keys currently being fetched — lets `condition` also skip a second concurrent request for a
+  // key that hasn't resolved into optionsCache yet.
+  optionsInFlightKeys: string[]
 }
 
 const initialState: UsersState = {
@@ -203,6 +236,8 @@ const initialState: UsersState = {
   status: "idle",
   error: null,
   latestRequestId: null,
+  optionsCache: {},
+  optionsInFlightKeys: [],
   params: {
     page: 1,
     pageSize: 10,
@@ -239,6 +274,18 @@ const usersSlice = createSlice({
         if (action.meta.requestId !== state.latestRequestId) return
         state.status = "failed"
         state.error = action.payload ?? "Failed to load users."
+      })
+      .addCase(fetchUserOptionsThunk.pending, (state, action) => {
+        state.optionsInFlightKeys.push(userOptionsRequestKey(action.meta.arg))
+      })
+      .addCase(fetchUserOptionsThunk.fulfilled, (state, action) => {
+        const key = userOptionsRequestKey(action.meta.arg)
+        state.optionsInFlightKeys = state.optionsInFlightKeys.filter((k) => k !== key)
+        state.optionsCache[key] = action.payload
+      })
+      .addCase(fetchUserOptionsThunk.rejected, (state, action) => {
+        const key = userOptionsRequestKey(action.meta.arg)
+        state.optionsInFlightKeys = state.optionsInFlightKeys.filter((k) => k !== key)
       })
   },
 })
