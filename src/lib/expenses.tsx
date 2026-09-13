@@ -3,6 +3,7 @@ import { useEffect } from "react"
 import { useAppDispatch, useAppSelector } from "@/lib/hooks"
 import {
   createExpenseThunk,
+  createExpensesBatchThunk,
   createRecurringExpenseThunk,
   deleteExpenseThunk,
   deleteRecurringExpenseThunk,
@@ -88,6 +89,12 @@ export function useExpenseActions() {
     await dispatch(createExpenseThunk(input)).unwrap()
   }
 
+  /** Creates several expenses in one request — for "Run Payroll", which previously called
+   * addExpense() once per selected staff member. */
+  async function addExpenses(inputs: ExpenseInput[]) {
+    await dispatch(createExpensesBatchThunk(inputs)).unwrap()
+  }
+
   async function updateExpense(id: string, input: ExpenseInput) {
     await dispatch(updateExpenseThunk({ id, input })).unwrap()
   }
@@ -96,7 +103,7 @@ export function useExpenseActions() {
     await dispatch(deleteExpenseThunk(id)).unwrap()
   }
 
-  return { addExpense, updateExpense, deleteExpense }
+  return { addExpense, addExpenses, updateExpense, deleteExpense }
 }
 
 /** Full recurring-expense schedule list (admin/superadmin only), fetched once per session. */

@@ -426,6 +426,32 @@ export const fetchOrderStatsThunk = createAsyncThunk<
   }
 )
 
+type DashboardSummaryResponse = {
+  stats: OrderStats
+  recentOrders: Order[]
+  customers: CustomerRanking[]
+  windowDays: number
+}
+
+/** Combines the three "fetch once per session" dashboard queries (stats, last-100-orders
+ * ranking sample, top customers) into one request — used by the Dashboard's manual refresh
+ * button, which previously fired fetchOrderStatsThunk/fetchRecentOrdersForRankingThunk/
+ * fetchTopCustomersThunk as three separate requests via Promise.all. Its reducer cases below
+ * update the exact same state fields those three thunks do, so anything reading orderStats/
+ * recentOrders/hotProductIds/customerRankings doesn't need to know which path populated them. */
+export const fetchDashboardSummaryThunk = createAsyncThunk<
+  DashboardSummaryResponse,
+  void,
+  { rejectValue: string }
+>("orders/fetchDashboardSummary", async (_arg, { rejectWithValue }) => {
+  try {
+    const { data } = await apiClient.get<DashboardSummaryResponse>("/orders/dashboard-summary")
+    return data
+  } catch (err) {
+    return rejectWithValue(getErrorMessage(err))
+  }
+})
+
 // Unlike products, order items don't need their ids stripped before POSTing: the
 // server always force-regenerates item ids on create, and reuses client-supplied
 // item ids on update — which is exactly what's wanted so an edited item is upserted
@@ -642,6 +668,31 @@ const ordersSlice = createSlice({
       .addCase(fetchOrderStatsThunk.rejected, (state, action) => {
         state.orderStatsStatus = "failed"
         state.orderStatsError = action.payload ?? "Failed to load order stats."
+      })
+      .addCase(fetchDashboardSummaryThunk.pending, (state) => {
+        state.orderStatsStatus = "loading"
+        state.orderStatsError = null
+        state.rankingStatus = "loading"
+        state.rankingError = null
+        state.customerRankingStatus = "loading"
+        state.customerRankingError = null
+      })
+      .addCase(fetchDashboardSummaryThunk.fulfilled, (state, action: PayloadAction<DashboardSummaryResponse>) => {
+        state.orderStatsStatus = "succeeded"
+        state.orderStats = action.payload.stats
+        state.rankingStatus = "succeeded"
+        state.hotProductIds = computeHotProductIds(action.payload.recentOrders)
+        state.recentOrders = action.payload.recentOrders.map(normalizeOrder)
+        state.customerRankingStatus = "succeeded"
+        state.customerRankings = action.payload.customers
+      })
+      .addCase(fetchDashboardSummaryThunk.rejected, (state, action) => {
+        state.orderStatsStatus = "failed"
+        state.orderStatsError = action.payload ?? "Failed to refresh dashboard."
+        state.rankingStatus = "failed"
+        state.rankingError = action.payload ?? "Failed to refresh dashboard."
+        state.customerRankingStatus = "failed"
+        state.customerRankingError = action.payload ?? "Failed to refresh dashboard."
       })
       .addCase(fetchSalesOrdersThunk.pending, (state, action) => {
         state.salesStatus = "loading"

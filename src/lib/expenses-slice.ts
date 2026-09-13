@@ -144,6 +144,21 @@ export const createExpenseThunk = createAsyncThunk<Expense, ExpenseInput, { reje
   }
 )
 
+/** Same as createExpenseThunk, but for several expenses in one request -- used by "Run Payroll",
+ * which previously fired one createExpenseThunk per selected staff member. */
+export const createExpensesBatchThunk = createAsyncThunk<
+  Expense[],
+  ExpenseInput[],
+  { rejectValue: string }
+>("expenses/createBatch", async (expenses, { rejectWithValue }) => {
+  try {
+    const { data } = await apiClient.post<{ expenses: Expense[] }>("/expenses/batch", { expenses })
+    return data.expenses
+  } catch (err) {
+    return rejectWithValue(getErrorMessage(err))
+  }
+})
+
 export const updateExpenseThunk = createAsyncThunk<
   Expense,
   { id: string; input: ExpenseInput },

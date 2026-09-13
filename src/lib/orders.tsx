@@ -6,6 +6,7 @@ import {
   createOrderThunk,
   DEFAULT_ORDERS_PARAMS,
   deleteOrderThunk,
+  fetchDashboardSummaryThunk,
   fetchOrderByIdThunk,
   fetchOrderStatsThunk,
   fetchOrdersThunk,
@@ -232,11 +233,7 @@ export function useDashboardRefresh() {
     setIsRefreshing(true)
     dispatch(markDashboardStale())
     try {
-      await Promise.all([
-        dispatch(fetchOrderStatsThunk()).unwrap(),
-        dispatch(fetchRecentOrdersForRankingThunk()).unwrap(),
-        dispatch(fetchTopCustomersThunk()).unwrap(),
-      ])
+      await dispatch(fetchDashboardSummaryThunk()).unwrap()
     } catch (err) {
       toast.error(typeof err === "string" ? err : "Failed to refresh dashboard.")
     } finally {

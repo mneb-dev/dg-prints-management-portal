@@ -79,7 +79,7 @@ export function RunPayrollDialog({
   onCreated?: () => void
 }) {
   const { staff, isLoading: isStaffLoading } = useStaffWithDailyRate(open)
-  const { addExpense } = useExpenseActions()
+  const { addExpenses } = useExpenseActions()
 
   const [selectedStaffIds, setSelectedStaffIds] = useState<Set<string>>(new Set())
   const [selectedDates, setSelectedDates] = useState<Date[]>([])
@@ -112,16 +112,14 @@ export function RunPayrollDialog({
       const today = format(new Date(), "yyyy-MM-dd")
       const dateLabel = formatDateRanges(selectedDates)
 
-      await Promise.all(
-        includedStaff.map((person) =>
-          addExpense({
-            date: today,
-            amount: (person.dailyRate ?? 0) * dayCount,
-            category: "Payroll and Employee Costs",
-            paymentMethod: "Cash",
-            notes: `Payroll — ${person.firstName} ${person.lastName} (${dayCount} day${dayCount === 1 ? "" : "s"}: ${dateLabel})`,
-          })
-        )
+      await addExpenses(
+        includedStaff.map((person) => ({
+          date: today,
+          amount: (person.dailyRate ?? 0) * dayCount,
+          category: "Payroll and Employee Costs",
+          paymentMethod: "Cash",
+          notes: `Payroll — ${person.firstName} ${person.lastName} (${dayCount} day${dayCount === 1 ? "" : "s"}: ${dateLabel})`,
+        }))
       )
       toast.success(`Payroll recorded for ${includedStaff.length} staff member${includedStaff.length === 1 ? "" : "s"}.`)
       setConfirmOpen(false)
