@@ -229,11 +229,6 @@ export function OrderDetailsPage() {
   function handleCopySummary() {
     if (items.length === 0 || !order) return
 
-    console.log(
-      "Order item notes:",
-      items.map((item) => ({ name: item.productName, notes: item.notes }))
-    )
-
     const infoLines = buildCopyableOrderText(
       items.map((item) => {
         const copyable: CopyableLineItem = {
@@ -609,21 +604,17 @@ export function OrderDetailsPage() {
                 )}
               </div>
               <p className="text-sm text-muted-foreground">
-                Created by{" "}
-                <span >{order.createdByName || "Unknown user"}</span>{" "}
-                {" "}
+                Created by <span>{order.createdByName || "Unknown user"}</span>{" "}
                 <Tooltip>
                   <TooltipTrigger className="font-medium text-foreground">
                     {formatRelativeDate(order.createdAt)}
                   </TooltipTrigger>
-                  <TooltipContent >{formatDate(order.createdAt)}</TooltipContent>
+                  <TooltipContent>{formatDate(order.createdAt)}</TooltipContent>
                 </Tooltip>
               </p>
               {order.statusUpdatedAt && (
                 <p className="text-sm text-muted-foreground">
-                  Status updated by{" "}
-                  <span >{order.statusUpdatedByName || "Unknown user"}</span>{" "}
-                  {" "}
+                  Status updated by <span>{order.statusUpdatedByName || "Unknown user"}</span>{" "}
                   <Tooltip>
                     <TooltipTrigger className="font-medium text-foreground">
                       {formatRelativeDate(order.statusUpdatedAt)}

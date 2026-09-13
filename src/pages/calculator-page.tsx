@@ -214,7 +214,6 @@ export function CalculatorPage() {
         : isSintraCustom
           ? hasValidCustomSize
           : quote !== null
-  
 
   function buildQuoteText(): string | null {
     if (!category || !selectedProduct) return null
@@ -586,7 +585,8 @@ export function CalculatorPage() {
           </Button>
           {(category === "Sticker" || category === "Laminated Sticker") && (
             <Button type="button" variant="outline" disabled={!hasQuote} onClick={handleCopyQuoteWithShipping}>
-             <TruckIcon  data-icon="inline-start" /> Copy quote + SF
+              <TruckIcon data-icon="inline-start" />
+              Copy quote + SF
             </Button>
           )}
           {canCreateOrder && (

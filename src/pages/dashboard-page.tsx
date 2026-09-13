@@ -29,7 +29,7 @@ export function DashboardPage() {
   const { refresh, isRefreshing } = useDashboardRefresh()
   const navigate = useNavigate()
   const { statuses } = useActiveOrderStatuses()
-  const { getLabel, getIcon } = useOrderStatusLookup()
+  const { getLabel, getIcon, getColors } = useOrderStatusLookup()
 
   // Every active, non-terminal, non-excluded status gets a tile, in admin-configured order —
   // including ones with a current count of 0, since the loop is driven by the master status
@@ -62,16 +62,21 @@ export function DashboardPage() {
       />
 
       <div className="flex min-w-0 gap-3 overflow-x-auto overflow-y-visible p-2 sm:overflow-visible sm:p-0">
-        {workflowStatuses.map((item) => (
-          <div key={item.id} className="w-32 shrink-0 sm:w-0 sm:min-w-0 sm:flex-1">
-            <StatCard
-              icon={getIcon(item.name)}
-              label={getLabel(item.name)}
-              value={stats?.byStatus[item.name] ?? 0}
-              onClick={() => goToOrders(item.name)}
-            />
-          </div>
-        ))}
+        {workflowStatuses.map((item) => {
+          const colors = getColors(item.name)
+          return (
+            <div key={item.id} className="w-32 shrink-0 sm:w-0 sm:min-w-0 sm:flex-1">
+              <StatCard
+                icon={getIcon(item.name)}
+                label={getLabel(item.name)}
+                value={stats?.byStatus[item.name] ?? 0}
+                iconClassName={colors.badge}
+                ringClassName={colors.ring}
+                onClick={() => goToOrders(item.name)}
+              />
+            </div>
+          )
+        })}
       </div>
 
       <SalesChartCard />
