@@ -178,7 +178,9 @@ export function PaymentFields({
             <span>{isShopee ? "Bank Transfer" : paymentMethod}</span>
           </div>
           <div className="flex items-center justify-between">
-            <span className="text-muted-foreground">Down Payment</span>
+            <span className="text-muted-foreground">
+              {paymentStatus === "partially_paid" ? "Down Payment" : "Amount Paid"}
+            </span>
             <span>
               {formatCurrency(
                 paymentStatus === "partially_paid" ? Number(downPayment) || 0 : total

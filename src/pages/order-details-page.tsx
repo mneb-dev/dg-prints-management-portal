@@ -511,7 +511,9 @@ export function OrderDetailsPage() {
                   <span className="text-muted-foreground">Method</span>
                   <span className="justify-self-end">{order.payment.method}</span>
 
-                  <span className="text-muted-foreground">Down Payment</span>
+                  <span className="text-muted-foreground">
+                    {order.payment.status === "partially_paid" ? "Down Payment" : "Amount Paid"}
+                  </span>
                   <span className="justify-self-end">{formatCurrency(order.payment.downPayment)}</span>
 
                   <span className="text-muted-foreground">Balance</span>
