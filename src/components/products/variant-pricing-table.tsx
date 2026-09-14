@@ -1,4 +1,4 @@
-import { useEffect } from "react"
+import { useEffect, useMemo } from "react"
 
 import { CurrencyInput } from "@/components/ui/currency-input"
 import {
@@ -57,7 +57,16 @@ export function VariantPricingTable({
   pricing: PricingEntry[]
   onChange: (pricing: PricingEntry[]) => void
 }) {
-  const combinations = cartesianOptionCombinations(options)
+  // Cheap signature of exactly what determines the combination set, computed before the
+  // (combinatorial, more expensive) cartesianOptionCombinations call -- lets both the useMemo
+  // below and the reconcile effect key off a plain string instead of recomputing combinations
+  // and JSON.stringify-ing the result on every render just to detect "did anything change".
+  const optionsSignature = options.map((option) => `${option.id}:${option.values.join(",")}`).join("|")
+  const combinations = useMemo(
+    () => cartesianOptionCombinations(options),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [optionsSignature]
+  )
   const columns = options.filter((option) => option.values.length > 0)
 
   useEffect(() => {
@@ -78,7 +87,7 @@ export function VariantPricingTable({
     if (!unchanged) onChange(reconciled)
     // Only re-reconcile when the set of combinations itself changes — not on every price edit.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [JSON.stringify(combinations)])
+  }, [optionsSignature])
 
   if (combinations.length === 0) {
     return (

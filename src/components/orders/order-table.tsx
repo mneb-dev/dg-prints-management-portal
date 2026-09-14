@@ -12,7 +12,7 @@ import {
   TriangleAlertIcon,
   XIcon,
 } from "lucide-react"
-import { useEffect, useState, type ReactNode } from "react"
+import { type ReactNode } from "react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -33,6 +33,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { TickingText } from "@/components/ticking-text"
 import {
   describeOrderItemFull,
   describeOrderItemParts,
@@ -92,12 +93,6 @@ export function OrderTable({
   onRequestOR: (order: Order) => void
 }) {
   const isAdminTier = canEditOrderMetadata(role)
-
-  const [, forceTick] = useState(0)
-  useEffect(() => {
-    const id = setInterval(() => forceTick((t) => t + 1), 30_000)
-    return () => clearInterval(id)
-  }, [])
 
   if (isLoading) {
     return (
@@ -331,7 +326,7 @@ export function OrderTable({
                   )}
                 </TableCell>
                 <TableCell className="px-4 text-muted-foreground">
-                  {formatTimeAgo(order.statusUpdatedAt)}
+                  <TickingText intervalMs={30_000} format={() => formatTimeAgo(order.statusUpdatedAt)} />
                 </TableCell>
                 <TableCell className="px-4 text-right">
                   <div className="flex justify-end gap-1">

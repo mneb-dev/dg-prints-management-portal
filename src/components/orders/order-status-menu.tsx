@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { ChevronDownIcon, HourglassIcon, Loader2Icon } from "lucide-react"
 
 import {
@@ -20,6 +20,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Spinner } from "@/components/ui/spinner"
+import { TickingText } from "@/components/ticking-text"
 import { useCategories } from "@/lib/categories"
 import { useActiveOrderStatuses, useOrderStatusLookup } from "@/lib/order-statuses"
 import {
@@ -64,12 +65,7 @@ export function OrderStatusMenu({
   const { getLabel, getIcon, getColors } = useOrderStatusLookup()
   const [pendingStatus, setPendingStatus] = useState<OrderStatus | null>(null)
 
-  const [, forceTick] = useState(0)
-  useEffect(() => {
-    if (order.status !== CURING_STATUS_NAME) return
-    const id = setInterval(() => forceTick((t) => t + 1), 30_000)
-    return () => clearInterval(id)
-  }, [order.status])
+  const isCuring = order.status === CURING_STATUS_NAME
 
   const options = getOrderStatusOptions(
     order,
@@ -78,8 +74,10 @@ export function OrderStatusMenu({
     statuses.map((s) => s.name)
   )
   const Icon = getIcon(order.status)
-  const curingDuration =
-    order.status === CURING_STATUS_NAME ? formatCuringDuration(order.statusUpdatedAt) : null
+  // Ticks independently every 30s (see TickingText) instead of driving this whole menu's
+  // re-render off a timer -- curingDuration itself is only used for the confirm-dialog copy
+  // below, which doesn't need to tick.
+  const curingDuration = isCuring ? formatCuringDuration(order.statusUpdatedAt) : null
 
   async function commitStatus(status: OrderStatus) {
     onOptimisticChange?.(status)
@@ -130,7 +128,15 @@ export function OrderStatusMenu({
             <Icon data-icon="inline-start" />
           )}
           {getLabel(order.status)}
-          {curingDuration && ` ${curingDuration}`}
+          {isCuring && (
+            <TickingText
+              intervalMs={30_000}
+              format={() => {
+                const duration = formatCuringDuration(order.statusUpdatedAt)
+                return duration ? ` ${duration}` : null
+              }}
+            />
+          )}
           <ChevronDownIcon className={cn("opacity-70", size === "lg" ? "size-4" : "size-3")} />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start">
