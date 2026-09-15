@@ -147,14 +147,12 @@ export function ChannelMixCard() {
 
             <div className="flex w-full flex-col gap-2 text-sm">
               {rows.map((row) => (
-                <div key={row.channel} className="flex items-center justify-between gap-2">
-                  <span className="flex min-w-0 items-center gap-2">
-                    <span className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: row.fill }} />
-                    <span className="truncate" title={row.channel}>
-                      {row.channel}
-                    </span>
+                <div key={row.channel} className="flex items-center gap-2">
+                  <span className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: row.fill }} />
+                  <span className="min-w-0 flex-1 truncate" title={row.channel}>
+                    {row.channel}
                   </span>
-                  <span className="shrink-0 font-medium tabular-nums">{row.labelText}</span>
+                  <span className="shrink-0 whitespace-nowrap font-medium tabular-nums">{row.labelText}</span>
                 </div>
               ))}
             </div>
