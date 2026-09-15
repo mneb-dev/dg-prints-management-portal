@@ -1,4 +1,4 @@
-import { Share2Icon, TriangleAlertIcon } from "lucide-react"
+import { CreditCardIcon, TriangleAlertIcon } from "lucide-react"
 import { Cell, Pie, PieChart } from "recharts"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -8,7 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { MASKED_AMOUNT, useSalesVisibility } from "@/lib/sales-visibility"
 import { formatCurrency } from "@/lib/utils"
 
-const CHANNEL_COLORS = [
+const METHOD_COLORS = [
   "var(--color-chart-1)",
   "var(--color-chart-2)",
   "var(--color-chart-3)",
@@ -16,60 +16,55 @@ const CHANNEL_COLORS = [
   "var(--color-chart-5)",
 ]
 const OTHER_COLOR = "var(--color-muted-foreground)"
-const MAX_INDIVIDUAL_CHANNELS = CHANNEL_COLORS.length - 1
+const MAX_INDIVIDUAL_METHODS = METHOD_COLORS.length - 1
 const LOADING_LEGEND_ROWS = 4
 
 const chartConfig = { amount: { label: "Revenue" } } satisfies ChartConfig
 
-type ChannelRow = { channel: string; amount: number; fill: string; labelText: string; isOther?: boolean }
+type PaymentMethodRow = { method: string; amount: number; percent: number; fill: string; isOther?: boolean }
 
-// Beyond CHANNEL_COLORS.length channels, the lowest-revenue ones fold into one muted "Other" row
-// rather than inventing or cycling extra hues (mirrors ChannelMixCard's approach).
-function buildRevenueChannelRows(revenueByChannel: Record<string, number>, isVisible: boolean): ChannelRow[] {
-  const byAmountDesc = Object.entries(revenueByChannel)
+// Beyond METHOD_COLORS.length methods, the lowest-revenue ones fold into one muted "Other" slice
+// rather than inventing or cycling extra hues (mirrors RevenueBreakdownCard's approach).
+function buildPaymentMethodRows(revenueByPaymentMethod: Record<string, number>): PaymentMethodRow[] {
+  const total = Object.values(revenueByPaymentMethod).reduce((sum, amount) => sum + amount, 0)
+  const byAmountDesc = Object.entries(revenueByPaymentMethod)
     .filter(([, amount]) => amount > 0)
     .sort((a, b) => b[1] - a[1])
 
-  const individual = byAmountDesc.slice(0, MAX_INDIVIDUAL_CHANNELS)
-  const overflow = byAmountDesc.slice(MAX_INDIVIDUAL_CHANNELS)
+  const individual = byAmountDesc.slice(0, MAX_INDIVIDUAL_METHODS)
+  const overflow = byAmountDesc.slice(MAX_INDIVIDUAL_METHODS)
 
-  const rows: ChannelRow[] = individual.map(([channel, amount], index) => ({
-    channel,
-    amount,
-    fill: CHANNEL_COLORS[index % CHANNEL_COLORS.length],
-    labelText: isVisible ? formatCurrency(amount) : MASKED_AMOUNT,
-  }))
+  function toRow(method: string, amount: number, fill: string): PaymentMethodRow {
+    const percent = total > 0 ? Math.round((amount / total) * 100) : 0
+    return { method, amount, percent, fill }
+  }
+
+  const rows = individual.map(([method, amount], index) => toRow(method, amount, METHOD_COLORS[index % METHOD_COLORS.length]))
 
   if (overflow.length > 0) {
     const otherAmount = overflow.reduce((sum, [, amount]) => sum + amount, 0)
-    rows.push({
-      channel: "Other",
-      amount: otherAmount,
-      fill: OTHER_COLOR,
-      labelText: isVisible ? formatCurrency(otherAmount) : MASKED_AMOUNT,
-      isOther: true,
-    })
+    rows.push({ ...toRow("Other", otherAmount, OTHER_COLOR), isOther: true })
   }
 
   return rows
 }
 
-export function RevenueBreakdownCard({
-  revenueByChannel,
+export function PaymentMethodBreakdownCard({
+  revenueByPaymentMethod,
   isLoading,
   isError,
 }: {
-  revenueByChannel: Record<string, number>
+  revenueByPaymentMethod: Record<string, number>
   isLoading: boolean
   isError: boolean
 }) {
   const { isVisible } = useSalesVisibility()
-  const rows = buildRevenueChannelRows(revenueByChannel, isVisible)
+  const rows = buildPaymentMethodRows(revenueByPaymentMethod)
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Revenue by channel</CardTitle>
+        <CardTitle>Revenue by payment method</CardTitle>
       </CardHeader>
       <CardContent>
         {isLoading ? (
@@ -86,16 +81,16 @@ export function RevenueBreakdownCard({
             <EmptyMedia variant="icon">
               <TriangleAlertIcon />
             </EmptyMedia>
-            <EmptyTitle>Couldn't load revenue data</EmptyTitle>
+            <EmptyTitle>Couldn't load payment method data</EmptyTitle>
             <EmptyDescription>Try refreshing the page.</EmptyDescription>
           </Empty>
         ) : rows.length === 0 ? (
           <Empty className="border">
             <EmptyMedia variant="icon">
-              <Share2Icon />
+              <CreditCardIcon />
             </EmptyMedia>
             <EmptyTitle>No revenue in this period</EmptyTitle>
-            <EmptyDescription>The channel breakdown appears once orders are paid.</EmptyDescription>
+            <EmptyDescription>The payment method breakdown appears once orders are paid.</EmptyDescription>
           </Empty>
         ) : (
           <div className="flex flex-col items-center gap-4">
@@ -106,14 +101,14 @@ export function RevenueBreakdownCard({
                   content={
                     <ChartTooltipContent
                       hideLabel
-                      nameKey="channel"
+                      nameKey="method"
                       formatter={(value) => (isVisible ? formatCurrency(Number(value)) : MASKED_AMOUNT)}
                     />
                   }
                 />
-                <Pie data={rows} dataKey="amount" nameKey="channel" innerRadius={58} outerRadius={84} strokeWidth={3}>
+                <Pie data={rows} dataKey="amount" nameKey="method" innerRadius={58} outerRadius={84} strokeWidth={3}>
                   {rows.map((row) => (
-                    <Cell key={row.channel} fill={row.fill} />
+                    <Cell key={row.method} fill={row.fill} />
                   ))}
                 </Pie>
               </PieChart>
@@ -121,14 +116,16 @@ export function RevenueBreakdownCard({
 
             <div className="flex w-full flex-col gap-2 text-sm">
               {rows.map((row) => (
-                <div key={row.channel} className="flex items-center justify-between gap-2">
+                <div key={row.method} className="flex items-center justify-between gap-2">
                   <span className="flex min-w-0 items-center gap-2">
                     <span className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: row.fill }} />
-                    <span className="truncate" title={row.channel}>
-                      {row.channel}
+                    <span className="truncate" title={row.method}>
+                      {row.method}
                     </span>
                   </span>
-                  <span className="shrink-0 font-medium tabular-nums">{row.labelText}</span>
+                  <span className="shrink-0 font-medium tabular-nums">
+                    {row.percent}% · {isVisible ? formatCurrency(row.amount) : MASKED_AMOUNT}
+                  </span>
                 </div>
               ))}
             </div>

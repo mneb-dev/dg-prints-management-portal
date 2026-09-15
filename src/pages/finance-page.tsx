@@ -6,14 +6,20 @@ import { PageHeader } from "@/components/page-header"
 import { StatCard } from "@/components/dashboard/stat-card"
 import { ExpenseBreakdownCard } from "@/components/finance/expense-breakdown-card"
 import { FinanceTrendChartCard } from "@/components/finance/finance-trend-chart-card"
+import { PaymentMethodBreakdownCard } from "@/components/finance/payment-method-breakdown-card"
 import { RevenueBreakdownCard } from "@/components/finance/revenue-breakdown-card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { computePeriodRange, type PeriodPreset } from "@/lib/finance-period"
 import { useFinanceSummary } from "@/lib/finance"
-import { useSalesVisibility } from "@/lib/sales-visibility"
+import { MASKED_AMOUNT, useSalesVisibility } from "@/lib/sales-visibility"
 import { formatCurrency } from "@/lib/utils"
 
-const MASKED_AMOUNT = "₱****"
+// Share-of-revenue percentages for the KPI cards, computed from the already-fetched summary
+// (no extra request). Returns null when there's no meaningful denominator to divide by.
+function formatSharePercent(value: number, total: number): number | null {
+  if (total <= 0) return null
+  return Math.round((value / total) * 100)
+}
 
 export function FinancePage() {
   const [preset, setPreset] = useState<PeriodPreset>("this_month")
@@ -33,7 +39,13 @@ export function FinancePage() {
   // Once a summary has loaded, keep it visible while a range change refetches in the background
   // instead of flashing every card back to a skeleton — only the very first load blocks on one.
   const showSkeleton = isLoading && !summary
+  const totalRevenue = summary?.totalRevenue ?? 0
+  const totalExpenses = summary?.totalExpenses ?? 0
   const netProfit = summary?.netProfit ?? 0
+  const outstandingBalance = summary?.outstandingBalance ?? 0
+
+  const expensesPct = formatSharePercent(totalExpenses, totalRevenue)
+  const netProfitPct = formatSharePercent(netProfit, totalRevenue)
 
   return (
     <div className="flex flex-col gap-6">
@@ -56,13 +68,18 @@ export function FinancePage() {
             <StatCard
               icon={ReceiptTextIcon}
               label="Total Expenses"
-              value={formatCurrency(summary?.totalExpenses ?? 0)}
-              description={`${summary?.expenseCount ?? 0} expenses logged`}
+              value={formatCurrency(totalExpenses)}
+              description={
+                expensesPct !== null
+                  ? `${summary?.expenseCount ?? 0} expenses logged · ${expensesPct}% of revenue`
+                  : `${summary?.expenseCount ?? 0} expenses logged`
+              }
             />
             <StatCard
               icon={PiggyBankIcon}
               label="Net Profit"
               value={isVisible ? formatCurrency(netProfit) : MASKED_AMOUNT}
+              description={netProfitPct !== null ? `${netProfitPct}% margin` : undefined}
               iconClassName={
                 netProfit >= 0 ? "bg-status-success/10 text-status-success" : "bg-destructive/10 text-destructive"
               }
@@ -70,7 +87,7 @@ export function FinancePage() {
             <StatCard
               icon={WalletIcon}
               label="Outstanding Balance"
-              value={formatCurrency(summary?.outstandingBalance ?? 0)}
+              value={formatCurrency(outstandingBalance)}
               iconClassName="bg-status-warning/10 text-status-warning"
             />
           </>
@@ -90,7 +107,7 @@ export function FinancePage() {
         isError={isError}
       />
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <ExpenseBreakdownCard
           expensesByCategory={summary?.expensesByCategory ?? {}}
           isLoading={showSkeleton}
@@ -98,6 +115,11 @@ export function FinancePage() {
         />
         <RevenueBreakdownCard
           revenueByChannel={summary?.revenueByChannel ?? {}}
+          isLoading={showSkeleton}
+          isError={isError}
+        />
+        <PaymentMethodBreakdownCard
+          revenueByPaymentMethod={summary?.revenueByPaymentMethod ?? {}}
           isLoading={showSkeleton}
           isError={isError}
         />

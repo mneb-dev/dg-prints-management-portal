@@ -24,8 +24,6 @@ import {
 } from "date-fns"
 import {
   ChevronDownIcon,
-  EyeIcon,
-  EyeOffIcon,
   LineChartIcon,
   TrendingDownIcon,
   TrendingUpIcon,
@@ -63,7 +61,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Switch } from "@/components/ui/switch"
 import { useAuth } from "@/lib/auth"
 import { PAYMENT_STATUSES, useSalesOrders } from "@/lib/orders"
-import { useSalesVisibility } from "@/lib/sales-visibility"
+import { MASKED_AMOUNT, useSalesVisibility } from "@/lib/sales-visibility"
 import type { Order, PaymentStatus } from "@/lib/orders"
 import { PAYMENT_STATUS_LABELS } from "@/components/orders/payment-status-badge"
 import { useUserOptions } from "@/lib/users"
@@ -298,8 +296,6 @@ function buildPaymentStatusChartConfig(selectedStatuses: PaymentStatus[]): Chart
   return config
 }
 
-const MASKED_AMOUNT = "₱****"
-
 export function SalesChartCard() {
   const { role } = useAuth()
   const isStaffView = role === "staff"
@@ -320,7 +316,7 @@ export function SalesChartCard() {
   const dateFrom = range ? format(range.previousStart, "yyyy-MM-dd") : ""
   const dateTo = range ? format(range.currentEnd, "yyyy-MM-dd") : ""
   const { salesOrders, isLoading, isError, isPossiblyTruncated } = useSalesOrders(dateFrom, dateTo)
-  const { isVisible, toggleVisibility } = useSalesVisibility()
+  const { isVisible } = useSalesVisibility()
   const showAmounts = !isStaffView && isVisible
   const { users: userOptions, isLoading: isLoadingUsers } = useUserOptions(
     true,
@@ -697,20 +693,9 @@ export function SalesChartCard() {
             <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
               <div className="flex flex-col gap-0.5">
                 {!isStaffView ? (
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-3xl font-semibold tabular-nums">
-                      {isVisible ? formatCurrency(periodTotal) : MASKED_AMOUNT}
-                    </span>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      onClick={toggleVisibility}
-                      aria-label={isVisible ? "Hide total sales" : "Show total sales"}
-                    >
-                      {isVisible ? <EyeIcon /> : <EyeOffIcon />}
-                    </Button>
-                  </div>
+                  <span className="text-3xl font-semibold tabular-nums">
+                    {isVisible ? formatCurrency(periodTotal) : MASKED_AMOUNT}
+                  </span>
                 ) : null}
                 <span className="text-xs text-muted-foreground">
                   {preset === "custom"

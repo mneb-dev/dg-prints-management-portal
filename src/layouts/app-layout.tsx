@@ -2,6 +2,7 @@ import { useEffect } from "react"
 import { Link, Outlet, useLocation } from "react-router-dom"
 
 import { AppSidebar } from "@/components/app-sidebar"
+import { SalesVisibilityToggle } from "@/components/sales-visibility-toggle"
 import { ThemeToggle } from "@/components/theme-toggle"
 import {
   Breadcrumb,
@@ -65,7 +66,10 @@ export function AppLayout() {
                   </BreadcrumbList>
                 </Breadcrumb>
               )}
-              <ThemeToggle className="ml-auto" />
+              <div className="ml-auto flex items-center gap-1">
+                <SalesVisibilityToggle />
+                <ThemeToggle />
+              </div>
             </header>
             <div className="mx-auto flex w-full min-w-0 max-w-[1600px] flex-1 flex-col gap-4 p-4 md:p-6">
               <Outlet />

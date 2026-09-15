@@ -1,5 +1,5 @@
 import { format, parseISO } from "date-fns"
-import { EyeIcon, EyeOffIcon, LineChartIcon, TriangleAlertIcon } from "lucide-react"
+import { LineChartIcon, TriangleAlertIcon } from "lucide-react"
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts"
 
 import { Button } from "@/components/ui/button"
@@ -19,11 +19,9 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { PERIOD_PRESET_LABELS, PERIOD_PRESETS, type PeriodPreset, type PeriodRange } from "@/lib/finance-period"
-import { useSalesVisibility } from "@/lib/sales-visibility"
+import { MASKED_AMOUNT, useSalesVisibility } from "@/lib/sales-visibility"
 import { formatCurrency } from "@/lib/utils"
 import type { FinanceSeriesPoint } from "@/lib/finance"
-
-const MASKED_AMOUNT = "₱****"
 
 const chartConfig = {
   revenue: { label: "Revenue", color: "var(--color-chart-1)" },
@@ -53,7 +51,7 @@ export function FinanceTrendChartCard({
   isLoading: boolean
   isError: boolean
 }) {
-  const { isVisible, toggleVisibility } = useSalesVisibility()
+  const { isVisible } = useSalesVisibility()
 
   const chartData = series.map((point) => ({
     label: format(parseISO(point.date), "MMM d"),
@@ -67,15 +65,6 @@ export function FinanceTrendChartCard({
         <CardTitle>Revenue vs. expenses</CardTitle>
         <CardDescription>Daily trend for the selected period</CardDescription>
         <CardAction className="flex items-center gap-2">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            onClick={toggleVisibility}
-            aria-label={isVisible ? "Hide amounts" : "Show amounts"}
-          >
-            {isVisible ? <EyeIcon /> : <EyeOffIcon />}
-          </Button>
           <Select value={preset} onValueChange={(value) => value && onPresetChange(value as PeriodPreset)}>
             <SelectTrigger size="sm" className="text-xs">
               <SelectValue>{(value: string | null) => PERIOD_PRESET_LABELS[(value as PeriodPreset) ?? "this_month"]}</SelectValue>
