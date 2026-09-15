@@ -68,9 +68,9 @@ export function PaymentMethodBreakdownCard({
       </CardHeader>
       <CardContent>
         {isLoading ? (
-          <div className="flex flex-col items-center gap-4">
-            <Skeleton className="mx-auto h-40 w-40 rounded-full" />
-            <div className="flex w-full flex-col gap-3">
+          <div className="flex items-center gap-4">
+            <Skeleton className="size-28 shrink-0 rounded-full" />
+            <div className="flex min-w-0 flex-1 flex-col gap-3">
               {Array.from({ length: LOADING_LEGEND_ROWS }).map((_, index) => (
                 <Skeleton key={index} className="h-4 w-full" />
               ))}
@@ -93,8 +93,8 @@ export function PaymentMethodBreakdownCard({
             <EmptyDescription>The payment method breakdown appears once orders are paid.</EmptyDescription>
           </Empty>
         ) : (
-          <div className="flex flex-col items-center gap-4">
-            <ChartContainer config={chartConfig} className="mx-auto aspect-square max-h-52 w-full">
+          <div className="flex items-center gap-4">
+            <ChartContainer config={chartConfig} className="aspect-square h-28 w-28 shrink-0">
               <PieChart>
                 <ChartTooltip
                   cursor={false}
@@ -106,7 +106,7 @@ export function PaymentMethodBreakdownCard({
                     />
                   }
                 />
-                <Pie data={rows} dataKey="amount" nameKey="method" innerRadius={58} outerRadius={84} strokeWidth={3}>
+                <Pie data={rows} dataKey="amount" nameKey="method" innerRadius={40} outerRadius={56} strokeWidth={3}>
                   {rows.map((row) => (
                     <Cell key={row.method} fill={row.fill} />
                   ))}
@@ -114,7 +114,7 @@ export function PaymentMethodBreakdownCard({
               </PieChart>
             </ChartContainer>
 
-            <div className="flex w-full flex-col gap-2 text-sm">
+            <div className="flex min-w-0 flex-1 flex-col gap-2 text-sm">
               {rows.map((row) => (
                 <div key={row.method} className="flex items-center justify-between gap-2">
                   <span className="flex min-w-0 items-center gap-2">
@@ -123,9 +123,7 @@ export function PaymentMethodBreakdownCard({
                       {row.method}
                     </span>
                   </span>
-                  <span className="shrink-0 font-medium tabular-nums">
-                    {row.percent}% · {isVisible ? formatCurrency(row.amount) : MASKED_AMOUNT}
-                  </span>
+                  <span className="shrink-0 font-medium tabular-nums">{row.percent}%</span>
                 </div>
               ))}
             </div>

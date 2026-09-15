@@ -73,9 +73,9 @@ export function RevenueBreakdownCard({
       </CardHeader>
       <CardContent>
         {isLoading ? (
-          <div className="flex flex-col items-center gap-4">
-            <Skeleton className="mx-auto h-40 w-40 rounded-full" />
-            <div className="flex w-full flex-col gap-3">
+          <div className="flex items-center gap-4">
+            <Skeleton className="size-28 shrink-0 rounded-full" />
+            <div className="flex min-w-0 flex-1 flex-col gap-3">
               {Array.from({ length: LOADING_LEGEND_ROWS }).map((_, index) => (
                 <Skeleton key={index} className="h-4 w-full" />
               ))}
@@ -98,8 +98,8 @@ export function RevenueBreakdownCard({
             <EmptyDescription>The channel breakdown appears once orders are paid.</EmptyDescription>
           </Empty>
         ) : (
-          <div className="flex flex-col items-center gap-4">
-            <ChartContainer config={chartConfig} className="mx-auto aspect-square max-h-52 w-full">
+          <div className="flex items-center gap-4">
+            <ChartContainer config={chartConfig} className="aspect-square h-28 w-28 shrink-0">
               <PieChart>
                 <ChartTooltip
                   cursor={false}
@@ -111,7 +111,7 @@ export function RevenueBreakdownCard({
                     />
                   }
                 />
-                <Pie data={rows} dataKey="amount" nameKey="channel" innerRadius={58} outerRadius={84} strokeWidth={3}>
+                <Pie data={rows} dataKey="amount" nameKey="channel" innerRadius={40} outerRadius={56} strokeWidth={3}>
                   {rows.map((row) => (
                     <Cell key={row.channel} fill={row.fill} />
                   ))}
@@ -119,7 +119,7 @@ export function RevenueBreakdownCard({
               </PieChart>
             </ChartContainer>
 
-            <div className="flex w-full flex-col gap-2 text-sm">
+            <div className="flex min-w-0 flex-1 flex-col gap-2 text-sm">
               {rows.map((row) => (
                 <div key={row.channel} className="flex items-center justify-between gap-2">
                   <span className="flex min-w-0 items-center gap-2">

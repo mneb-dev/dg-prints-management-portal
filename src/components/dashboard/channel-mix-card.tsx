@@ -26,7 +26,6 @@ type ChannelMixRow = {
   count: number
   percent: number
   fill: string
-  labelText: string
   isOther?: boolean
   otherChannelCount?: number
 }
@@ -75,7 +74,7 @@ function buildChannelMixRows(
 
   function toRow(channel: string, count: number, fill: string): ChannelMixRow {
     const percent = totalOrders > 0 ? Math.round((count / totalOrders) * 100) : 0
-    return { channel, count, percent, fill, labelText: `${count} · ${percent}%` }
+    return { channel, count, percent, fill }
   }
 
   const rows = individual
@@ -108,9 +107,9 @@ export function ChannelMixCard() {
       </CardHeader>
       <CardContent>
         {isLoading ? (
-          <div className="flex flex-col items-center gap-4">
-            <Skeleton className="mx-auto h-40 w-40 rounded-full" />
-            <div className="flex w-full flex-col gap-3">
+          <div className="flex items-center gap-4">
+            <Skeleton className="size-28 shrink-0 rounded-full" />
+            <div className="flex min-w-0 flex-1 flex-col gap-3">
               {Array.from({ length: LOADING_LEGEND_ROWS }).map((_, index) => (
                 <Skeleton key={index} className="h-4 w-full" />
               ))}
@@ -133,11 +132,23 @@ export function ChannelMixCard() {
             <EmptyDescription>Channel breakdown appears once orders come in.</EmptyDescription>
           </Empty>
         ) : (
-          <div className="flex flex-col items-center gap-4">
-            <ChartContainer config={chartConfig} className="mx-auto aspect-square max-h-52 w-full">
+          <div className="flex items-center gap-4">
+            <ChartContainer config={chartConfig} className="aspect-square h-28 w-28 shrink-0">
               <PieChart>
-                <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel nameKey="channel" />} />
-                <Pie data={rows} dataKey="count" nameKey="channel" innerRadius={58} outerRadius={84} strokeWidth={3}>
+                <ChartTooltip
+                  cursor={false}
+                  content={
+                    <ChartTooltipContent
+                      hideLabel
+                      nameKey="channel"
+                      formatter={(value, _name, item) => {
+                        const percent = (item?.payload as ChannelMixRow | undefined)?.percent ?? 0
+                        return `${value} orders · ${percent}%`
+                      }}
+                    />
+                  }
+                />
+                <Pie data={rows} dataKey="count" nameKey="channel" innerRadius={40} outerRadius={56} strokeWidth={3}>
                   {rows.map((row) => (
                     <Cell key={row.channel} fill={row.fill} />
                   ))}
@@ -145,14 +156,16 @@ export function ChannelMixCard() {
               </PieChart>
             </ChartContainer>
 
-            <div className="flex w-full flex-col gap-2 text-sm">
+            <div className="flex min-w-0 flex-1 flex-col gap-2 text-sm">
               {rows.map((row) => (
-                <div key={row.channel} className="flex items-center gap-2">
-                  <span className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: row.fill }} />
-                  <span className="min-w-0 flex-1 truncate" title={row.channel}>
-                    {row.channel}
+                <div key={row.channel} className="flex items-center justify-between gap-2">
+                  <span className="flex min-w-0 items-center gap-2">
+                    <span className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: row.fill }} />
+                    <span className="truncate" title={row.channel}>
+                      {row.channel}
+                    </span>
                   </span>
-                  <span className="shrink-0 whitespace-nowrap font-medium tabular-nums">{row.labelText}</span>
+                  <span className="shrink-0 font-medium tabular-nums">{row.percent}%</span>
                 </div>
               ))}
             </div>

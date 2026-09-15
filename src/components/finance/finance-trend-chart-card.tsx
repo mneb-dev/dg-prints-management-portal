@@ -1,5 +1,6 @@
 import { format, parseISO } from "date-fns"
 import { LineChartIcon, TriangleAlertIcon } from "lucide-react"
+import { useMemo } from "react"
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts"
 
 import { Button } from "@/components/ui/button"
@@ -53,11 +54,15 @@ export function FinanceTrendChartCard({
 }) {
   const { isVisible } = useSalesVisibility()
 
-  const chartData = series.map((point) => ({
-    label: format(parseISO(point.date), "MMM d"),
-    revenue: point.revenue,
-    expenses: point.expenses,
-  }))
+  const chartData = useMemo(
+    () =>
+      series.map((point) => ({
+        label: format(parseISO(point.date), "MMM d"),
+        revenue: point.revenue,
+        expenses: point.expenses,
+      })),
+    [series],
+  )
 
   return (
     <Card>
