@@ -3,8 +3,7 @@ import { LineChartIcon, TriangleAlertIcon } from "lucide-react"
 import { useMemo } from "react"
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts"
 
-import { Button } from "@/components/ui/button"
-import { Calendar } from "@/components/ui/calendar"
+import { DateRangeFilter } from "@/components/date-range-filter"
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   ChartContainer,
@@ -15,8 +14,6 @@ import {
   type ChartConfig,
 } from "@/components/ui/chart"
 import { Empty, EmptyDescription, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
-import { Label } from "@/components/ui/label"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { PERIOD_PRESET_LABELS, PERIOD_PRESETS, type PeriodPreset, type PeriodRange } from "@/lib/finance-period"
@@ -33,9 +30,8 @@ export function FinanceTrendChartCard({
   preset,
   onPresetChange,
   customFrom,
-  onCustomFromChange,
   customTo,
-  onCustomToChange,
+  onCustomRangeChange,
   range,
   series,
   isLoading,
@@ -44,9 +40,8 @@ export function FinanceTrendChartCard({
   preset: PeriodPreset
   onPresetChange: (preset: PeriodPreset) => void
   customFrom: string
-  onCustomFromChange: (value: string) => void
   customTo: string
-  onCustomToChange: (value: string) => void
+  onCustomRangeChange: (from: string, to: string) => void
   range: PeriodRange | null
   series: FinanceSeriesPoint[]
   isLoading: boolean
@@ -86,56 +81,13 @@ export function FinanceTrendChartCard({
       </CardHeader>
       <CardContent>
         {preset === "custom" ? (
-          <div className="mb-4 flex flex-wrap items-center gap-3 rounded-lg border border-input px-2.5 py-1.5">
-            <div className="flex items-center gap-1.5">
-              <Label htmlFor="finance-date-from" className="text-sm text-muted-foreground">
-                From
-              </Label>
-              <Popover>
-                <PopoverTrigger
-                  id="finance-date-from"
-                  render={<Button variant="ghost" size="sm" className="h-8 px-1.5 font-normal" />}
-                >
-                  <span className={customFrom ? undefined : "text-muted-foreground"}>
-                    {customFrom ? format(parseISO(customFrom), "MMM d, yyyy") : "Select date"}
-                  </span>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={customFrom ? parseISO(customFrom) : undefined}
-                    onSelect={(date) => onCustomFromChange(date ? format(date, "yyyy-MM-dd") : "")}
-                    disabled={[{ after: new Date() }, ...(customTo ? [{ after: parseISO(customTo) }] : [])]}
-                    autoFocus
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
-            <div className="h-5 w-px bg-border" />
-            <div className="flex items-center gap-1.5">
-              <Label htmlFor="finance-date-to" className="text-sm text-muted-foreground">
-                To
-              </Label>
-              <Popover>
-                <PopoverTrigger
-                  id="finance-date-to"
-                  render={<Button variant="ghost" size="sm" className="h-8 px-1.5 font-normal" />}
-                >
-                  <span className={customTo ? undefined : "text-muted-foreground"}>
-                    {customTo ? format(parseISO(customTo), "MMM d, yyyy") : "Select date"}
-                  </span>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={customTo ? parseISO(customTo) : undefined}
-                    onSelect={(date) => onCustomToChange(date ? format(date, "yyyy-MM-dd") : "")}
-                    disabled={[{ after: new Date() }, ...(customFrom ? [{ before: parseISO(customFrom) }] : [])]}
-                    autoFocus
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
+          <div className="mb-4">
+            <DateRangeFilter
+              id="finance-date-range"
+              from={customFrom}
+              to={customTo}
+              onChange={onCustomRangeChange}
+            />
           </div>
         ) : null}
 

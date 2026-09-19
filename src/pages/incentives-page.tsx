@@ -212,9 +212,11 @@ export function IncentivesPage() {
             preset={preset}
             onPresetChange={setPreset}
             customFrom={customFrom}
-            onCustomFromChange={setCustomFrom}
             customTo={customTo}
-            onCustomToChange={setCustomTo}
+            onCustomRangeChange={(from, to) => {
+              setCustomFrom(from)
+              setCustomTo(to)
+            }}
             staffOptions={isStaffView ? undefined : staffOptions}
             selectedStaffId={isStaffView ? undefined : selectedStaffId}
             onSelectedStaffIdChange={isStaffView ? undefined : setSelectedStaffId}

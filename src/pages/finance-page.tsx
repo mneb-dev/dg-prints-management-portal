@@ -98,9 +98,11 @@ export function FinancePage() {
         preset={preset}
         onPresetChange={setPreset}
         customFrom={customFrom}
-        onCustomFromChange={setCustomFrom}
         customTo={customTo}
-        onCustomToChange={setCustomTo}
+        onCustomRangeChange={(from, to) => {
+          setCustomFrom(from)
+          setCustomTo(to)
+        }}
         range={range}
         series={summary?.series ?? []}
         isLoading={showSkeleton}

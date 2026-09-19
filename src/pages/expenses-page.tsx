@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react"
-import { format, parseISO } from "date-fns"
 import { CalendarCogIcon, HandCoinsIcon, PlusIcon } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 import { toast } from "sonner"
 
+import { DateRangeFilter } from "@/components/date-range-filter"
 import { DeleteExpenseDialog } from "@/components/expenses/delete-expense-dialog"
 import { ExpenseFormDialog } from "@/components/expenses/expense-form-dialog"
 import { ExpenseTable } from "@/components/expenses/expense-table"
@@ -13,9 +13,6 @@ import { PageHeader } from "@/components/page-header"
 import { PaginationBar } from "@/components/pagination-bar"
 import { SortControl } from "@/components/sort-control"
 import { Button } from "@/components/ui/button"
-import { Calendar } from "@/components/ui/calendar"
-import { Label } from "@/components/ui/label"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import {
   Select,
   SelectContent,
@@ -213,63 +210,13 @@ export function ExpensesPage() {
           </SelectContent>
         </Select>
 
-        <div className="flex items-center gap-3 rounded-lg border border-input px-2.5">
-          <div className="flex items-center gap-1.5">
-            <Label htmlFor="expenses-date-from" className="text-sm text-muted-foreground">
-              From
-            </Label>
-            <Popover>
-              <PopoverTrigger
-                id="expenses-date-from"
-                disabled={isLoading || isError}
-                render={<Button variant="ghost" size="sm" className="h-8 px-1.5 font-normal" />}
-              >
-                <span className={params.dateFrom ? undefined : "text-muted-foreground"}>
-                  {params.dateFrom ? format(parseISO(params.dateFrom), "MMM d, yyyy") : "Select date"}
-                </span>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  mode="single"
-                  selected={params.dateFrom ? parseISO(params.dateFrom) : undefined}
-                  onSelect={(date) =>
-                    setParams({ dateFrom: date ? format(date, "yyyy-MM-dd") : "", page: 1 })
-                  }
-                  disabled={params.dateTo ? { after: parseISO(params.dateTo) } : undefined}
-                  autoFocus
-                />
-              </PopoverContent>
-            </Popover>
-          </div>
-          <div className="h-5 w-px bg-border" />
-          <div className="flex items-center gap-1.5">
-            <Label htmlFor="expenses-date-to" className="text-sm text-muted-foreground">
-              To
-            </Label>
-            <Popover>
-              <PopoverTrigger
-                id="expenses-date-to"
-                disabled={isLoading || isError}
-                render={<Button variant="ghost" size="sm" className="h-8 px-1.5 font-normal" />}
-              >
-                <span className={params.dateTo ? undefined : "text-muted-foreground"}>
-                  {params.dateTo ? format(parseISO(params.dateTo), "MMM d, yyyy") : "Select date"}
-                </span>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  mode="single"
-                  selected={params.dateTo ? parseISO(params.dateTo) : undefined}
-                  onSelect={(date) =>
-                    setParams({ dateTo: date ? format(date, "yyyy-MM-dd") : "", page: 1 })
-                  }
-                  disabled={params.dateFrom ? { before: parseISO(params.dateFrom) } : undefined}
-                  autoFocus
-                />
-              </PopoverContent>
-            </Popover>
-          </div>
-        </div>
+        <DateRangeFilter
+          id="expenses-date-range"
+          from={params.dateFrom}
+          to={params.dateTo}
+          onChange={(dateFrom, dateTo) => setParams({ dateFrom, dateTo, page: 1 })}
+          disabled={isLoading || isError}
+        />
 
         <SortControl
           value={params.sortBy}

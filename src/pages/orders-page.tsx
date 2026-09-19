@@ -1,8 +1,6 @@
 import { useEffect, useState } from "react"
-import { format, parseISO } from "date-fns"
 import {
   ArrowUpDownIcon,
-  CalendarIcon,
   CreditCardIcon,
   ListChecksIcon,
   PlusIcon,
@@ -12,7 +10,6 @@ import {
   UserIcon,
   UserXIcon,
 } from "lucide-react"
-import type { DateRange } from "react-day-picker"
 import { useNavigate } from "react-router-dom"
 import { toast } from "sonner"
 
@@ -25,6 +22,7 @@ import { RecordPaymentDialog } from "@/components/orders/record-payment-dialog"
 import { RefundOrderDialog } from "@/components/orders/refund-order-dialog"
 import { RequestOrDialog } from "@/components/orders/request-or-dialog"
 import { ReturnOrderDialog } from "@/components/orders/return-order-dialog"
+import { DateRangeFilter } from "@/components/date-range-filter"
 import {
   ACTIVE_FILTER_TRIGGER_CLASS,
   ActiveFilterChips,
@@ -37,8 +35,6 @@ import { PaginationBar } from "@/components/pagination-bar"
 import { RefreshButton } from "@/components/refresh-button"
 import { SortControl } from "@/components/sort-control"
 import { Button } from "@/components/ui/button"
-import { Calendar } from "@/components/ui/calendar"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import {
   Select,
   SelectContent,
@@ -238,28 +234,6 @@ export function OrdersPage() {
   function clearFilters() {
     setSearchInput("")
     setParams(DEFAULT_ORDERS_PARAMS)
-  }
-
-  const dateRange: DateRange | undefined =
-    params.dateFrom || params.dateTo
-      ? {
-          from: params.dateFrom ? parseISO(params.dateFrom) : undefined,
-          to: params.dateTo ? parseISO(params.dateTo) : undefined,
-        }
-      : undefined
-
-  function handleDateRangeSelect(range: DateRange | undefined) {
-    setParams({
-      dateFrom: range?.from ? format(range.from, "yyyy-MM-dd") : "",
-      dateTo: range?.to ? format(range.to, "yyyy-MM-dd") : "",
-      page: 1,
-    })
-  }
-
-  function formatDateRangeLabel(range: DateRange | undefined) {
-    if (!range?.from) return "Select date range"
-    if (!range.to) return `${format(range.from, "MMM d, yyyy")} – …`
-    return `${format(range.from, "MMM d, yyyy")} – ${format(range.to, "MMM d, yyyy")}`
   }
 
   const activeFilters: ActiveFilter[] = [
@@ -510,36 +484,15 @@ export function OrdersPage() {
             </SelectContent>
           </Select>
 
-          <Popover>
-            <PopoverTrigger
-              disabled={isLoading || isError}
-              aria-label="Filter by date range"
-              title="Date range"
-              render={
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className={cn(
-                    "h-8 min-w-56 flex-1 justify-start font-normal",
-                    dateRange && ACTIVE_FILTER_TRIGGER_CLASS
-                  )}
-                />
-              }
-            >
-              <CalendarIcon data-icon="inline-start" />
-              {formatDateRangeLabel(dateRange)}
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start">
-              <Calendar
-                mode="range"
-                selected={dateRange}
-                onSelect={handleDateRangeSelect}
-                disabled={{ after: new Date() }}
-                resetOnSelect
-                autoFocus
-              />
-            </PopoverContent>
-          </Popover>
+          <DateRangeFilter
+            from={params.dateFrom}
+            to={params.dateTo}
+            onChange={(dateFrom, dateTo) => setParams({ dateFrom, dateTo, page: 1 })}
+            disabled={isLoading || isError}
+            ariaLabel="Filter by date range"
+            title="Date range"
+            className="flex-1"
+          />
 
           <div className="flex min-w-40 flex-1 items-center gap-1.5" title="Sort">
             <ArrowUpDownIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden />

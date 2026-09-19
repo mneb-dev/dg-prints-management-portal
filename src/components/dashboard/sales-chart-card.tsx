@@ -34,7 +34,6 @@ import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Calendar } from "@/components/ui/calendar"
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   ChartContainer,
@@ -44,6 +43,7 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart"
+import { DateRangeFilter } from "@/components/date-range-filter"
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -54,8 +54,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Empty, EmptyDescription, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
-import { Label } from "@/components/ui/label"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Switch } from "@/components/ui/switch"
@@ -563,56 +561,16 @@ export function SalesChartCard() {
       </CardHeader>
       <CardContent>
         {preset === "custom" ? (
-          <div className="mb-4 flex flex-wrap items-center gap-3 rounded-lg border border-input px-2.5 py-1.5">
-            <div className="flex items-center gap-1.5">
-              <Label htmlFor="sales-date-from" className="text-sm text-muted-foreground">
-                From
-              </Label>
-              <Popover>
-                <PopoverTrigger
-                  id="sales-date-from"
-                  render={<Button variant="ghost" size="sm" className="h-8 px-1.5 font-normal" />}
-                >
-                  <span className={customFrom ? undefined : "text-muted-foreground"}>
-                    {customFrom ? format(parseISO(customFrom), "MMM d, yyyy") : "Select date"}
-                  </span>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={customFrom ? parseISO(customFrom) : undefined}
-                    onSelect={(date) => setCustomFrom(date ? format(date, "yyyy-MM-dd") : "")}
-                    disabled={[{ after: new Date() }, ...(customTo ? [{ after: parseISO(customTo) }] : [])]}
-                    autoFocus
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
-            <div className="h-5 w-px bg-border" />
-            <div className="flex items-center gap-1.5">
-              <Label htmlFor="sales-date-to" className="text-sm text-muted-foreground">
-                To
-              </Label>
-              <Popover>
-                <PopoverTrigger
-                  id="sales-date-to"
-                  render={<Button variant="ghost" size="sm" className="h-8 px-1.5 font-normal" />}
-                >
-                  <span className={customTo ? undefined : "text-muted-foreground"}>
-                    {customTo ? format(parseISO(customTo), "MMM d, yyyy") : "Select date"}
-                  </span>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={customTo ? parseISO(customTo) : undefined}
-                    onSelect={(date) => setCustomTo(date ? format(date, "yyyy-MM-dd") : "")}
-                    disabled={[{ after: new Date() }, ...(customFrom ? [{ before: parseISO(customFrom) }] : [])]}
-                    autoFocus
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
+          <div className="mb-4">
+            <DateRangeFilter
+              id="sales-date-range"
+              from={customFrom}
+              to={customTo}
+              onChange={(from, to) => {
+                setCustomFrom(from)
+                setCustomTo(to)
+              }}
+            />
           </div>
         ) : null}
 
