@@ -58,6 +58,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton"
 import { Switch } from "@/components/ui/switch"
 import { useAuth } from "@/lib/auth"
+import { ORDER_TERMINAL_STATUSES } from "@/lib/order-status"
 import { PAYMENT_STATUSES, useSalesOrders } from "@/lib/orders"
 import { MASKED_AMOUNT, useSalesVisibility } from "@/lib/sales-visibility"
 import type { Order, PaymentStatus } from "@/lib/orders"
@@ -173,8 +174,12 @@ function pickBucketUnit(start: Date, end: Date): BucketUnit {
   return "month"
 }
 
+// Excludes cancelled/refunded/returned orders so a refund (or cancellation) immediately drops out
+// of the sales total instead of continuing to count money that was never kept — same predicate
+// Finance's finance_summary() uses for revenue.
 function sumOrdersInRange(orders: Order[], start: Date, end: Date): number {
   return orders.reduce((sum, order) => {
+    if (ORDER_TERMINAL_STATUSES.includes(order.status)) return sum
     const createdAt = new Date(order.createdAt)
     return isWithinInterval(createdAt, { start, end }) ? sum + order.total : sum
   }, 0)
@@ -404,8 +409,14 @@ export function SalesChartCard() {
     selectedPaymentStatuses,
   ])
 
-  const periodTotal = filteredCurrentOrders.reduce((sum, order) => sum + order.total, 0)
-  const previousTotal = filteredPreviousOrders.reduce((sum, order) => sum + order.total, 0)
+  const periodTotal = filteredCurrentOrders.reduce(
+    (sum, order) => (ORDER_TERMINAL_STATUSES.includes(order.status) ? sum : sum + order.total),
+    0
+  )
+  const previousTotal = filteredPreviousOrders.reduce(
+    (sum, order) => (ORDER_TERMINAL_STATUSES.includes(order.status) ? sum : sum + order.total),
+    0
+  )
   const changePct =
     previousTotal > 0
       ? Math.round(((periodTotal - previousTotal) / previousTotal) * 100)
