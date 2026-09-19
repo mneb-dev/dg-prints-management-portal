@@ -27,10 +27,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Empty, EmptyDescription, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Spinner } from "@/components/ui/spinner"
 import { Switch } from "@/components/ui/switch"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Toggle } from "@/components/ui/toggle"
 import { useExpenseActions } from "@/lib/expenses"
 import { useStaffWithDailyRate } from "@/lib/users"
 import { cn, formatCurrency } from "@/lib/utils"
@@ -69,6 +71,22 @@ function formatDateRanges(dates: Date[]): string {
     .join(", ")
 }
 
+/** A staff member's paid day total: 1 per selected date, 0.5 for any date the admin marked as a
+ * half day for that specific person (others selected for the same date are unaffected). */
+function staffDayTotal(
+  personId: string,
+  dates: Date[],
+  halfDayOverrides: Record<string, Set<string>>
+): number {
+  const half = halfDayOverrides[personId]
+  if (!half || half.size === 0) return dates.length
+  return dates.reduce((sum, date) => sum + (half.has(format(date, "yyyy-MM-dd")) ? 0.5 : 1), 0)
+}
+
+function formatDays(total: number): string {
+  return Number.isInteger(total) ? String(total) : total.toFixed(1)
+}
+
 export function RunPayrollDialog({
   open,
   onOpenChange,
@@ -83,6 +101,7 @@ export function RunPayrollDialog({
 
   const [selectedStaffIds, setSelectedStaffIds] = useState<Set<string>>(new Set())
   const [selectedDates, setSelectedDates] = useState<Date[]>([])
+  const [halfDayOverrides, setHalfDayOverrides] = useState<Record<string, Set<string>>>({})
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -90,6 +109,7 @@ export function RunPayrollDialog({
     if (!open) return
     setSelectedStaffIds(new Set())
     setSelectedDates(defaultWorkedDates())
+    setHalfDayOverrides({})
   }, [open])
 
   function toggleStaff(id: string) {
@@ -99,11 +119,52 @@ export function RunPayrollDialog({
       else next.add(id)
       return next
     })
+    // Half-day marks are staff-specific and meaningless once that person is removed from the run.
+    setHalfDayOverrides((prev) => {
+      if (!(id in prev)) return prev
+      const next = { ...prev }
+      delete next[id]
+      return next
+    })
+  }
+
+  function handleDatesChange(dates: Date[] | undefined) {
+    const next = dates ?? []
+    setSelectedDates(next)
+    // Drop half-day marks for any date that's no longer part of the selected set, so a date
+    // removed and later re-added doesn't silently come back in as a stale half day.
+    const nextIso = new Set(next.map((date) => format(date, "yyyy-MM-dd")))
+    setHalfDayOverrides((prev) => {
+      const pruned: Record<string, Set<string>> = {}
+      let changed = false
+      for (const [staffId, isoDates] of Object.entries(prev)) {
+        const filtered = new Set([...isoDates].filter((iso) => nextIso.has(iso)))
+        if (filtered.size !== isoDates.size) changed = true
+        if (filtered.size > 0) pruned[staffId] = filtered
+      }
+      return changed ? pruned : prev
+    })
+  }
+
+  function toggleHalfDay(personId: string, iso: string, half: boolean) {
+    setHalfDayOverrides((prev) => {
+      const next = { ...prev }
+      const current = new Set(next[personId] ?? [])
+      if (half) current.add(iso)
+      else current.delete(iso)
+      if (current.size > 0) next[personId] = current
+      else delete next[personId]
+      return next
+    })
   }
 
   const includedStaff = staff.filter((person) => selectedStaffIds.has(person.id))
   const dayCount = selectedDates.length
-  const totalAmount = includedStaff.reduce((sum, person) => sum + (person.dailyRate ?? 0) * dayCount, 0)
+  const totalAmount = includedStaff.reduce(
+    (sum, person) =>
+      sum + (person.dailyRate ?? 0) * staffDayTotal(person.id, selectedDates, halfDayOverrides),
+    0
+  )
   const canSubmit = includedStaff.length > 0 && dayCount > 0
 
   async function handleConfirm() {
@@ -113,13 +174,24 @@ export function RunPayrollDialog({
       const dateLabel = formatDateRanges(selectedDates)
 
       await addExpenses(
-        includedStaff.map((person) => ({
-          date: today,
-          amount: (person.dailyRate ?? 0) * dayCount,
-          category: "Payroll and Employee Costs",
-          paymentMethod: "Cash",
-          notes: `Payroll — ${person.firstName} ${person.lastName} (${dayCount} day${dayCount === 1 ? "" : "s"}: ${dateLabel})`,
-        }))
+        includedStaff.map((person) => {
+          const personTotal = staffDayTotal(person.id, selectedDates, halfDayOverrides)
+          const halfDates = selectedDates
+            .filter((date) => halfDayOverrides[person.id]?.has(format(date, "yyyy-MM-dd")))
+            .sort((a, b) => a.getTime() - b.getTime())
+          const halfLabel =
+            halfDates.length > 0
+              ? `, half day: ${halfDates.map((date) => format(date, "MMM d")).join(", ")}`
+              : ""
+
+          return {
+            date: today,
+            amount: (person.dailyRate ?? 0) * personTotal,
+            category: "Payroll and Employee Costs",
+            paymentMethod: "Cash",
+            notes: `Payroll — ${person.firstName} ${person.lastName} (${formatDays(personTotal)} day${personTotal === 1 ? "" : "s"}: ${dateLabel}${halfLabel})`,
+          }
+        })
       )
       toast.success(`Payroll recorded for ${includedStaff.length} staff member${includedStaff.length === 1 ? "" : "s"}.`)
       setConfirmOpen(false)
@@ -140,7 +212,7 @@ export function RunPayrollDialog({
             <DialogTitle>Run Payroll</DialogTitle>
             <DialogDescription>
               Select staff and the days they reported to work — pay is calculated automatically as
-              daily rate × days.
+              daily rate × days. Click a staff member's day count in the summary to mark half days.
             </DialogDescription>
           </DialogHeader>
 
@@ -218,7 +290,7 @@ export function RunPayrollDialog({
                   <Calendar
                     mode="multiple"
                     selected={selectedDates}
-                    onSelect={(dates) => setSelectedDates(dates ?? [])}
+                    onSelect={handleDatesChange}
                     disabled={{ after: new Date() }}
                   />
                 </CardContent>
@@ -240,19 +312,58 @@ export function RunPayrollDialog({
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {includedStaff.map((person) => (
-                        <TableRow key={person.id}>
-                          <TableCell>
-                            {person.firstName} {person.lastName}
-                          </TableCell>
-                          <TableCell className="text-right tabular-nums text-muted-foreground">
-                            {dayCount}
-                          </TableCell>
-                          <TableCell className="text-right tabular-nums">
-                            {formatCurrency((person.dailyRate ?? 0) * dayCount)}
-                          </TableCell>
-                        </TableRow>
-                      ))}
+                      {includedStaff.map((person) => {
+                        const personTotal = staffDayTotal(person.id, selectedDates, halfDayOverrides)
+                        const halfCount = halfDayOverrides[person.id]?.size ?? 0
+                        return (
+                          <TableRow key={person.id}>
+                            <TableCell>
+                              {person.firstName} {person.lastName}
+                            </TableCell>
+                            <TableCell className="text-right tabular-nums text-muted-foreground">
+                              <Popover>
+                                <PopoverTrigger className="inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 underline decoration-dotted underline-offset-4 hover:bg-muted hover:text-foreground">
+                                  {formatDays(personTotal)}
+                                  {halfCount > 0 && (
+                                    <Badge variant="secondary" className="px-1.5 text-[10px]">
+                                      {halfCount} half
+                                    </Badge>
+                                  )}
+                                </PopoverTrigger>
+                                <PopoverContent align="end" className="w-64 p-3">
+                                  <p className="mb-2 text-xs font-medium text-muted-foreground">
+                                    Mark half days for {person.firstName}
+                                  </p>
+                                  <div className="flex flex-col gap-1">
+                                    {selectedDates
+                                      .slice()
+                                      .sort((a, b) => a.getTime() - b.getTime())
+                                      .map((date) => {
+                                        const iso = format(date, "yyyy-MM-dd")
+                                        const isHalf = halfDayOverrides[person.id]?.has(iso) ?? false
+                                        return (
+                                          <div key={iso} className="flex items-center justify-between gap-2 text-sm">
+                                            <span className="text-foreground">{format(date, "EEE, MMM d")}</span>
+                                            <Toggle
+                                              className="h-7 px-2 text-xs"
+                                              pressed={isHalf}
+                                              onPressedChange={(pressed) => toggleHalfDay(person.id, iso, pressed)}
+                                            >
+                                              Half
+                                            </Toggle>
+                                          </div>
+                                        )
+                                      })}
+                                  </div>
+                                </PopoverContent>
+                              </Popover>
+                            </TableCell>
+                            <TableCell className="text-right tabular-nums">
+                              {formatCurrency((person.dailyRate ?? 0) * personTotal)}
+                            </TableCell>
+                          </TableRow>
+                        )
+                      })}
                     </TableBody>
                   </Table>
                   <div className="flex items-center justify-between rounded-lg bg-status-success/10 px-3 py-2.5">
@@ -295,10 +406,11 @@ export function RunPayrollDialog({
               Run payroll for {includedStaff.length} staff member{includedStaff.length === 1 ? "" : "s"}?
             </AlertDialogTitle>
             <AlertDialogDescription>
-              This creates {formatCurrency(totalAmount)} in "Payroll and Employee Costs" expenses —
-              {" "}
-              {dayCount} day{dayCount === 1 ? "" : "s"} each. This can't be undone automatically; each
-              expense would need to be edited or deleted individually afterward.
+              This creates {formatCurrency(totalAmount)} in "Payroll and Employee Costs" expenses,
+              based on each staff member's days worked out of {dayCount} selected day
+              {dayCount === 1 ? "" : "s"} (with any half-day marks applied). This can't be undone
+              automatically; each expense would need to be edited or deleted individually
+              afterward.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
