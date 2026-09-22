@@ -3,7 +3,6 @@ import { Link, Outlet, useLocation } from "react-router-dom"
 
 import { AppSidebar } from "@/components/app-sidebar"
 import { SalesVisibilityToggle } from "@/components/sales-visibility-toggle"
-import { ThemeToggle } from "@/components/theme-toggle"
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -43,7 +42,7 @@ export function AppLayout() {
         <SidebarProvider>
           <AppSidebar />
           <SidebarInset>
-            <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
+            <header className="flex h-16 shrink-0 items-center gap-2 border-b border-border bg-card/80 px-4 backdrop-blur-sm">
               <SidebarTrigger className="-ml-1" />
               <Separator orientation="vertical" className="mr-2 h-4" />
               {segments.length > 0 && (
@@ -68,7 +67,6 @@ export function AppLayout() {
               )}
               <div className="ml-auto flex items-center gap-1">
                 <SalesVisibilityToggle />
-                <ThemeToggle />
               </div>
             </header>
             <div className="mx-auto flex w-full min-w-0 max-w-[1600px] flex-1 flex-col gap-4 p-4 md:p-6">

@@ -63,7 +63,7 @@ export function useOrderStatusLookup() {
   }
 
   function getColors(name: string) {
-    return getOrderStatusColors(find(name)?.color ?? "slot-1")
+    return getOrderStatusColors(find(name)?.color ?? "muted")
   }
 
   return { getLabel, getIcon, getColors }

@@ -64,6 +64,7 @@ export function RecentOrdersCard() {
                   status={order.status}
                   statusUpdatedAt={order.statusUpdatedAt}
                   className="min-w-28 justify-center"
+                  showIcon={false}
                 />
                 <PaymentStatusBadge status={order.payment.status} className="min-w-28 justify-center" />
                 <span className="text-right font-medium tabular-nums">

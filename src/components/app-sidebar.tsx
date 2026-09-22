@@ -11,11 +11,10 @@ import {
 } from "lucide-react"
 import { NavLink, useLocation } from "react-router-dom"
 
-import dgPrintsLogo from "@/assets/images/dg_prints_logo.jpg"
+import { Logo } from "@/components/logo"
 import { NavUser } from "@/components/nav-user"
 import { useAuth } from "@/lib/auth"
 import { useNavGuard } from "@/lib/nav-guard"
-import { cn } from "@/lib/utils"
 import {
   Sidebar,
   SidebarContent,
@@ -70,15 +69,8 @@ export function AppSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
               onClick={guardedNavClick("/dashboard")}
               render={<NavLink to="/dashboard" />}
             >
-              <div className="flex aspect-square size-8 items-center justify-center overflow-hidden rounded-lg bg-black">
-                <img
-                  src={dgPrintsLogo}
-                  alt="DG Prints"
-                  className="size-full object-cover object-top"
-                />
-              </div>
-              <div className="grid flex-1 text-left text-sm leading-tight group-data-[collapsible=icon]:hidden">
-                <span className="truncate font-medium">DG Prints</span>
+              <div className="flex shrink-0 items-center justify-center">
+                <Logo className="size-10 group-data-[collapsible=icon]:size-8" />
               </div>
             </SidebarMenuButton>
           </SidebarMenuItem>
@@ -99,10 +91,6 @@ export function AppSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
                     <SidebarMenuButton
                       tooltip={item.title}
                       isActive={isActive}
-                      className={cn(
-                        isActive &&
-                          "relative after:absolute after:inset-y-1.5 after:left-0 after:w-0.5 after:rounded-full after:bg-primary after:transition-opacity after:duration-150"
-                      )}
                       onClick={guardedNavClick(item.url)}
                       render={<NavLink to={item.url} />}
                     >

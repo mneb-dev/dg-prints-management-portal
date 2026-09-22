@@ -8,12 +8,15 @@ export function OrderStatusBadge({
   status,
   statusUpdatedAt,
   className,
+  showIcon = true,
 }: {
   status: OrderStatus
   /** When the order entered `status` — pass `order.statusUpdatedAt` so a Curing badge can
    * show elapsed time ("Curing + 3h"). Statuses other than Curing ignore this. */
   statusUpdatedAt?: string | null
   className?: string
+  /** Set false for a minimal, icon-free badge — just the colored label. */
+  showIcon?: boolean
 }) {
   const { getLabel, getIcon, getColors } = useOrderStatusLookup()
   const Icon = getIcon(status)
@@ -29,7 +32,7 @@ export function OrderStatusBadge({
         className
       )}
     >
-      <Icon data-icon="inline-start" />
+      {showIcon && <Icon data-icon="inline-start" />}
       {getLabel(status)}
       {duration && ` ${duration}`}
     </Badge>

@@ -12,9 +12,12 @@ export function getSystemTheme(): Theme {
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"
 }
 
+// Dark mode is disabled for now — always start in light mode regardless of what's
+// persisted or the OS preference. `themeSet`/`toggleTheme` still work if something calls
+// them, but the toggle UI is unmounted (see ThemeToggle usage in app-layout.tsx), so
+// nothing currently does.
 function getInitialTheme(): Theme {
-  const stored = localStorage.getItem(THEME_STORAGE_KEY)
-  return stored === "light" || stored === "dark" ? stored : getSystemTheme()
+  return "light"
 }
 
 const initialState: ThemeState = {

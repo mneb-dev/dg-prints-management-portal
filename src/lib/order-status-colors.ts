@@ -3,9 +3,10 @@ export type OrderStatusColors = { badge: string; solid: string; ring: string; co
 /** The full curated, admin-pickable color palette for order statuses. Written out as literal
  * class strings (not built via template interpolation) so Tailwind's build-time class scanner
  * can find them — the same constraint that keeps ORDER_STATUS_ICON_KEYS a curated list rather
- * than free text. 6 keys reuse shared theme tokens (so the original 8 statuses keep their exact
- * pre-picker look); 5 are order-status-only tokens; 12 are spare "slot" colors for anything
- * else — 18 choices total. */
+ * than free text. 6 keys reuse shared theme tokens (so status flows that lean on the generic
+ * info/progress/ready/success/destructive language keep using them); 18 are dedicated,
+ * named order-status colors — 24 choices total, all tuned to complement the indigo/violet
+ * "Corporate Trust" brand palette while staying mutually distinguishable. */
 const ORDER_STATUS_COLOR_MAP = {
   muted: {
     badge: "bg-secondary text-secondary-foreground",
@@ -43,107 +44,115 @@ const ORDER_STATUS_COLOR_MAP = {
     ring: "group-hover/statcard:ring-destructive/30",
     color: "var(--color-destructive)",
   },
-  trace: {
-    badge: "bg-order-status-trace/10 text-order-status-trace dark:bg-order-status-trace/20",
-    solid: "bg-order-status-trace",
-    ring: "group-hover/statcard:ring-order-status-trace/30",
-    color: "var(--color-order-status-trace)",
+  crimson: {
+    badge: "bg-order-status-crimson/10 text-order-status-crimson dark:bg-order-status-crimson/20",
+    solid: "bg-order-status-crimson",
+    ring: "group-hover/statcard:ring-order-status-crimson/30",
+    color: "var(--color-order-status-crimson)",
   },
-  cut: {
-    badge: "bg-order-status-cut/10 text-order-status-cut dark:bg-order-status-cut/20",
-    solid: "bg-order-status-cut",
-    ring: "group-hover/statcard:ring-order-status-cut/30",
-    color: "var(--color-order-status-cut)",
+  tangerine: {
+    badge:
+      "bg-order-status-tangerine/10 text-order-status-tangerine dark:bg-order-status-tangerine/20",
+    solid: "bg-order-status-tangerine",
+    ring: "group-hover/statcard:ring-order-status-tangerine/30",
+    color: "var(--color-order-status-tangerine)",
   },
-  pack: {
-    badge: "bg-order-status-pack/10 text-order-status-pack dark:bg-order-status-pack/20",
-    solid: "bg-order-status-pack",
-    ring: "group-hover/statcard:ring-order-status-pack/30",
-    color: "var(--color-order-status-pack)",
+  gold: {
+    badge: "bg-order-status-gold/10 text-order-status-gold dark:bg-order-status-gold/20",
+    solid: "bg-order-status-gold",
+    ring: "group-hover/statcard:ring-order-status-gold/30",
+    color: "var(--color-order-status-gold)",
   },
-  refunded: {
-    badge: "bg-order-status-refunded/10 text-order-status-refunded dark:bg-order-status-refunded/20",
-    solid: "bg-order-status-refunded",
-    ring: "group-hover/statcard:ring-order-status-refunded/30",
-    color: "var(--color-order-status-refunded)",
+  citrine: {
+    badge: "bg-order-status-citrine/10 text-order-status-citrine dark:bg-order-status-citrine/20",
+    solid: "bg-order-status-citrine",
+    ring: "group-hover/statcard:ring-order-status-citrine/30",
+    color: "var(--color-order-status-citrine)",
   },
-  returned: {
-    badge: "bg-order-status-returned/10 text-order-status-returned dark:bg-order-status-returned/20",
-    solid: "bg-order-status-returned",
-    ring: "group-hover/statcard:ring-order-status-returned/30",
-    color: "var(--color-order-status-returned)",
+  lime: {
+    badge: "bg-order-status-lime/10 text-order-status-lime dark:bg-order-status-lime/20",
+    solid: "bg-order-status-lime",
+    ring: "group-hover/statcard:ring-order-status-lime/30",
+    color: "var(--color-order-status-lime)",
   },
-  "slot-1": {
-    badge: "bg-order-status-slot-1/10 text-order-status-slot-1 dark:bg-order-status-slot-1/20",
-    solid: "bg-order-status-slot-1",
-    ring: "group-hover/statcard:ring-order-status-slot-1/30",
-    color: "var(--color-order-status-slot-1)",
+  moss: {
+    badge: "bg-order-status-moss/10 text-order-status-moss dark:bg-order-status-moss/20",
+    solid: "bg-order-status-moss",
+    ring: "group-hover/statcard:ring-order-status-moss/30",
+    color: "var(--color-order-status-moss)",
   },
-  "slot-2": {
-    badge: "bg-order-status-slot-2/10 text-order-status-slot-2 dark:bg-order-status-slot-2/20",
-    solid: "bg-order-status-slot-2",
-    ring: "group-hover/statcard:ring-order-status-slot-2/30",
-    color: "var(--color-order-status-slot-2)",
+  jade: {
+    badge: "bg-order-status-jade/10 text-order-status-jade dark:bg-order-status-jade/20",
+    solid: "bg-order-status-jade",
+    ring: "group-hover/statcard:ring-order-status-jade/30",
+    color: "var(--color-order-status-jade)",
   },
-  "slot-3": {
-    badge: "bg-order-status-slot-3/10 text-order-status-slot-3 dark:bg-order-status-slot-3/20",
-    solid: "bg-order-status-slot-3",
-    ring: "group-hover/statcard:ring-order-status-slot-3/30",
-    color: "var(--color-order-status-slot-3)",
+  teal: {
+    badge: "bg-order-status-teal/10 text-order-status-teal dark:bg-order-status-teal/20",
+    solid: "bg-order-status-teal",
+    ring: "group-hover/statcard:ring-order-status-teal/30",
+    color: "var(--color-order-status-teal)",
   },
-  "slot-4": {
-    badge: "bg-order-status-slot-4/10 text-order-status-slot-4 dark:bg-order-status-slot-4/20",
-    solid: "bg-order-status-slot-4",
-    ring: "group-hover/statcard:ring-order-status-slot-4/30",
-    color: "var(--color-order-status-slot-4)",
+  spruce: {
+    badge: "bg-order-status-spruce/10 text-order-status-spruce dark:bg-order-status-spruce/20",
+    solid: "bg-order-status-spruce",
+    ring: "group-hover/statcard:ring-order-status-spruce/30",
+    color: "var(--color-order-status-spruce)",
   },
-  "slot-5": {
-    badge: "bg-order-status-slot-5/10 text-order-status-slot-5 dark:bg-order-status-slot-5/20",
-    solid: "bg-order-status-slot-5",
-    ring: "group-hover/statcard:ring-order-status-slot-5/30",
-    color: "var(--color-order-status-slot-5)",
+  cyan: {
+    badge: "bg-order-status-cyan/10 text-order-status-cyan dark:bg-order-status-cyan/20",
+    solid: "bg-order-status-cyan",
+    ring: "group-hover/statcard:ring-order-status-cyan/30",
+    color: "var(--color-order-status-cyan)",
   },
-  "slot-6": {
-    badge: "bg-order-status-slot-6/10 text-order-status-slot-6 dark:bg-order-status-slot-6/20",
-    solid: "bg-order-status-slot-6",
-    ring: "group-hover/statcard:ring-order-status-slot-6/30",
-    color: "var(--color-order-status-slot-6)",
+  azure: {
+    badge: "bg-order-status-azure/10 text-order-status-azure dark:bg-order-status-azure/20",
+    solid: "bg-order-status-azure",
+    ring: "group-hover/statcard:ring-order-status-azure/30",
+    color: "var(--color-order-status-azure)",
   },
-  "slot-7": {
-    badge: "bg-order-status-slot-7/10 text-order-status-slot-7 dark:bg-order-status-slot-7/20",
-    solid: "bg-order-status-slot-7",
-    ring: "group-hover/statcard:ring-order-status-slot-7/30",
-    color: "var(--color-order-status-slot-7)",
+  cobalt: {
+    badge: "bg-order-status-cobalt/10 text-order-status-cobalt dark:bg-order-status-cobalt/20",
+    solid: "bg-order-status-cobalt",
+    ring: "group-hover/statcard:ring-order-status-cobalt/30",
+    color: "var(--color-order-status-cobalt)",
   },
-  "slot-8": {
-    badge: "bg-order-status-slot-8/10 text-order-status-slot-8 dark:bg-order-status-slot-8/20",
-    solid: "bg-order-status-slot-8",
-    ring: "group-hover/statcard:ring-order-status-slot-8/30",
-    color: "var(--color-order-status-slot-8)",
+  sapphire: {
+    badge:
+      "bg-order-status-sapphire/10 text-order-status-sapphire dark:bg-order-status-sapphire/20",
+    solid: "bg-order-status-sapphire",
+    ring: "group-hover/statcard:ring-order-status-sapphire/30",
+    color: "var(--color-order-status-sapphire)",
   },
-  "slot-9": {
-    badge: "bg-order-status-slot-9/10 text-order-status-slot-9 dark:bg-order-status-slot-9/20",
-    solid: "bg-order-status-slot-9",
-    ring: "group-hover/statcard:ring-order-status-slot-9/30",
-    color: "var(--color-order-status-slot-9)",
+  indigo: {
+    badge: "bg-order-status-indigo/10 text-order-status-indigo dark:bg-order-status-indigo/20",
+    solid: "bg-order-status-indigo",
+    ring: "group-hover/statcard:ring-order-status-indigo/30",
+    color: "var(--color-order-status-indigo)",
   },
-  "slot-10": {
-    badge: "bg-order-status-slot-10/10 text-order-status-slot-10 dark:bg-order-status-slot-10/20",
-    solid: "bg-order-status-slot-10",
-    ring: "group-hover/statcard:ring-order-status-slot-10/30",
-    color: "var(--color-order-status-slot-10)",
+  violet: {
+    badge: "bg-order-status-violet/10 text-order-status-violet dark:bg-order-status-violet/20",
+    solid: "bg-order-status-violet",
+    ring: "group-hover/statcard:ring-order-status-violet/30",
+    color: "var(--color-order-status-violet)",
   },
-  "slot-11": {
-    badge: "bg-order-status-slot-11/10 text-order-status-slot-11 dark:bg-order-status-slot-11/20",
-    solid: "bg-order-status-slot-11",
-    ring: "group-hover/statcard:ring-order-status-slot-11/30",
-    color: "var(--color-order-status-slot-11)",
+  orchid: {
+    badge: "bg-order-status-orchid/10 text-order-status-orchid dark:bg-order-status-orchid/20",
+    solid: "bg-order-status-orchid",
+    ring: "group-hover/statcard:ring-order-status-orchid/30",
+    color: "var(--color-order-status-orchid)",
   },
-  "slot-12": {
-    badge: "bg-order-status-slot-12/10 text-order-status-slot-12 dark:bg-order-status-slot-12/20",
-    solid: "bg-order-status-slot-12",
-    ring: "group-hover/statcard:ring-order-status-slot-12/30",
-    color: "var(--color-order-status-slot-12)",
+  magenta: {
+    badge: "bg-order-status-magenta/10 text-order-status-magenta dark:bg-order-status-magenta/20",
+    solid: "bg-order-status-magenta",
+    ring: "group-hover/statcard:ring-order-status-magenta/30",
+    color: "var(--color-order-status-magenta)",
+  },
+  rose: {
+    badge: "bg-order-status-rose/10 text-order-status-rose dark:bg-order-status-rose/20",
+    solid: "bg-order-status-rose",
+    ring: "group-hover/statcard:ring-order-status-rose/30",
+    color: "var(--color-order-status-rose)",
   },
 } as const satisfies Record<string, OrderStatusColors>
 
@@ -151,8 +160,11 @@ export const ORDER_STATUS_COLOR_KEYS = Object.keys(ORDER_STATUS_COLOR_MAP) as Or
 
 export type OrderStatusColorKey = keyof typeof ORDER_STATUS_COLOR_MAP
 
-/** Looks up a color key's classes, falling back to the first slot for an unrecognized/legacy
- * key (the backend stores `color` as opaque, unvalidated text, same as `icon`). */
+/** Looks up a color key's classes, falling back to a neutral default for an unrecognized/legacy
+ * key (the backend stores `color` as opaque, unvalidated text, same as `icon`) — most likely to
+ * hit for a status still carrying one of the removed `slot-N`/trace/cut/pack/refunded/returned
+ * keys from before the Corporate Trust palette reset; re-pick its color from the status list to
+ * clear this. */
 export function getOrderStatusColors(key: string): OrderStatusColors {
-  return ORDER_STATUS_COLOR_MAP[key as OrderStatusColorKey] ?? ORDER_STATUS_COLOR_MAP["slot-1"]
+  return ORDER_STATUS_COLOR_MAP[key as OrderStatusColorKey] ?? ORDER_STATUS_COLOR_MAP["muted"]
 }

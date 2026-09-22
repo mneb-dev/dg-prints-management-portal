@@ -1,6 +1,7 @@
 import { useId, useState, type SubmitEvent } from "react"
 import { useNavigate } from "react-router-dom"
 
+import { Logo } from "@/components/logo"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -54,10 +55,19 @@ export function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-svh items-center justify-center p-6">
-      <Card className="w-full max-w-sm">
-        <CardHeader>
-          <CardTitle>Sign in to DG Prints</CardTitle>
+    <div className="relative flex min-h-svh items-center justify-center overflow-hidden bg-background p-6">
+      <div
+        aria-hidden
+        className="bg-brand-gradient pointer-events-none absolute -top-32 -left-32 size-96 rounded-full opacity-20 blur-3xl"
+      />
+      <div
+        aria-hidden
+        className="bg-brand-gradient pointer-events-none absolute -right-32 -bottom-32 size-96 rounded-full opacity-20 blur-3xl"
+      />
+      <Card className="relative w-full max-w-sm shadow-[var(--shadow-elevated)]">
+        <CardHeader className="items-center text-center">
+          <Logo className="mx-auto mb-2 size-24" />
+          <CardTitle className="font-heading text-lg font-bold">Sign in to DG Prints</CardTitle>
           <CardDescription>Enter your username and password to continue.</CardDescription>
         </CardHeader>
         <CardContent>
@@ -87,7 +97,7 @@ export function LoginPage() {
                 <FieldError>{fieldErrors.password ?? error}</FieldError>
               </Field>
               <Field>
-                <Button type="submit" disabled={isSubmitting}>
+                <Button type="submit" variant="gradient" className="w-full" disabled={isSubmitting}>
                   {isSubmitting && <Spinner data-icon="inline-start" />}
                   {isSubmitting ? "Signing in..." : "Sign in"}
                 </Button>

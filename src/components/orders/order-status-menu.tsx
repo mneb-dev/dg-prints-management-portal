@@ -62,7 +62,7 @@ export function OrderStatusMenu({
   const { updateStatus, isUpdating } = useOrderStatusUpdate()
   const { categories } = useCategories()
   const { statuses } = useActiveOrderStatuses()
-  const { getLabel, getIcon, getColors } = useOrderStatusLookup()
+  const { getLabel, getColors } = useOrderStatusLookup()
   const [pendingStatus, setPendingStatus] = useState<OrderStatus | null>(null)
 
   const isCuring = order.status === CURING_STATUS_NAME
@@ -73,7 +73,6 @@ export function OrderStatusMenu({
     role,
     statuses.map((s) => s.name)
   )
-  const Icon = getIcon(order.status)
   // Ticks independently every 30s (see TickingText) instead of driving this whole menu's
   // re-render off a timer -- curingDuration itself is only used for the confirm-dialog copy
   // below, which doesn't need to tick.
@@ -113,9 +112,8 @@ export function OrderStatusMenu({
             <button
               type="button"
               className={cn(
-                badgeVariants({ variant: "plain" }),
-                getColors(order.status).badge,
-                "border-transparent cursor-pointer pr-1.5 transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-60",
+                badgeVariants({ variant: "secondary" }),
+                "justify-start border-transparent cursor-pointer pr-1.5 transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-60",
                 size === "lg" && "h-8 gap-1.5 px-3 text-sm [&>svg]:size-4!",
                 triggerClassName
               )}
@@ -123,25 +121,31 @@ export function OrderStatusMenu({
           }
         >
           {isUpdating ? (
-            <Loader2Icon data-icon="inline-start" className="animate-spin" />
+            <Loader2Icon className="animate-spin" />
           ) : (
-            <Icon data-icon="inline-start" />
-          )}
-          {getLabel(order.status)}
-          {isCuring && (
-            <TickingText
-              intervalMs={30_000}
-              format={() => {
-                const duration = formatCuringDuration(order.statusUpdatedAt)
-                return duration ? ` ${duration}` : null
-              }}
+            <span
+              aria-hidden
+              className={cn("size-2 shrink-0 translate-y-px rounded-full", getColors(order.status).solid)}
             />
           )}
-          <ChevronDownIcon className={cn("opacity-70", size === "lg" ? "size-4" : "size-3")} />
+          <span className="leading-none">
+            {getLabel(order.status)}
+            {isCuring && (
+              <TickingText
+                intervalMs={30_000}
+                format={() => {
+                  const duration = formatCuringDuration(order.statusUpdatedAt)
+                  return duration ? ` ${duration}` : null
+                }}
+              />
+            )}
+          </span>
+          <ChevronDownIcon
+            className={cn("ml-auto opacity-70", size === "lg" ? "size-4" : "size-3")}
+          />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start">
           {options.map((option) => {
-            const OptionIcon = getIcon(option.value)
             const isCurrent = option.value === order.status
             return (
               <DropdownMenuItem
@@ -156,8 +160,14 @@ export function OrderStatusMenu({
                 }
                 onClick={() => void handleSelect(option.value)}
               >
-                <OptionIcon />
-                {getLabel(option.value)}
+                <span
+                  aria-hidden
+                  className={cn(
+                    "size-2 shrink-0 translate-y-px rounded-full",
+                    getColors(option.value).solid
+                  )}
+                />
+                <span className="leading-none">{getLabel(option.value)}</span>
               </DropdownMenuItem>
             )
           })}

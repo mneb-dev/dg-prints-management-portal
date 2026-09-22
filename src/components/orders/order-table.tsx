@@ -315,13 +315,11 @@ export function OrderTable({
                       onRefund={onRefund}
                       onReturn={onReturn}
                       role={role}
-                      triggerClassName="w-36 truncate"
                     />
                   ) : (
                     <OrderStatusBadge
                       status={order.status}
                       statusUpdatedAt={order.statusUpdatedAt}
-                      className="w-36 truncate"
                     />
                   )}
                 </TableCell>
