@@ -1,6 +1,7 @@
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 
 import { useAppDispatch, useAppSelector } from "@/lib/hooks"
+import { isNewProduct, NEW_PRODUCT_DAYS } from "@/lib/new-products"
 import {
   createProductThunk,
   deleteProductThunk,
@@ -95,6 +96,17 @@ export function useProductCatalog() {
     isError: status === "failed",
     error,
   }
+}
+
+/** Active products added in the last NEW_PRODUCT_DAYS days (see new-products.ts) — drives the
+ * Products sidebar badge count and the table's "New" chip. */
+export function useNewProducts() {
+  const { products } = useProductCatalog()
+  // Captured once per mount: "new" is measured in days, so a fixed now is precise enough and keeps
+  // render pure.
+  const [now] = useState(() => Date.now())
+  const newProducts = products.filter((product) => isNewProduct(product, now))
+  return { newProducts, newProductCount: newProducts.length, newProductDays: NEW_PRODUCT_DAYS }
 }
 
 /** Product create/update/delete only — no list fetch. For dialogs and the Products page's delete action. */

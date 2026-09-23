@@ -40,6 +40,7 @@ import { useCategories } from "@/lib/categories"
 import { SPX_ADMIN_CREATE_ORDER_URL } from "@/lib/clipboard"
 import { useOrderChannels } from "@/lib/order-channels"
 import { useActiveOrderStatuses, useOrderStatusLookup } from "@/lib/order-statuses"
+import { useClampPage } from "@/lib/pagination"
 import { useDebouncedValue } from "@/lib/use-debounced-value"
 import { cn } from "@/lib/utils"
 import { useUserOptions } from "@/lib/users"
@@ -87,6 +88,7 @@ export function OrdersPage() {
   const { hasPermission, role, user } = useAuth()
   const canManage = hasPermission("manage_orders")
   const { orders, total, params, setParams, refetch, isLoading, isFetching, isError, error } = useOrders()
+  useClampPage(params.page, params.pageSize, total, isFetching, (page) => setParams({ page }))
   const { categories } = useCategories()
   const { statuses } = useActiveOrderStatuses()
   const { getLabel, getColors } = useOrderStatusLookup()
@@ -588,19 +590,20 @@ export function OrdersPage() {
           setPayingTargetStatus(targetStatus)
         }}
         onRequestOR={setRequestingOrOrder}
+        footer={
+          total > 0 && (
+            <PaginationBar
+              page={params.page}
+              pageSize={params.pageSize}
+              total={total}
+              itemLabel="orders"
+              onPageChange={(page) => setParams({ page })}
+              onPageSizeChange={(pageSize) => setParams({ pageSize, page: 1 })}
+              disabled={isLoading || isFetching || isError}
+            />
+          )
+        }
       />
-
-      {total > 0 && (
-        <PaginationBar
-          page={params.page}
-          pageSize={params.pageSize}
-          total={total}
-          itemLabel="orders"
-          onPageChange={(page) => setParams({ page })}
-          onPageSizeChange={(pageSize) => setParams({ pageSize, page: 1 })}
-          disabled={isLoading || isFetching || isError}
-        />
-      )}
 
       <CancelOrderDialog
         order={cancellingOrder}

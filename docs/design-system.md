@@ -104,6 +104,31 @@ once it repeats across many rows.
 - Tailwind v4 `translate-*`/`scale-*` utilities set the `translate`/`scale` CSS properties, not
   `transform` — list those in `transition-[...]`, or the movement snaps instead of easing.
 
+## Pagination (`components/pagination-bar.tsx`)
+
+Every list that grows without bound is paged **server-side** (`page`/`pageSize` in, `total` out;
+page sizes 5/10/20/50 on both sides). Small, bounded lists (settings catalogs, tiers, per-staff
+tables, the ≤12-month incentive history) aren't paged.
+
+- **Placement: a footer strip inside the table surface**, never floating below it. Tables take a
+  `footer?: ReactNode` prop, rendered right after `</Table>` inside `TABLE_SURFACE_CLASS` (or the
+  `Card` for the commission table) and only in the data state, not loading/empty/error. Pages
+  pass `footer={total > 0 && <PaginationBar … />}`.
+- **Strip:** `border-t bg-muted/40 px-4 py-2`, the same tint as the table header and modal
+  footers. The surface's `overflow-hidden` supplies the rounded corners.
+- **Left:** "Showing **1–10** of 124 orders" (range in `text-foreground`, `tabular-nums`) and the
+  rows-per-page `Select`.
+- **Right:** First · Prev · numbered pages · Next · Last. Page numbers sit on the shared segmented
+  track (`SEGMENT_TRACK_CLASS` / `SEGMENT_CLASS`): the current page takes the accent + ring
+  treatment with `aria-current="page"`, not a solid fill.
+- **Ellipsis rule** (`getPageItems` in `lib/pagination.ts`): always the first and last page plus
+  one neighbour either side of the current page. A gap of exactly one page shows that number,
+  since an ellipsis there would hide nothing.
+- **Phones (below `sm`):** the track and First/Last hide, leaving `‹ Page 3 of 12 ›` with 44px
+  tap targets. The summary shortens to "1–10 of 124".
+- **Staying in range:** `useClampPage` pulls the page back to the last one when a mutation empties
+  the current page (e.g. deleting the only row on the last page). Filter changes reset to page 1.
+
 ## Modals
 
 Every modal in the app follows one pattern. Two shapes share the same surface.

@@ -22,13 +22,14 @@ import {
 } from "@/components/ui/select"
 import { useAuth } from "@/lib/auth"
 import { EXPENSE_CATEGORIES, useExpenseActions, useExpenses, type Expense } from "@/lib/expenses"
+import { useClampPage } from "@/lib/pagination"
 import { usePaymentMethods } from "@/lib/payment-methods"
 import { useUserOptions } from "@/lib/users"
 import { useDebouncedValue } from "@/lib/use-debounced-value"
 
 const ANY_CATEGORY = "All categories"
 const ANY_METHOD = "All payment methods"
-const ANY_CREATOR = "All creators"
+const ANY_CREATOR = "Anyone"
 
 const SORT_OPTIONS = [
   { value: "date", label: "Date" },
@@ -42,6 +43,7 @@ export function ExpensesPage() {
   const canManage = role === "admin" || role === "superadmin"
   const navigate = useNavigate()
   const { expenses, total, params, setParams, refetch, isLoading, isFetching, isError, error } = useExpenses()
+  useClampPage(params.page, params.pageSize, total, isFetching, (page) => setParams({ page }))
   const { deleteExpense } = useExpenseActions()
   const { paymentMethods } = usePaymentMethods()
   // Includes inactive users so a former staff member's past expenses can still be isolated.
@@ -239,17 +241,17 @@ export function ExpensesPage() {
             }
             disabled={isLoading || isError}
           >
-            <SelectTrigger aria-label="Filter by creator">
+            <SelectTrigger aria-label="Filter by created by" className="min-w-44 shrink-0">
               <SelectValue>
-                {(value: string | null) => (value && value !== ANY_CREATOR ? creatorName(value) : ANY_CREATOR)}
+                {(value: string | null) => `Created by: ${value && value !== ANY_CREATOR ? creatorName(value) : ANY_CREATOR}`}
               </SelectValue>
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="min-w-56" alignItemWithTrigger={false}>
               <SelectItem value={ANY_CREATOR}>{ANY_CREATOR}</SelectItem>
               {creatorOptions.map((user) => (
-                <SelectItem key={user.id} value={user.id}>
+                <SelectItem key={user.id} value={user.id} className="whitespace-nowrap">
                   {user.firstName} {user.lastName}
-                  {user.status !== "active" && <span className="text-muted-foreground">(inactive)</span>}
+                  {user.status !== "active" && <span className="text-xs text-muted-foreground">Inactive</span>}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -292,19 +294,20 @@ export function ExpensesPage() {
         onCreate={handleAdd}
         onEdit={handleEdit}
         onDelete={setDeletingExpense}
+        footer={
+          total > 0 && (
+            <PaginationBar
+              page={params.page}
+              pageSize={params.pageSize}
+              total={total}
+              itemLabel="expenses"
+              onPageChange={(page) => setParams({ page })}
+              onPageSizeChange={(pageSize) => setParams({ pageSize, page: 1 })}
+              disabled={isLoading || isFetching || isError}
+            />
+          )
+        }
       />
-
-      {total > 0 && (
-        <PaginationBar
-          page={params.page}
-          pageSize={params.pageSize}
-          total={total}
-          itemLabel="expenses"
-          onPageChange={(page) => setParams({ page })}
-          onPageSizeChange={(pageSize) => setParams({ pageSize, page: 1 })}
-          disabled={isLoading || isFetching || isError}
-        />
-      )}
 
       <ExpenseFormDialog
         open={formOpen}

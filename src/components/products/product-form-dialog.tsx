@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react"
+import { useEffect, useState } from "react"
 import {
   LayersIcon,
   PackageIcon,
@@ -11,6 +11,7 @@ import { toast } from "sonner"
 
 import { CharCount } from "@/components/char-count"
 import { ChoiceCard } from "@/components/choice-card"
+import { FormSection } from "@/components/form-section"
 import { SEGMENT_CLASS, SEGMENT_TRACK_CLASS } from "@/components/segmented"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -573,36 +574,5 @@ export function ProductFormDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  )
-}
-
-/** Numbered step heading for the product form: "① Basics", "② Pricing". */
-function FormSection({
-  step,
-  title,
-  description,
-  children,
-}: {
-  step: number
-  title: string
-  description?: string
-  children: ReactNode
-}) {
-  return (
-    <section className="flex flex-col gap-4">
-      <div className="flex items-start gap-3">
-        <span
-          aria-hidden
-          className="flex size-6 shrink-0 items-center justify-center rounded-full bg-accent text-xs font-semibold text-accent-foreground tabular-nums"
-        >
-          {step}
-        </span>
-        <div className="flex flex-col gap-0.5">
-          <h3 className="text-sm leading-6 font-semibold">{title}</h3>
-          {description ? <p className="text-xs text-muted-foreground">{description}</p> : null}
-        </div>
-      </div>
-      <div className="flex flex-col gap-4 sm:pl-9">{children}</div>
-    </section>
   )
 }

@@ -1,25 +1,19 @@
 import { useEffect, useState } from "react"
-import { KeyRoundIcon, UserIcon } from "lucide-react"
+import { KeyRoundIcon, ShieldCheckIcon, ShieldIcon, UserIcon, type LucideIcon } from "lucide-react"
 import { toast } from "sonner"
 
-import { Button } from "@/components/ui/button"
+import { ChoiceCard } from "@/components/choice-card"
+import { ChoiceTile } from "@/components/choice-tile"
 import { FormDialogHeader } from "@/components/form-dialog-header"
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-} from "@/components/ui/dialog"
-import { Field, FieldError, FieldGroup, FieldLabel, FieldDescription } from "@/components/ui/field"
+import { FormSection } from "@/components/form-section"
+import { SEGMENT_CLASS, SEGMENT_TRACK_CLASS } from "@/components/segmented"
+import { Button } from "@/components/ui/button"
+import { Dialog, DialogBody, DialogContent, DialogFooter } from "@/components/ui/dialog"
+import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { Spinner } from "@/components/ui/spinner"
-import { Switch } from "@/components/ui/switch"
+import { Toggle } from "@/components/ui/toggle"
+import { ToggleGroup } from "@/components/ui/toggle-group"
 import { ResetPasswordDialog } from "@/components/users/reset-password-dialog"
 import {
   canManageUser,
@@ -27,12 +21,27 @@ import {
   PERMISSION_LABELS,
   ROLE_LABELS,
   ROLES,
+  USER_STATUSES,
   useUserActions,
+  type PermissionKey,
   type Role,
   type User,
   type UserInput,
+  type UserStatus,
 } from "@/lib/users"
+import { cn } from "@/lib/utils"
 import { requiredMessage } from "@/lib/validation"
+
+const ROLE_CHOICES: Record<Role, { icon: LucideIcon; hint: string }> = {
+  staff: { icon: UserIcon, hint: "Orders and day-to-day work" },
+  admin: { icon: ShieldIcon, hint: "Runs the team and the books" },
+  superadmin: { icon: ShieldCheckIcon, hint: "Full control, incl. admins" },
+}
+
+const STATUS_LABELS: Record<UserStatus, string> = {
+  active: "Active",
+  inactive: "Inactive",
+}
 
 function emptyDraft(): UserInput {
   return {
@@ -88,15 +97,7 @@ export function UserFormDialog({
   }, [open, user])
 
   const canResetPassword = !!user && !!currentUserRole && canManageUser(currentUserRole, user)
-
-  function togglePermission(key: (typeof PERMISSION_KEYS)[number]) {
-    setDraft((prev) => ({
-      ...prev,
-      permissions: prev.permissions.includes(key)
-        ? prev.permissions.filter((p) => p !== key)
-        : [...prev.permissions, key],
-    }))
-  }
+  const isSelf = !!user && user.id === currentUserId
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -131,156 +132,189 @@ export function UserFormDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-xl">
           <FormDialogHeader
             icon={UserIcon}
-            title={<>{user ? "Edit user" : "New user"}</>}
-            description={<>{user ? "Update this user's account details." : "Add a new staff, admin, or super admin account. Use Reset Password afterward to set a password for them."}</>}
+            title={user ? "Edit user" : "New user"}
+            description={
+              user
+                ? "Update this user's profile, access and pay."
+                : "Add a staff, admin or super admin account. Use Reset password afterward to set their password."
+            }
           />
 
-          <form id="user-form" onSubmit={handleSubmit} className="flex flex-col gap-6">
-            <FieldGroup>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <Field data-invalid={!!fieldErrors.firstName}>
-                  <FieldLabel htmlFor="user-first-name">First Name</FieldLabel>
-                  <Input
-                    id="user-first-name"
-                    value={draft.firstName}
-                    onChange={(event) => {
-                      setDraft((prev) => ({ ...prev, firstName: event.target.value }))
-                      setFieldErrors((prev) => ({ ...prev, firstName: undefined }))
-                    }}
-                    aria-invalid={!!fieldErrors.firstName}
-                    placeholder="Juan"
-                  />
-                  <FieldError>{fieldErrors.firstName}</FieldError>
-                </Field>
-
-                <Field data-invalid={!!fieldErrors.lastName}>
-                  <FieldLabel htmlFor="user-last-name">Last Name</FieldLabel>
-                  <Input
-                    id="user-last-name"
-                    value={draft.lastName}
-                    onChange={(event) => {
-                      setDraft((prev) => ({ ...prev, lastName: event.target.value }))
-                      setFieldErrors((prev) => ({ ...prev, lastName: undefined }))
-                    }}
-                    aria-invalid={!!fieldErrors.lastName}
-                    placeholder="Dela Cruz"
-                  />
-                  <FieldError>{fieldErrors.lastName}</FieldError>
-                </Field>
-              </div>
-
-              <Field data-invalid={!!fieldErrors.username}>
-                <FieldLabel htmlFor="user-username">Username</FieldLabel>
-                <Input
-                  id="user-username"
-                  value={draft.username}
-                  onChange={(event) => {
-                    setDraft((prev) => ({ ...prev, username: event.target.value }))
-                    setFieldErrors((prev) => ({ ...prev, username: undefined }))
-                  }}
-                  aria-invalid={!!fieldErrors.username}
-                  placeholder="juan.delacruz"
-                  autoComplete="off"
-                />
-                <FieldError>{fieldErrors.username}</FieldError>
-              </Field>
-
-              <Field>
-                <FieldLabel htmlFor="user-role">Role</FieldLabel>
-                <Select
-                  value={draft.role}
-                  onValueChange={(value) => setDraft((prev) => ({ ...prev, role: value as Role }))}
-                >
-                  <SelectTrigger id="user-role" className="w-full">
-                    <SelectValue>{(value: Role) => ROLE_LABELS[value]}</SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {ROLES.map((role) => (
-                      <SelectItem key={role} value={role}>
-                        {ROLE_LABELS[role]}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
-
-              <Field>
-                <FieldLabel>Status</FieldLabel>
-                <div className="flex items-center justify-between rounded-lg border p-3">
-                  <span className="text-sm">
-                    {draft.status === "active" ? "Active" : "Inactive"}
-                  </span>
-                  <Switch
-                    checked={draft.status === "active"}
-                    disabled={!!user && user.id === currentUserId}
-                    onCheckedChange={(checked) =>
-                      setDraft((prev) => ({ ...prev, status: checked ? "active" : "inactive" }))
-                    }
-                  />
-                </div>
-                {user && user.id === currentUserId ? (
-                  <FieldDescription>You cannot deactivate your own account.</FieldDescription>
-                ) : null}
-              </Field>
-
-              <Field>
-                <FieldLabel htmlFor="user-commission-rate">Commission Rate (%)</FieldLabel>
-                <Input
-                  id="user-commission-rate"
-                  type="number"
-                  min={0}
-                  max={100}
-                  step={0.01}
-                  value={draft.commissionRate}
-                  onChange={(event) =>
-                    setDraft((prev) => ({ ...prev, commissionRate: Number(event.target.value) }))
-                  }
-                />
-                <FieldDescription>
-                  Percentage of an order's layout fee paid as commission when this user is set as
-                  Layout by.
-                </FieldDescription>
-              </Field>
-
-              <Field>
-                <FieldLabel htmlFor="user-daily-rate">Daily Rate</FieldLabel>
-                <Input
-                  id="user-daily-rate"
-                  type="number"
-                  min={0}
-                  step={0.01}
-                  value={draft.dailyRate ?? ""}
-                  placeholder="No daily rate"
-                  onChange={(event) => {
-                    const value = event.target.value
-                    setDraft((prev) => ({ ...prev, dailyRate: value === "" ? null : Number(value) }))
-                  }}
-                />
-                <FieldDescription>
-                  Fixed per-day rate in addition to commission, paid out via the Run Payroll action
-                  on the Expenses page.
-                </FieldDescription>
-              </Field>
-
-              <Field>
-                <FieldLabel>Permissions</FieldLabel>
-                <div className="flex flex-col gap-2 rounded-lg border p-3">
-                  {PERMISSION_KEYS.map((key) => (
-                    <label key={key} className="flex items-center justify-between gap-2 text-sm">
-                      {PERMISSION_LABELS[key]}
-                      <Switch
-                        checked={draft.permissions.includes(key)}
-                        onCheckedChange={() => togglePermission(key)}
+          <DialogBody>
+            <form id="user-form" onSubmit={handleSubmit} className="flex flex-col gap-8">
+              <FormSection step={1} title="Profile" description="Who they are and how they sign in.">
+                <FieldGroup>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <Field data-invalid={!!fieldErrors.firstName}>
+                      <FieldLabel htmlFor="user-first-name">First name</FieldLabel>
+                      <Input
+                        id="user-first-name"
+                        value={draft.firstName}
+                        onChange={(event) => {
+                          setDraft((prev) => ({ ...prev, firstName: event.target.value }))
+                          setFieldErrors((prev) => ({ ...prev, firstName: undefined }))
+                        }}
+                        aria-invalid={!!fieldErrors.firstName}
+                        placeholder="Juan"
+                        autoFocus={!user}
                       />
-                    </label>
-                  ))}
+                      <FieldError>{fieldErrors.firstName}</FieldError>
+                    </Field>
+
+                    <Field data-invalid={!!fieldErrors.lastName}>
+                      <FieldLabel htmlFor="user-last-name">Last name</FieldLabel>
+                      <Input
+                        id="user-last-name"
+                        value={draft.lastName}
+                        onChange={(event) => {
+                          setDraft((prev) => ({ ...prev, lastName: event.target.value }))
+                          setFieldErrors((prev) => ({ ...prev, lastName: undefined }))
+                        }}
+                        aria-invalid={!!fieldErrors.lastName}
+                        placeholder="Dela Cruz"
+                      />
+                      <FieldError>{fieldErrors.lastName}</FieldError>
+                    </Field>
+                  </div>
+
+                  <Field data-invalid={!!fieldErrors.username}>
+                    <FieldLabel htmlFor="user-username">Username</FieldLabel>
+                    <Input
+                      id="user-username"
+                      value={draft.username}
+                      onChange={(event) => {
+                        setDraft((prev) => ({ ...prev, username: event.target.value }))
+                        setFieldErrors((prev) => ({ ...prev, username: undefined }))
+                      }}
+                      aria-invalid={!!fieldErrors.username}
+                      placeholder="juan.delacruz"
+                      autoComplete="off"
+                    />
+                    <FieldError>{fieldErrors.username}</FieldError>
+                  </Field>
+                </FieldGroup>
+              </FormSection>
+
+              <FormSection step={2} title="Access" description="What they can see and change.">
+                <FieldGroup>
+                  <Field>
+                    <FieldLabel id="user-role-label">Role</FieldLabel>
+                    <ToggleGroup
+                      aria-labelledby="user-role-label"
+                      value={[draft.role]}
+                      onValueChange={(next) => {
+                        const value = next[0] as Role | undefined
+                        if (value) setDraft((prev) => ({ ...prev, role: value }))
+                      }}
+                      className="grid grid-cols-1 gap-2 sm:grid-cols-3"
+                    >
+                      {ROLES.map((role) => (
+                        <ChoiceCard
+                          key={role}
+                          value={role}
+                          icon={ROLE_CHOICES[role].icon}
+                          title={ROLE_LABELS[role]}
+                          description={ROLE_CHOICES[role].hint}
+                          className="p-3"
+                        />
+                      ))}
+                    </ToggleGroup>
+                  </Field>
+
+                  <Field>
+                    <FieldLabel id="user-status-label">Status</FieldLabel>
+                    <ToggleGroup
+                      aria-labelledby="user-status-label"
+                      value={[draft.status]}
+                      onValueChange={(next) => {
+                        const value = next[0] as UserStatus | undefined
+                        if (value) setDraft((prev) => ({ ...prev, status: value }))
+                      }}
+                      disabled={isSelf}
+                      className={cn(SEGMENT_TRACK_CLASS, "w-fit")}
+                    >
+                      {USER_STATUSES.map((status) => (
+                        <Toggle key={status} value={status} className={SEGMENT_CLASS}>
+                          <span
+                            aria-hidden
+                            className={cn(
+                              "size-2 shrink-0 translate-y-px rounded-full",
+                              status === "active" ? "bg-order-status-teal" : "bg-muted-foreground/40"
+                            )}
+                          />
+                          <span className="leading-none">{STATUS_LABELS[status]}</span>
+                        </Toggle>
+                      ))}
+                    </ToggleGroup>
+                    <FieldDescription>
+                      {isSelf
+                        ? "You can't deactivate your own account."
+                        : "Inactive users can't sign in, but their history is kept."}
+                    </FieldDescription>
+                  </Field>
+
+                  <Field>
+                    <FieldLabel id="user-permissions-label">Permissions</FieldLabel>
+                    <ToggleGroup
+                      multiple
+                      aria-labelledby="user-permissions-label"
+                      value={draft.permissions}
+                      onValueChange={(next) =>
+                        setDraft((prev) => ({ ...prev, permissions: next as PermissionKey[] }))
+                      }
+                      className="flex flex-wrap gap-2"
+                    >
+                      {PERMISSION_KEYS.map((key) => (
+                        <ChoiceTile key={key} value={key}>
+                          {PERMISSION_LABELS[key]}
+                        </ChoiceTile>
+                      ))}
+                    </ToggleGroup>
+                  </Field>
+                </FieldGroup>
+              </FormSection>
+
+              <FormSection step={3} title="Pay" description="Used by Incentives and Run payroll.">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <Field>
+                    <FieldLabel htmlFor="user-commission-rate">Commission rate (%)</FieldLabel>
+                    <Input
+                      id="user-commission-rate"
+                      type="number"
+                      min={0}
+                      max={100}
+                      step={0.01}
+                      value={draft.commissionRate}
+                      onChange={(event) =>
+                        setDraft((prev) => ({ ...prev, commissionRate: Number(event.target.value) }))
+                      }
+                    />
+                    <FieldDescription>Share of the layout fee when they're set as Layout by.</FieldDescription>
+                  </Field>
+
+                  <Field>
+                    <FieldLabel htmlFor="user-daily-rate">Daily rate</FieldLabel>
+                    <Input
+                      id="user-daily-rate"
+                      type="number"
+                      min={0}
+                      step={0.01}
+                      value={draft.dailyRate ?? ""}
+                      placeholder="No daily rate"
+                      onChange={(event) => {
+                        const value = event.target.value
+                        setDraft((prev) => ({ ...prev, dailyRate: value === "" ? null : Number(value) }))
+                      }}
+                    />
+                    <FieldDescription>Fixed per-day pay on top of commission.</FieldDescription>
+                  </Field>
                 </div>
-              </Field>
-            </FieldGroup>
-          </form>
+              </FormSection>
+            </form>
+          </DialogBody>
 
           <DialogFooter>
             {canResetPassword && (
@@ -291,10 +325,10 @@ export function UserFormDialog({
                 onClick={() => setResettingUser(user)}
               >
                 <KeyRoundIcon data-icon="inline-start" />
-                Reset Password
+                Reset password
               </Button>
             )}
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
+            <Button variant="ghost" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
             <Button type="submit" form="user-form" disabled={isSubmitting}>

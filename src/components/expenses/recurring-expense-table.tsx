@@ -1,4 +1,4 @@
-import { type MouseEvent } from "react"
+import { type MouseEvent, type ReactNode } from "react"
 import {
   CalendarCogIcon,
   Loader2Icon,
@@ -12,6 +12,7 @@ import {
 } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
+import { TABLE_HEAD_CLASS, TABLE_HEADER_CLASS, TABLE_SURFACE_CLASS } from "@/components/table-surface"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -41,19 +42,15 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { RECURRENCE_FREQUENCY_LABELS, type RecurringExpense } from "@/lib/expenses"
 import { cn, formatCurrency, formatDate } from "@/lib/utils"
 
-/** Same card surface as the Products / Orders tables. */
-const SURFACE_CLASS = "overflow-hidden rounded-xl border border-border bg-card shadow-[var(--shadow-soft)]"
-const HEAD_CLASS = "px-4 text-xs font-medium text-muted-foreground"
-
 function Columns() {
   return (
-    <TableHeader className="bg-muted/40">
+    <TableHeader className={TABLE_HEADER_CLASS}>
       <TableRow className="hover:bg-transparent">
-        <TableHead className={HEAD_CLASS}>Expense</TableHead>
-        <TableHead className={HEAD_CLASS}>Schedule</TableHead>
-        <TableHead className={cn(HEAD_CLASS, "text-right")}>Amount</TableHead>
-        <TableHead className={HEAD_CLASS}>Status</TableHead>
-        <TableHead className={cn(HEAD_CLASS, "w-0 text-right")}>
+        <TableHead className={TABLE_HEAD_CLASS}>Expense</TableHead>
+        <TableHead className={TABLE_HEAD_CLASS}>Schedule</TableHead>
+        <TableHead className={cn(TABLE_HEAD_CLASS, "text-right")}>Amount</TableHead>
+        <TableHead className={TABLE_HEAD_CLASS}>Status</TableHead>
+        <TableHead className={cn(TABLE_HEAD_CLASS, "w-0 text-right")}>
           <span className="sr-only">Actions</span>
         </TableHead>
       </TableRow>
@@ -82,8 +79,10 @@ function ScheduleStatusBadge({ active }: { active: boolean }) {
 }
 
 export function RecurringExpenseTable({
+  footer,
   recurring,
   isLoading,
+  isFetching,
   isError,
   error,
   togglingId,
@@ -92,8 +91,11 @@ export function RecurringExpenseTable({
   onDelete,
   onToggleActive,
 }: {
+  /** Rendered inside the table surface, below the rows (the pager). Hidden in loading/empty/error states. */
+  footer?: ReactNode
   recurring: RecurringExpense[]
   isLoading?: boolean
+  isFetching?: boolean
   isError?: boolean
   error?: string | null
   togglingId?: string | null
@@ -104,7 +106,7 @@ export function RecurringExpenseTable({
 }) {
   if (isLoading) {
     return (
-      <div className={SURFACE_CLASS}>
+      <div className={TABLE_SURFACE_CLASS}>
         <Table>
           <Columns />
           <TableBody>
@@ -144,7 +146,7 @@ export function RecurringExpenseTable({
 
   if (isError) {
     return (
-      <Empty className={SURFACE_CLASS}>
+      <Empty className={TABLE_SURFACE_CLASS}>
         <EmptyHeader>
           <EmptyMedia variant="icon">
             <TriangleAlertIcon />
@@ -158,7 +160,7 @@ export function RecurringExpenseTable({
 
   if (recurring.length === 0) {
     return (
-      <Empty className={SURFACE_CLASS}>
+      <Empty className={TABLE_SURFACE_CLASS}>
         <EmptyHeader>
           <EmptyMedia variant="icon">
             <CalendarCogIcon />
@@ -179,7 +181,7 @@ export function RecurringExpenseTable({
   }
 
   return (
-    <div className={SURFACE_CLASS}>
+    <div className={cn(TABLE_SURFACE_CLASS, isFetching && "opacity-60 transition-opacity duration-150")} aria-busy={isFetching}>
       <Table>
         <Columns />
         <TableBody>
@@ -266,6 +268,7 @@ export function RecurringExpenseTable({
           })}
         </TableBody>
       </Table>
+      {footer}
     </div>
   )
 }

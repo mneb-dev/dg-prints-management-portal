@@ -30,6 +30,7 @@ import { Toggle } from "@/components/ui/toggle"
 import { ToggleGroup } from "@/components/ui/toggle-group"
 import { useAuth } from "@/lib/auth"
 import { useCategories } from "@/lib/categories"
+import { useClampPage } from "@/lib/pagination"
 import { useDebouncedValue } from "@/lib/use-debounced-value"
 import { cn } from "@/lib/utils"
 import {
@@ -55,6 +56,7 @@ export function ProductsPage() {
   const { hasPermission, role } = useAuth()
   const canManage = hasPermission("manage_products")
   const { products, total, params, setParams, refetch, isLoading, isFetching, isError, error } = useProducts()
+  useClampPage(params.page, params.pageSize, total, isFetching, (page) => setParams({ page }))
   const { deleteProduct } = useProductActions()
   const { categories } = useCategories()
   const [searchInput, setSearchInput] = useState(params.search)
@@ -296,19 +298,20 @@ export function ProductsPage() {
         onEdit={handleEdit}
         onView={setViewingProduct}
         onDelete={setDeletingProduct}
+        footer={
+          total > 0 && (
+            <PaginationBar
+              page={params.page}
+              pageSize={params.pageSize}
+              total={total}
+              itemLabel="products"
+              onPageChange={(page) => setParams({ page })}
+              onPageSizeChange={(pageSize) => setParams({ pageSize, page: 1 })}
+              disabled={isLoading || isFetching || isError}
+            />
+          )
+        }
       />
-
-      {total > 0 && (
-        <PaginationBar
-          page={params.page}
-          pageSize={params.pageSize}
-          total={total}
-          itemLabel="products"
-          onPageChange={(page) => setParams({ page })}
-          onPageSizeChange={(pageSize) => setParams({ pageSize, page: 1 })}
-          disabled={isLoading || isFetching || isError}
-        />
-      )}
 
       <ProductFormDialog
         open={formOpen}

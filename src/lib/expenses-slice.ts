@@ -103,6 +103,11 @@ export type ExpensesQueryParams = {
   sortDir: "asc" | "desc"
 }
 
+export type RecurringExpensesQueryParams = {
+  page: number
+  pageSize: number
+}
+
 export type ExpensesListResponse = {
   items: Expense[]
   total: number
@@ -189,13 +194,16 @@ export const deleteExpenseThunk = createAsyncThunk<string, string, { rejectValue
 )
 
 export const fetchRecurringExpensesThunk = createAsyncThunk<
-  RecurringExpense[],
-  void,
+  { items: RecurringExpense[]; total: number; activeCount: number },
+  RecurringExpensesQueryParams,
   { rejectValue: string }
->("expenses/fetchAllRecurring", async (_arg, { rejectWithValue }) => {
+>("expenses/fetchAllRecurring", async (params, { rejectWithValue }) => {
   try {
-    const { data } = await apiClient.get<{ items: RecurringExpense[] }>("/expenses/recurring")
-    return data.items
+    const { data } = await apiClient.get<{ items: RecurringExpense[]; total: number; activeCount: number }>(
+      "/expenses/recurring",
+      { params: { page: params.page, pageSize: params.pageSize } }
+    )
+    return data
   } catch (err) {
     return rejectWithValue(getErrorMessage(err))
   }
@@ -249,6 +257,10 @@ type ExpensesState = {
   recurring: RecurringExpense[]
   recurringStatus: "idle" | "loading" | "succeeded" | "failed"
   recurringError: string | null
+  recurringTotal: number
+  recurringActiveCount: number
+  recurringLatestRequestId: string | null
+  recurringParams: RecurringExpensesQueryParams
 }
 
 const initialState: ExpensesState = {
@@ -272,6 +284,10 @@ const initialState: ExpensesState = {
   recurring: [],
   recurringStatus: "idle",
   recurringError: null,
+  recurringTotal: 0,
+  recurringActiveCount: 0,
+  recurringLatestRequestId: null,
+  recurringParams: { page: 1, pageSize: 10 },
 }
 
 const expensesSlice = createSlice({
@@ -280,6 +296,9 @@ const expensesSlice = createSlice({
   reducers: {
     setExpensesParams(state, action: PayloadAction<Partial<ExpensesQueryParams>>) {
       state.params = { ...state.params, ...action.payload }
+    },
+    setRecurringExpensesParams(state, action: PayloadAction<Partial<RecurringExpensesQueryParams>>) {
+      state.recurringParams = { ...state.recurringParams, ...action.payload }
     },
   },
   extraReducers(builder) {
@@ -300,27 +319,25 @@ const expensesSlice = createSlice({
         state.status = "failed"
         state.error = action.payload ?? "Failed to load expenses."
       })
-      .addCase(fetchRecurringExpensesThunk.pending, (state) => {
+      .addCase(fetchRecurringExpensesThunk.pending, (state, action) => {
         state.recurringStatus = "loading"
         state.recurringError = null
+        state.recurringLatestRequestId = action.meta.requestId
       })
-      .addCase(
-        fetchRecurringExpensesThunk.fulfilled,
-        (state, action: PayloadAction<RecurringExpense[]>) => {
-          state.recurringStatus = "succeeded"
-          state.recurring = action.payload
-        }
-      )
+      .addCase(fetchRecurringExpensesThunk.fulfilled, (state, action) => {
+        if (action.meta.requestId !== state.recurringLatestRequestId) return
+        state.recurringStatus = "succeeded"
+        state.recurring = action.payload.items
+        state.recurringTotal = action.payload.total
+        state.recurringActiveCount = action.payload.activeCount
+      })
       .addCase(fetchRecurringExpensesThunk.rejected, (state, action) => {
+        if (action.meta.requestId !== state.recurringLatestRequestId) return
         state.recurringStatus = "failed"
         state.recurringError = action.payload ?? "Failed to load recurring expenses."
       })
-      .addCase(
-        createRecurringExpenseThunk.fulfilled,
-        (state, action: PayloadAction<RecurringExpense>) => {
-          state.recurring.unshift(action.payload)
-        }
-      )
+      // Create/delete change which rows belong on the current page, so the page refetches instead;
+      // an update (edit, pause/resume) stays on its row and is patched in place for instant feedback.
       .addCase(
         updateRecurringExpenseThunk.fulfilled,
         (state, action: PayloadAction<RecurringExpense>) => {
@@ -328,15 +345,9 @@ const expensesSlice = createSlice({
           if (index !== -1) state.recurring[index] = action.payload
         }
       )
-      .addCase(
-        deleteRecurringExpenseThunk.fulfilled,
-        (state, action: PayloadAction<string>) => {
-          state.recurring = state.recurring.filter((item) => item.id !== action.payload)
-        }
-      )
   },
 })
 
-export const { setExpensesParams } = expensesSlice.actions
+export const { setExpensesParams, setRecurringExpensesParams } = expensesSlice.actions
 export default expensesSlice.reducer
 export type { ExpensesState }

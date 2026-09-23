@@ -63,15 +63,38 @@ export const PASSWORD_REQUIREMENTS_DESCRIPTION =
 /** Returns the first unmet password requirement's message, or null if the password satisfies
  *  all of them. */
 export function passwordRequirementMessage(password: string): string | null {
-  if (password.length < PASSWORD_MIN_LENGTH) {
-    return `Password must be at least ${PASSWORD_MIN_LENGTH} characters.`
-  }
-  if (!PASSWORD_LOWERCASE_REGEX.test(password)) return "Password must include a lowercase letter."
-  if (!PASSWORD_UPPERCASE_REGEX.test(password)) return "Password must include an uppercase letter."
-  if (!PASSWORD_DIGIT_REGEX.test(password)) return "Password must include a number."
-  if (!PASSWORD_SPECIAL_CHAR_REGEX.test(password)) return "Password must include a special character."
-  return null
+  return PASSWORD_RULES.find((rule) => !rule.test(password))?.message ?? null
 }
+
+/** The password requirements one by one, in check order — drives both
+ *  `passwordRequirementMessage` and the live checklist on the Profile page. */
+export const PASSWORD_RULES: { label: string; message: string; test: (password: string) => boolean }[] = [
+  {
+    label: `${PASSWORD_MIN_LENGTH}+ characters`,
+    message: `Password must be at least ${PASSWORD_MIN_LENGTH} characters.`,
+    test: (password) => password.length >= PASSWORD_MIN_LENGTH,
+  },
+  {
+    label: "A lowercase letter",
+    message: "Password must include a lowercase letter.",
+    test: (password) => PASSWORD_LOWERCASE_REGEX.test(password),
+  },
+  {
+    label: "An uppercase letter",
+    message: "Password must include an uppercase letter.",
+    test: (password) => PASSWORD_UPPERCASE_REGEX.test(password),
+  },
+  {
+    label: "A number",
+    message: "Password must include a number.",
+    test: (password) => PASSWORD_DIGIT_REGEX.test(password),
+  },
+  {
+    label: "A special character",
+    message: "Password must include a special character.",
+    test: (password) => PASSWORD_SPECIAL_CHAR_REGEX.test(password),
+  },
+]
 
 export const PASSWORDS_DO_NOT_MATCH_MESSAGE = "Passwords do not match."
 

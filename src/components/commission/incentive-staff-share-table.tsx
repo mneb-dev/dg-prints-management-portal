@@ -1,11 +1,15 @@
 import { UsersIcon } from "lucide-react"
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Money } from "@/components/money"
+import { OrderFormSectionHeader } from "@/components/orders/order-form-section-header"
+import { TABLE_HEAD_CLASS, TABLE_HEADER_CLASS } from "@/components/table-surface"
+import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Empty, EmptyDescription, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import type { MonthlyIncentiveStaffShare } from "@/lib/commission"
-import { formatCurrency } from "@/lib/utils"
+import { useSalesVisibility } from "@/lib/sales-visibility"
+import { cn, formatCurrency } from "@/lib/utils"
 
 export function IncentiveStaffShareTable({
   rows,
@@ -16,54 +20,79 @@ export function IncentiveStaffShareTable({
   isLoading: boolean
   isError: boolean
 }) {
+  const { isVisible } = useSalesVisibility()
+  const sales = (amount: number) => <Money amount={amount} hidden={!isVisible} />
+  const totalSales = rows.reduce((sum, row) => sum + row.ownSales, 0)
+  const totalIncentive = rows.reduce((sum, row) => sum + row.commissionShare, 0)
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Incentive split</CardTitle>
+    <Card className="gap-0 pb-0">
+      <CardHeader className="pb-4">
+        <OrderFormSectionHeader
+          icon={UsersIcon}
+          title="Incentive split"
+          description="Each person's share of this month's pool"
+        />
       </CardHeader>
-      <CardContent>
+      <CardContent className="px-0">
         {isLoading ? (
-          <Skeleton className="h-48 w-full" />
+          <div className="px-4 pb-4">
+            <Skeleton className="h-40 w-full" />
+          </div>
         ) : isError ? (
-          <Empty className="border">
-            <EmptyMedia variant="icon">
-              <UsersIcon />
-            </EmptyMedia>
-            <EmptyTitle>Couldn't load the incentive split</EmptyTitle>
-            <EmptyDescription>Try refreshing the page.</EmptyDescription>
-          </Empty>
+          <div className="px-4 pb-4">
+            <Empty className="border">
+              <EmptyMedia variant="icon">
+                <UsersIcon />
+              </EmptyMedia>
+              <EmptyTitle>Couldn't load the incentive split</EmptyTitle>
+              <EmptyDescription>Try refreshing the page.</EmptyDescription>
+            </Empty>
+          </div>
         ) : rows.length === 0 ? (
-          <Empty className="border">
-            <EmptyMedia variant="icon">
-              <UsersIcon />
-            </EmptyMedia>
-            <EmptyTitle>No staff sales this month</EmptyTitle>
-            <EmptyDescription>No eligible orders yet to split an incentive for.</EmptyDescription>
-          </Empty>
+          <div className="px-4 pb-4">
+            <Empty className="border">
+              <EmptyMedia variant="icon">
+                <UsersIcon />
+              </EmptyMedia>
+              <EmptyTitle>No staff sales this month</EmptyTitle>
+              <EmptyDescription>No eligible orders yet to split an incentive for.</EmptyDescription>
+            </Empty>
+          </div>
         ) : (
           <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Staff Member</TableHead>
-                <TableHead className="text-right">Own Sales</TableHead>
-                <TableHead className="text-right">Share</TableHead>
-                <TableHead className="text-right">Incentive</TableHead>
+            <TableHeader className={TABLE_HEADER_CLASS}>
+              <TableRow className="hover:bg-transparent">
+                <TableHead className={TABLE_HEAD_CLASS}>Staff</TableHead>
+                <TableHead className={cn(TABLE_HEAD_CLASS, "text-right")}>Own sales</TableHead>
+                <TableHead className={cn(TABLE_HEAD_CLASS, "text-right")}>Share</TableHead>
+                <TableHead className={cn(TABLE_HEAD_CLASS, "text-right")}>Incentive</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {rows.map((row) => (
-                <TableRow key={row.userId}>
-                  <TableCell className="font-medium">{row.name}</TableCell>
-                  <TableCell className="text-right tabular-nums">{formatCurrency(row.ownSales)}</TableCell>
-                  <TableCell className="text-right tabular-nums text-muted-foreground">
+                <TableRow key={row.userId} className="hover:bg-transparent">
+                  <TableCell className="px-4 font-medium">{row.name}</TableCell>
+                  <TableCell className="px-4 text-right tabular-nums">{sales(row.ownSales)}</TableCell>
+                  <TableCell className="px-4 text-right text-muted-foreground tabular-nums">
                     {row.percentageShare.toFixed(1)}%
                   </TableCell>
-                  <TableCell className="text-right tabular-nums font-medium">
+                  <TableCell className="px-4 text-right font-semibold tabular-nums">
                     {formatCurrency(row.commissionShare)}
                   </TableCell>
                 </TableRow>
               ))}
             </TableBody>
+            <TableFooter className="bg-muted/40">
+              <TableRow className="hover:bg-transparent">
+                <TableCell className="px-4 text-muted-foreground">Total</TableCell>
+                <TableCell className="px-4 text-right tabular-nums">{sales(totalSales)}</TableCell>
+                <TableCell className="px-4 text-right text-muted-foreground tabular-nums">100%</TableCell>
+                <TableCell className="px-4 text-right font-semibold tabular-nums">
+                  {formatCurrency(totalIncentive)}
+                </TableCell>
+              </TableRow>
+            </TableFooter>
           </Table>
         )}
       </CardContent>

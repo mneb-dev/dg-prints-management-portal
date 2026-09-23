@@ -10,6 +10,7 @@ import {
   fetchExpensesThunk,
   fetchRecurringExpensesThunk,
   setExpensesParams,
+  setRecurringExpensesParams,
   updateExpenseThunk,
   updateRecurringExpenseThunk,
 } from "@/lib/expenses-slice"
@@ -17,6 +18,7 @@ import type {
   ExpenseInput,
   ExpensesQueryParams,
   RecurringExpenseInput,
+  RecurringExpensesQueryParams,
 } from "@/lib/expenses-slice"
 
 export {
@@ -56,6 +58,7 @@ export function useExpenses() {
     params.paymentMethod,
     params.dateFrom,
     params.dateTo,
+    params.createdBy,
     params.sortBy,
     params.sortDir,
   ])
@@ -106,20 +109,39 @@ export function useExpenseActions() {
   return { addExpense, addExpenses, updateExpense, deleteExpense }
 }
 
-/** Full recurring-expense schedule list (admin/superadmin only), fetched once per session. */
+/** Paginated recurring-expense schedules (admin/superadmin only). Refetches whenever `params`
+ * changes; `activeCount` spans every page. */
 export function useRecurringExpenses() {
   const recurring = useAppSelector((state) => state.expenses.recurring)
+  const total = useAppSelector((state) => state.expenses.recurringTotal)
+  const activeCount = useAppSelector((state) => state.expenses.recurringActiveCount)
+  const params = useAppSelector((state) => state.expenses.recurringParams)
   const status = useAppSelector((state) => state.expenses.recurringStatus)
   const error = useAppSelector((state) => state.expenses.recurringError)
   const dispatch = useAppDispatch()
 
   useEffect(() => {
-    if (status === "idle") dispatch(fetchRecurringExpensesThunk())
-  }, [dispatch, status])
+    dispatch(fetchRecurringExpensesThunk(params))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dispatch, params.page, params.pageSize])
+
+  function setParams(patch: Partial<RecurringExpensesQueryParams>) {
+    dispatch(setRecurringExpensesParams(patch))
+  }
+
+  function refetch() {
+    dispatch(fetchRecurringExpensesThunk(params))
+  }
 
   return {
     recurring,
-    isLoading: status === "idle" || status === "loading",
+    total,
+    activeCount,
+    params,
+    setParams,
+    refetch,
+    isLoading: status === "idle" || (status === "loading" && recurring.length === 0),
+    isFetching: status === "loading" && recurring.length > 0,
     isError: status === "failed",
     error,
   }

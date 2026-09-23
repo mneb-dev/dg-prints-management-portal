@@ -1,17 +1,18 @@
 import { useMemo, useState } from "react"
 import { endOfMonth, format, startOfMonth, subMonths } from "date-fns"
+import { PenToolIcon, TrophyIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { CommissionByStaffTable } from "@/components/commission/commission-by-staff-table"
 import { CommissionFilterBar, type CommissionReleaseFilter } from "@/components/commission/commission-filter-bar"
 import { CommissionOrdersTable } from "@/components/commission/commission-orders-table"
 import { CommissionSummaryCards } from "@/components/commission/commission-summary-cards"
-import { getCommissionReleaseStatus } from "@/components/commission/commission-release-badge"
 import { IncentiveHistoryTable } from "@/components/commission/incentive-history-table"
 import { IncentiveOwnShareChart } from "@/components/commission/incentive-own-share-chart"
 import { IncentiveStaffShareTable } from "@/components/commission/incentive-staff-share-table"
 import { IncentiveTierProgress } from "@/components/commission/incentive-tier-progress"
 import { PageHeader } from "@/components/page-header"
+import { PaginationBar } from "@/components/pagination-bar"
 import { Tabs, TabsContent, TabsIndicator, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useAuth } from "@/lib/auth"
 import {
@@ -23,7 +24,19 @@ import {
   usePreviousMonthlyIncentiveSummary,
 } from "@/lib/commission"
 import { computePeriodRange, PERIOD_PRESETS, type PeriodPreset } from "@/lib/finance-period"
+import { useClampPage } from "@/lib/pagination"
 import { useUserOptions } from "@/lib/users"
+
+type IncentivesTab = "incentives" | "layout"
+
+const TAB_DESCRIPTIONS: Record<IncentivesTab, string> = {
+  incentives: "Monthly team bonus, split by each person's share of sales",
+  layout: "Per-order commission for layout work",
+}
+
+// Segmented tabs — the same raised-pill track as the app's other one-click switchers.
+const TAB_CLASS =
+  "h-7 gap-1.5 rounded-md px-3 hover:text-foreground data-[active]:font-semibold data-[active]:text-accent-foreground [&_svg]:size-4"
 
 export function IncentivesPage() {
   const { role } = useAuth()
@@ -36,6 +49,7 @@ export function IncentivesPage() {
   const [selectedStaffId, setSelectedStaffId] = useState("")
   const [releaseFilter, setReleaseFilter] = useState<CommissionReleaseFilter>("all")
   const [isMutating, setIsMutating] = useState(false)
+  const [tab, setTab] = useState<IncentivesTab>("incentives")
 
   const range = useMemo(
     () => computePeriodRange(preset, customFrom, customTo, new Date()),
@@ -83,21 +97,32 @@ export function IncentivesPage() {
       : null
 
   const { rows, isLoading, isError, refetch: refetchSummary } = useCommissionSummary(dateFrom, dateTo, layoutBy)
+  // Any filter change sends the orders table back to page 1: the stored page only counts while the
+  // filters it was picked under are still the current ones.
+  const ordersFilterKey = `${dateFrom}|${dateTo}|${layoutBy ?? ""}|${releaseFilter}`
+  const [ordersPageState, setOrdersPageState] = useState({ filterKey: ordersFilterKey, page: 1 })
+  const ordersPage = ordersPageState.filterKey === ordersFilterKey ? ordersPageState.page : 1
+  const setOrdersPage = (page: number) => setOrdersPageState({ filterKey: ordersFilterKey, page })
+  const [ordersPageSize, setOrdersPageSize] = useState(10)
+
   const {
     rows: orderRows,
+    total: orderTotal,
+    pendingReleaseIds,
     isLoading: isOrdersLoading,
+    isFetching: isOrdersFetching,
     isError: isOrdersError,
     refetch: refetchOrders,
-  } = useCommissionOrders(dateFrom, dateTo, layoutBy)
+  } = useCommissionOrders({
+    dateFrom,
+    dateTo,
+    layoutBy,
+    release: releaseFilter,
+    page: ordersPage,
+    pageSize: ordersPageSize,
+  })
+  useClampPage(ordersPage, ordersPageSize, orderTotal, isOrdersFetching, setOrdersPage)
   const { release, unrelease } = useCommissionReleaseActions()
-
-  const filteredOrderRows = useMemo(() => {
-    if (releaseFilter === "all") return orderRows
-    return orderRows.filter((row) => {
-      const status = getCommissionReleaseStatus(row.paymentStatus, row.releasedAt)
-      return releaseFilter === "released" ? status === "released" : status !== "released"
-    })
-  }, [orderRows, releaseFilter])
 
   // Once rows have loaded once, keep them visible while a filter change refetches in the
   // background instead of flashing every card back to a skeleton — only the first load blocks.
@@ -142,21 +167,25 @@ export function IncentivesPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader title="Incentives" description="Two separate ways staff earn from sales — pick a tab below." />
+      <PageHeader title="Incentives" description={TAB_DESCRIPTIONS[tab]} />
 
-      <Tabs defaultValue="incentives">
-        <TabsList>
-          <TabsTrigger value="incentives">Sales-target Bonus</TabsTrigger>
-          <TabsTrigger value="layout">Layout Commission</TabsTrigger>
-          <TabsIndicator />
+      <Tabs value={tab} onValueChange={(value) => setTab(value as IncentivesTab)}>
+        <TabsList className="w-fit gap-0.5 rounded-lg border border-input bg-muted/60 p-0.5">
+          <TabsTrigger value="incentives" className={TAB_CLASS}>
+            <TrophyIcon aria-hidden />
+            Sales-target bonus
+          </TabsTrigger>
+          <TabsTrigger value="layout" className={TAB_CLASS}>
+            <PenToolIcon aria-hidden />
+            Layout commission
+          </TabsTrigger>
+          <TabsIndicator className="top-0.5 bottom-0.5 z-0 h-auto rounded-md bg-accent shadow-sm ring-1 ring-primary/40" />
         </TabsList>
 
-        <TabsContent value="incentives" className="flex flex-col gap-6">
-          <p className="text-sm text-muted-foreground">
-            {isStaffView
-              ? `A team-wide bonus for ${monthlyIncentivePeriodLabel}, separate from your layout commission, split by each staff member's share of this month's sales.`
-              : `A team-wide bonus pool for ${monthlyIncentivePeriodLabel}, separate from layout commission — unlocked by total staff sales and split by each staff member's share.`}
-          </p>
+        <TabsContent
+          value="incentives"
+          className="flex animate-in flex-col gap-6 duration-200 fade-in-0 motion-reduce:animate-none"
+        >
 
           <IncentiveTierProgress
             periodLabel={monthlyIncentivePeriodLabel}
@@ -200,12 +229,10 @@ export function IncentivesPage() {
           ) : null}
         </TabsContent>
 
-        <TabsContent value="layout" className="flex flex-col gap-6">
-          <p className="text-sm text-muted-foreground">
-            {isStaffView
-              ? "Your commission for layout work, for the period selected below, including which orders have been released to you."
-              : "Commission earned per order from layout work, for the period selected below — release it once a staff member's pay is due."}
-          </p>
+        <TabsContent
+          value="layout"
+          className="flex animate-in flex-col gap-6 duration-200 fade-in-0 motion-reduce:animate-none"
+        >
 
           <CommissionFilterBar
             presets={presets}
@@ -241,7 +268,9 @@ export function IncentivesPage() {
           {!isStaffView ? <CommissionByStaffTable rows={rows} isLoading={showSkeleton} isError={isError} /> : null}
 
           <CommissionOrdersTable
-            rows={filteredOrderRows}
+            rows={orderRows}
+            total={orderTotal}
+            pendingReleaseIds={pendingReleaseIds}
             isLoading={showOrdersSkeleton}
             isError={isOrdersError}
             isStaffView={isStaffView}
@@ -249,6 +278,22 @@ export function IncentivesPage() {
             onRelease={handleRelease}
             onUnrelease={handleUnrelease}
             isMutating={isMutating}
+            footer={
+              orderTotal > 0 && (
+                <PaginationBar
+                  page={ordersPage}
+                  pageSize={ordersPageSize}
+                  total={orderTotal}
+                  itemLabel="orders"
+                  onPageChange={setOrdersPage}
+                  onPageSizeChange={(pageSize) => {
+                    setOrdersPageSize(pageSize)
+                    setOrdersPage(1)
+                  }}
+                  disabled={isOrdersFetching || isOrdersError}
+                />
+              )
+            }
           />
         </TabsContent>
       </Tabs>

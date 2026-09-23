@@ -17,6 +17,7 @@ import { NavUser } from "@/components/nav-user"
 import { useAuth } from "@/lib/auth"
 import { useNavGuard } from "@/lib/nav-guard"
 import { DASHBOARD_EXCLUDED_STATUSES, ORDER_TERMINAL_STATUSES, useOrderStats } from "@/lib/orders"
+import { useNewProducts } from "@/lib/products"
 import { cn } from "@/lib/utils"
 import {
   Sidebar,
@@ -78,6 +79,7 @@ export function AppSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
   const { role, hasPermission } = useAuth()
   const { requestNavigation } = useNavGuard()
   const { stats } = useOrderStats()
+  const { newProductCount, newProductDays } = useNewProducts()
 
   // Same definition as the dashboard pipeline's "N active orders": everything not yet released
   // and not cancelled/refunded/returned.
@@ -136,11 +138,23 @@ export function AppSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
                 {group.items.map((item) => {
                   const isActive =
                     location.pathname === item.url || location.pathname.startsWith(`${item.url}/`)
-                  const badgeCount = item.url === "/orders" ? activeOrders : 0
+                  // Orders: a neutral count of active orders. Products: a brand-tinted count of
+                  // products added in the last week ("new").
+                  const badge =
+                    item.url === "/orders" && activeOrders > 0
+                      ? { count: activeOrders, noun: "active", label: `${activeOrders} active orders`, isNew: false }
+                      : item.url === "/products" && newProductCount > 0
+                        ? {
+                            count: newProductCount,
+                            noun: `new in the last ${newProductDays} days`,
+                            label: `${newProductCount} new ${newProductCount === 1 ? "product" : "products"}`,
+                            isNew: true,
+                          }
+                        : null
                   return (
                     <SidebarMenuItem key={item.title}>
                       <SidebarMenuButton
-                        tooltip={badgeCount > 0 ? `${item.title} · ${badgeCount} active` : item.title}
+                        tooltip={badge ? `${item.title} · ${badge.count} ${badge.noun}` : item.title}
                         isActive={isActive}
                         onClick={guardedNavClick(item.url)}
                         render={<NavLink to={item.url} />}
@@ -148,18 +162,28 @@ export function AppSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
                       >
                         <item.icon />
                         <span>{item.title}</span>
+                        {badge?.isNew ? (
+                          // Collapsed (icon-only) rail: the count badge hides, so a dot on the icon
+                          // keeps "something new here" visible.
+                          <span
+                            aria-hidden
+                            className="absolute top-1.5 left-5 hidden size-2 rounded-full bg-sidebar-primary ring-2 ring-sidebar group-data-[collapsible=icon]:block"
+                          />
+                        ) : null}
                       </SidebarMenuButton>
-                      {badgeCount > 0 ? (
+                      {badge ? (
                         <SidebarMenuBadge
-                          aria-label={`${badgeCount} active orders`}
+                          aria-label={badge.label}
                           className={cn(
                             "rounded-full px-1.5",
                             isActive
                               ? "bg-sidebar-primary text-sidebar-primary-foreground peer-hover/menu-button:text-sidebar-primary-foreground peer-data-active/menu-button:text-sidebar-primary-foreground"
-                              : "bg-sidebar-accent text-sidebar-accent-foreground"
+                              : badge.isNew
+                                ? "bg-sidebar-primary/10 font-semibold text-sidebar-primary peer-hover/menu-button:text-sidebar-primary"
+                                : "bg-sidebar-accent text-sidebar-accent-foreground"
                           )}
                         >
-                          {formatBadgeCount(badgeCount)}
+                          {formatBadgeCount(badge.count)}
                         </SidebarMenuBadge>
                       ) : null}
                     </SidebarMenuItem>

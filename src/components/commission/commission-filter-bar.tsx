@@ -1,10 +1,15 @@
 import { DateRangeFilter } from "@/components/date-range-filter"
-import { Card, CardContent } from "@/components/ui/card"
+import { PeriodTrack } from "@/components/period-track"
+import { SEGMENT_CLASS, SEGMENT_TRACK_CLASS } from "@/components/segmented"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { PERIOD_PRESET_LABELS, type PeriodPreset } from "@/lib/finance-period"
+import { Toggle } from "@/components/ui/toggle"
+import { ToggleGroup } from "@/components/ui/toggle-group"
+import type { CommissionReleaseFilter } from "@/lib/commission"
+import type { PeriodPreset } from "@/lib/finance-period"
+import { cn } from "@/lib/utils"
 import type { UserOption } from "@/lib/users"
 
-export type CommissionReleaseFilter = "all" | "released" | "unreleased"
+export type { CommissionReleaseFilter }
 
 const RELEASE_FILTER_LABELS: Record<CommissionReleaseFilter, string> = {
   all: "All",
@@ -12,6 +17,8 @@ const RELEASE_FILTER_LABELS: Record<CommissionReleaseFilter, string> = {
   unreleased: "Unreleased",
 }
 
+/** Period · staff · release filters for the Layout commission tab, as one toolbar row of one-click
+ * switchers (same tracks as Finance and the Orders filters). */
 export function CommissionFilterBar({
   presets,
   preset,
@@ -38,51 +45,32 @@ export function CommissionFilterBar({
   releaseFilter: CommissionReleaseFilter
   onReleaseFilterChange: (value: CommissionReleaseFilter) => void
 }) {
-  return (
-    <Card size="sm">
-      <CardContent className="flex flex-wrap items-center gap-3">
-        <Select value={preset} onValueChange={(value) => value && onPresetChange(value as PeriodPreset)}>
-          <SelectTrigger size="sm" className="w-40 text-xs">
-            <SelectValue>{(value: string | null) => PERIOD_PRESET_LABELS[(value as PeriodPreset) ?? preset]}</SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {presets.map((value) => (
-              <SelectItem key={value} value={value}>
-                {PERIOD_PRESET_LABELS[value]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+  const selectedStaff = staffOptions?.find((option) => option.id === selectedStaffId)
 
-        {preset === "custom" ? (
-          <DateRangeFilter
-            id="commission-date-range"
-            from={customFrom}
-            to={customTo}
-            onChange={onCustomRangeChange}
-          />
-        ) : null}
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <PeriodTrack presets={presets} value={preset} onChange={onPresetChange} />
 
         {staffOptions && onSelectedStaffIdChange ? (
           <Select
             value={selectedStaffId || "all"}
             onValueChange={(value) => value && onSelectedStaffIdChange(value === "all" ? "" : value)}
           >
-            <SelectTrigger size="sm" className="w-48 text-xs">
+            <SelectTrigger aria-label="Filter by staff" className="min-w-44 shrink-0">
               <SelectValue>
-                {() =>
-                  selectedStaffId
-                    ? (staffOptions.find((u) => u.id === selectedStaffId)?.firstName ?? "All staff") +
-                      " " +
-                      (staffOptions.find((u) => u.id === selectedStaffId)?.lastName ?? "")
-                    : "All staff"
-                }
+                {() => (
+                  <span className="truncate">
+                    <span className="text-muted-foreground">Staff:</span>{" "}
+                    {selectedStaff ? `${selectedStaff.firstName} ${selectedStaff.lastName}` : "All"}
+                  </span>
+                )}
               </SelectValue>
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="min-w-56" alignItemWithTrigger={false}>
               <SelectItem value="all">All staff</SelectItem>
               {staffOptions.map((option) => (
-                <SelectItem key={option.id} value={option.id}>
+                <SelectItem key={option.id} value={option.id} className="whitespace-nowrap">
                   {option.firstName} {option.lastName}
                 </SelectItem>
               ))}
@@ -90,22 +78,28 @@ export function CommissionFilterBar({
           </Select>
         ) : null}
 
-        <Select
-          value={releaseFilter}
-          onValueChange={(value) => value && onReleaseFilterChange(value as CommissionReleaseFilter)}
+        <ToggleGroup
+          aria-label="Release status"
+          value={[releaseFilter]}
+          onValueChange={(next) => {
+            const value = next[0] as CommissionReleaseFilter | undefined
+            if (value) onReleaseFilterChange(value)
+          }}
+          className={cn(SEGMENT_TRACK_CLASS, "w-fit")}
         >
-          <SelectTrigger size="sm" className="w-32 text-xs">
-            <SelectValue>{(value: string | null) => RELEASE_FILTER_LABELS[(value as CommissionReleaseFilter) ?? releaseFilter]}</SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {(Object.keys(RELEASE_FILTER_LABELS) as CommissionReleaseFilter[]).map((value) => (
-              <SelectItem key={value} value={value}>
-                {RELEASE_FILTER_LABELS[value]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </CardContent>
-    </Card>
+          {(Object.keys(RELEASE_FILTER_LABELS) as CommissionReleaseFilter[]).map((value) => (
+            <Toggle key={value} value={value} className={SEGMENT_CLASS}>
+              {RELEASE_FILTER_LABELS[value]}
+            </Toggle>
+          ))}
+        </ToggleGroup>
+      </div>
+
+      {preset === "custom" ? (
+        <div className="animate-in duration-200 fade-in-0 slide-in-from-top-1 motion-reduce:animate-none">
+          <DateRangeFilter id="commission-date-range" from={customFrom} to={customTo} onChange={onCustomRangeChange} />
+        </div>
+      ) : null}
+    </div>
   )
 }

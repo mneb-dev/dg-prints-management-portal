@@ -35,6 +35,7 @@ import {
 } from "lucide-react"
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts"
 
+import { Money } from "@/components/money"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -826,7 +827,7 @@ export function SalesChartCard() {
               <div className="flex flex-col gap-0.5">
                 {!isStaffView ? (
                   <span className="text-3xl font-semibold tabular-nums">
-                    {isVisible ? formatCurrency(periodTotal) : MASKED_AMOUNT}
+                    <Money amount={periodTotal} hidden={!isVisible} />
                   </span>
                 ) : null}
                 <span className="text-xs text-muted-foreground">

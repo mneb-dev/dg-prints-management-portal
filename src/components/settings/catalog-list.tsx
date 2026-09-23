@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Spinner } from "@/components/ui/spinner"
 import { Switch } from "@/components/ui/switch"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 
 export type CatalogListItem = {
@@ -16,11 +17,15 @@ export type CatalogListItem = {
   enabled: boolean
 }
 
-/** Compact, drag-reorderable CRUD list — shared by Payment Methods and Order Channels
- * on the Settings page, since both are the exact same shape (name, enabled, order). */
+/** Compact, drag-reorderable CRUD list — shared by Payment methods and Order channels on the
+ * Settings page, since both are the exact same shape (name, enabled, order). Rows follow the Order
+ * statuses list (categories/order-status-list.tsx): grip with a hint, a drop-target line while
+ * dragging, a Shown/Hidden switch, and dimmed hidden rows. */
 export function CatalogList({
   items,
   isLoading,
+  noun = "items",
+  addPlaceholder = "Add new…",
   onAdd,
   onRename,
   onToggle,
@@ -29,6 +34,9 @@ export function CatalogList({
 }: {
   items: CatalogListItem[]
   isLoading?: boolean
+  /** Plural noun for copy, e.g. "payment methods". */
+  noun?: string
+  addPlaceholder?: string
   onAdd: (name: string) => Promise<void>
   onRename: (id: string, name: string) => Promise<void>
   onToggle: (id: string, enabled: boolean) => Promise<void>
@@ -36,13 +44,21 @@ export function CatalogList({
   onReorder: (order: string[]) => Promise<void>
 }) {
   const [dragId, setDragId] = useState<string | null>(null)
+  const [dropTargetId, setDropTargetId] = useState<string | null>(null)
   const [isReordering, setIsReordering] = useState(false)
   const [pendingDelete, setPendingDelete] = useState<CatalogListItem | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
 
+  const shownCount = items.filter((item) => item.enabled).length
+
+  function endDrag() {
+    setDragId(null)
+    setDropTargetId(null)
+  }
+
   async function handleDrop(targetId: string) {
     const draggedId = dragId
-    setDragId(null)
+    endDrag()
     if (!draggedId || draggedId === targetId) return
 
     const ids = items.map((item) => item.id)
@@ -75,24 +91,35 @@ export function CatalogList({
 
   return (
     <div className="w-full">
-      <div className="rounded-lg border">
+      <div className="overflow-hidden rounded-xl border bg-card shadow-[var(--shadow-soft)]">
+        <div className="flex items-center justify-between gap-2 border-b bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+          <span className="tabular-nums">
+            {isLoading ? "Loading…" : `${shownCount} of ${items.length} shown`}
+          </span>
+          {items.length > 1 ? <span className="hidden sm:inline">Drag to reorder</span> : null}
+        </div>
+
         {isLoading ? (
-          <div className="flex flex-col gap-2 p-2.5">
-            <Skeleton className="h-6 w-full" />
-            <Skeleton className="h-6 w-full" />
-            <Skeleton className="h-6 w-full" />
+          <div className="flex flex-col gap-2 p-3">
+            <Skeleton className="h-7 w-full" />
+            <Skeleton className="h-7 w-full" />
+            <Skeleton className="h-7 w-full" />
           </div>
         ) : items.length === 0 ? (
-          <p className="px-2.5 py-3 text-center text-xs text-muted-foreground">Nothing yet.</p>
+          <p className="px-3 py-6 text-center text-sm text-muted-foreground">
+            No {noun} yet. Add the first one below.
+          </p>
         ) : (
           items.map((item) => (
             <CatalogRow
               key={item.id}
               item={item}
               isDragging={dragId === item.id}
+              isDropTarget={dropTargetId === item.id && dragId !== item.id}
               isReordering={isReordering}
               onDragStart={() => setDragId(item.id)}
-              onDragEnd={() => setDragId(null)}
+              onDragEnter={() => dragId && setDropTargetId(item.id)}
+              onDragEnd={endDrag}
               onDrop={() => handleDrop(item.id)}
               onRename={(name) => onRename(item.id, name)}
               onToggle={(enabled) => onToggle(item.id, enabled)}
@@ -100,7 +127,7 @@ export function CatalogList({
             />
           ))
         )}
-        <AddRow onAdd={onAdd} />
+        <AddRow placeholder={addPlaceholder} onAdd={onAdd} />
       </div>
 
       <ConfirmDialog
@@ -122,8 +149,10 @@ export function CatalogList({
 function CatalogRow({
   item,
   isDragging,
+  isDropTarget,
   isReordering,
   onDragStart,
+  onDragEnter,
   onDragEnd,
   onDrop,
   onRename,
@@ -132,8 +161,10 @@ function CatalogRow({
 }: {
   item: CatalogListItem
   isDragging: boolean
+  isDropTarget: boolean
   isReordering: boolean
   onDragStart: () => void
+  onDragEnter: () => void
   onDragEnd: () => void
   onDrop: () => void
   onRename: (name: string) => Promise<void>
@@ -144,35 +175,55 @@ function CatalogRow({
     <div
       draggable={!isReordering}
       onDragStart={onDragStart}
+      onDragEnter={onDragEnter}
       onDragEnd={onDragEnd}
       onDragOver={(event) => event.preventDefault()}
       onDrop={onDrop}
       className={cn(
-        "flex items-center gap-1.5 border-b px-2 py-1 last:border-b-0",
-        isDragging && "opacity-40"
+        "group/row flex min-h-11 items-center gap-2 border-b px-3 py-1.5 transition-[opacity,box-shadow,background-color] duration-150 hover:bg-muted/30",
+        isDragging && "opacity-40",
+        isDropTarget && "shadow-[inset_0_2px_0_var(--color-primary)]",
+        !item.enabled && "bg-muted/20"
       )}
     >
-      <GripVerticalIcon className="size-3.5 shrink-0 cursor-grab text-muted-foreground" />
-      <EditableName value={item.name} onCommit={onRename} />
-      <Switch
-        size="sm"
-        checked={item.enabled}
-        onCheckedChange={(checked) => onToggle(!!checked)}
-      />
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <span className="flex shrink-0 cursor-grab text-muted-foreground/70 transition-colors group-hover/row:text-muted-foreground active:cursor-grabbing" />
+          }
+        >
+          <GripVerticalIcon className="size-4" />
+          <span className="sr-only">Drag to reorder</span>
+        </TooltipTrigger>
+        <TooltipContent>Drag to reorder</TooltipContent>
+      </Tooltip>
+      <EditableName value={item.name} dimmed={!item.enabled} onCommit={onRename} />
+      <label className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
+        <Switch size="sm" checked={item.enabled} onCheckedChange={(checked) => onToggle(!!checked)} />
+        <span className="w-11">{item.enabled ? "Shown" : "Hidden"}</span>
+      </label>
       <Button
         variant="ghost"
         size="icon-sm"
-        className="size-6"
         onClick={onDeleteRequest}
+        className="hover:bg-destructive/10 hover:text-destructive"
       >
-        <Trash2Icon className="size-3.5" />
+        <Trash2Icon />
         <span className="sr-only">Delete {item.name}</span>
       </Button>
     </div>
   )
 }
 
-function EditableName({ value, onCommit }: { value: string; onCommit: (name: string) => Promise<void> }) {
+function EditableName({
+  value,
+  dimmed = false,
+  onCommit,
+}: {
+  value: string
+  dimmed?: boolean
+  onCommit: (name: string) => Promise<void>
+}) {
   const [draft, setDraft] = useState(value)
 
   useEffect(() => setDraft(value), [value])
@@ -194,18 +245,22 @@ function EditableName({ value, onCommit }: { value: string; onCommit: (name: str
   return (
     <input
       value={draft}
+      aria-label="Name"
       onChange={(event) => setDraft(event.target.value)}
       onBlur={commit}
       onKeyDown={(event) => {
         if (event.key === "Enter") (event.target as HTMLInputElement).blur()
         if (event.key === "Escape") setDraft(value)
       }}
-      className="min-w-0 flex-1 truncate rounded px-1 py-0.5 text-sm outline-none hover:bg-muted/50 focus:bg-muted focus:ring-1 focus:ring-ring"
+      className={cn(
+        "min-w-0 flex-1 truncate rounded-md px-1.5 py-1 text-sm font-medium outline-none transition-colors hover:bg-muted/60 focus:bg-muted focus:ring-2 focus:ring-ring/40",
+        dimmed && "text-muted-foreground"
+      )}
     />
   )
 }
 
-function AddRow({ onAdd }: { onAdd: (name: string) => Promise<void> }) {
+function AddRow({ placeholder, onAdd }: { placeholder: string; onAdd: (name: string) => Promise<void> }) {
   const [value, setValue] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -224,22 +279,25 @@ function AddRow({ onAdd }: { onAdd: (name: string) => Promise<void> }) {
   }
 
   return (
-    <div className="flex items-center gap-1.5 border-t p-1.5">
-      <Input
-        value={value}
-        onChange={(event) => setValue(event.target.value)}
-        onKeyDown={(event) => event.key === "Enter" && submit()}
-        placeholder="Add new..."
-        disabled={isSubmitting}
-        className="h-7 flex-1 text-sm"
-      />
-      <Button
-        size="icon-sm"
-        className="size-7 shrink-0"
-        onClick={submit}
-        disabled={isSubmitting || !value.trim()}
-      >
-        {isSubmitting ? <Spinner className="size-3.5" /> : <PlusIcon className="size-3.5" />}
+    <div className="flex items-center gap-2 border-t bg-muted/20 p-2">
+      <div className="relative min-w-0 flex-1">
+        <PlusIcon
+          aria-hidden
+          className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
+        />
+        <Input
+          value={value}
+          onChange={(event) => setValue(event.target.value)}
+          onKeyDown={(event) => event.key === "Enter" && submit()}
+          placeholder={placeholder}
+          aria-label={placeholder}
+          disabled={isSubmitting}
+          className="h-8 bg-background pl-8"
+        />
+      </div>
+      <Button size="sm" className="shrink-0" onClick={submit} disabled={isSubmitting || !value.trim()}>
+        {isSubmitting && <Spinner data-icon="inline-start" />}
+        Add
       </Button>
     </div>
   )

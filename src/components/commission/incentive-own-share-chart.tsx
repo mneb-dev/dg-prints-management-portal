@@ -1,7 +1,8 @@
 import { PieChartIcon, TrendingDownIcon, TrendingUpIcon } from "lucide-react"
 import { Cell, Pie, PieChart } from "recharts"
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { OrderFormSectionHeader } from "@/components/orders/order-form-section-header"
+import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
 import { Empty, EmptyDescription, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -42,8 +43,7 @@ export function IncentiveOwnShareChart({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Your incentive — {periodLabel}</CardTitle>
-        <CardDescription>Your share of the team's incentive pool</CardDescription>
+        <OrderFormSectionHeader icon={PieChartIcon} title={periodLabel} description="Your share of the team's incentive pool" />
       </CardHeader>
       <CardContent>
         {isLoading ? (
@@ -85,20 +85,23 @@ export function IncentiveOwnShareChart({
               <div className="flex items-center gap-2">
                 <span className="text-2xl font-semibold tabular-nums">{formatCurrency(ownShare!.commissionShare)}</span>
                 {comparisonPercent != null ? (
-                  <span
-                    className={cn(
-                      "flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium",
-                      comparisonPercent >= 0
-                        ? "bg-status-success/10 text-status-success"
-                        : "bg-destructive/10 text-destructive"
-                    )}
-                  >
-                    {comparisonPercent >= 0 ? (
-                      <TrendingUpIcon className="size-3.5" />
-                    ) : (
-                      <TrendingDownIcon className="size-3.5" />
-                    )}
-                    {Math.abs(Math.round(comparisonPercent))}% vs last month
+                  // Neutral pill; only the arrow and number carry the up/down color.
+                  <span className="flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                    <span
+                      className={cn(
+                        "flex items-center gap-0.5 font-semibold tabular-nums",
+                        comparisonPercent >= 0 ? "text-order-status-teal" : "text-destructive"
+                      )}
+                    >
+                      {comparisonPercent >= 0 ? (
+                        <TrendingUpIcon aria-hidden className="size-3.5" />
+                      ) : (
+                        <TrendingDownIcon aria-hidden className="size-3.5" />
+                      )}
+                      {comparisonPercent >= 0 ? "+" : "−"}
+                      {Math.abs(Math.round(comparisonPercent))}%
+                    </span>
+                    vs last month
                   </span>
                 ) : null}
               </div>
@@ -110,14 +113,14 @@ export function IncentiveOwnShareChart({
             <div className="flex w-full flex-col gap-2 text-sm">
               <div className="flex items-center justify-between">
                 <span className="flex items-center gap-2">
-                  <span className="size-2.5 rounded-full" style={{ backgroundColor: "var(--color-chart-1)" }} />
+                  <span aria-hidden className="size-2 translate-y-px rounded-full" style={{ backgroundColor: "var(--color-chart-1)" }} />
                   You
                 </span>
                 <span className="font-medium tabular-nums">{formatCurrency(ownShare!.commissionShare)}</span>
               </div>
               <div className="flex items-center justify-between text-muted-foreground">
                 <span className="flex items-center gap-2">
-                  <span className="size-2.5 rounded-full" style={{ backgroundColor: "var(--color-chart-2)" }} />
+                  <span aria-hidden className="size-2 translate-y-px rounded-full" style={{ backgroundColor: "var(--color-chart-2)" }} />
                   Rest of the team
                 </span>
                 <span className="tabular-nums">{formatCurrency(restOfTeam)}</span>

@@ -1,24 +1,17 @@
 import { format, parseISO } from "date-fns"
 import { LineChartIcon, TriangleAlertIcon } from "lucide-react"
-import { useMemo } from "react"
+import { useMemo, type ReactNode } from "react"
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts"
 
-import { DateRangeFilter } from "@/components/date-range-filter"
-import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import {
-  ChartContainer,
-  ChartLegend,
-  ChartLegendContent,
-  ChartTooltip,
-  ChartTooltipContent,
-  type ChartConfig,
-} from "@/components/ui/chart"
+import { Money } from "@/components/money"
+import { IconBadge } from "@/components/icon-badge"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
 import { Empty, EmptyDescription, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
-import { PERIOD_PRESET_LABELS, PERIOD_PRESETS, type PeriodPreset, type PeriodRange } from "@/lib/finance-period"
+import type { PeriodRange } from "@/lib/finance-period"
 import { MASKED_AMOUNT, useSalesVisibility } from "@/lib/sales-visibility"
-import { formatCurrency } from "@/lib/utils"
+import { cn, formatCurrency } from "@/lib/utils"
 import type { FinanceSeriesPoint } from "@/lib/finance"
 
 const chartConfig = {
@@ -27,27 +20,21 @@ const chartConfig = {
 } satisfies ChartConfig
 
 export function FinanceTrendChartCard({
-  preset,
-  onPresetChange,
-  customFrom,
-  customTo,
-  onCustomRangeChange,
   range,
   series,
+  totals,
   isLoading,
   isError,
 }: {
-  preset: PeriodPreset
-  onPresetChange: (preset: PeriodPreset) => void
-  customFrom: string
-  customTo: string
-  onCustomRangeChange: (from: string, to: string) => void
   range: PeriodRange | null
   series: FinanceSeriesPoint[]
+  /** Period totals from the finance summary, shown as the chart's legend. */
+  totals: { revenue: number; expenses: number; net: number }
   isLoading: boolean
   isError: boolean
 }) {
   const { isVisible } = useSalesVisibility()
+  const masked = (amount: number) => <Money amount={amount} hidden={!isVisible} />
 
   const chartData = useMemo(
     () =>
@@ -62,33 +49,30 @@ export function FinanceTrendChartCard({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Revenue vs. expenses</CardTitle>
-        <CardDescription>Daily trend for the selected period</CardDescription>
-        <CardAction className="flex items-center gap-2">
-          <Select value={preset} onValueChange={(value) => value && onPresetChange(value as PeriodPreset)}>
-            <SelectTrigger size="sm" className="text-xs">
-              <SelectValue>{(value: string | null) => PERIOD_PRESET_LABELS[(value as PeriodPreset) ?? "this_month"]}</SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {PERIOD_PRESETS.map((value) => (
-                <SelectItem key={value} value={value}>
-                  {PERIOD_PRESET_LABELS[value]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </CardAction>
+        <div className="flex min-w-0 items-center gap-3">
+          <IconBadge icon={LineChartIcon} size="sm" />
+          <div className="min-w-0">
+            <CardTitle>Revenue vs. expenses</CardTitle>
+            <CardDescription className="truncate">Daily totals for the selected period</CardDescription>
+          </div>
+        </div>
       </CardHeader>
       <CardContent>
-        {preset === "custom" ? (
-          <div className="mb-4">
-            <DateRangeFilter
-              id="finance-date-range"
-              from={customFrom}
-              to={customTo}
-              onChange={onCustomRangeChange}
+        {range && !isLoading && !isError ? (
+          // Totals legend: the numbers are readable without hovering the chart.
+          <dl className="mb-4 flex flex-wrap items-baseline gap-x-6 gap-y-2 text-sm">
+            <LegendTotal color={chartConfig.revenue.color} label="Revenue" value={masked(totals.revenue)} />
+            <LegendTotal
+              color={chartConfig.expenses.color}
+              label="Expenses"
+              value={<Money amount={totals.expenses} hidden={false} />}
             />
-          </div>
+            <LegendTotal
+              label="Net"
+              value={masked(totals.net)}
+              valueClassName={isVisible && totals.net < 0 ? "text-destructive" : undefined}
+            />
+          </dl>
         ) : null}
 
         {!range ? (
@@ -173,11 +157,34 @@ export function FinanceTrendChartCard({
                 strokeWidth={2}
                 fill="url(#financeExpensesFill)"
               />
-              <ChartLegend content={<ChartLegendContent />} />
             </AreaChart>
           </ChartContainer>
         )}
       </CardContent>
     </Card>
+  )
+}
+
+function LegendTotal({
+  color,
+  label,
+  value,
+  valueClassName,
+}: {
+  color?: string
+  label: string
+  value: ReactNode
+  valueClassName?: string
+}) {
+  return (
+    <div className="flex items-baseline gap-2">
+      <dt className="flex items-center gap-1.5 text-muted-foreground">
+        {color ? (
+          <span aria-hidden className="size-2 shrink-0 translate-y-px rounded-full" style={{ backgroundColor: color }} />
+        ) : null}
+        {label}
+      </dt>
+      <dd className={cn("font-semibold tabular-nums", valueClassName)}>{value}</dd>
+    </div>
   )
 }

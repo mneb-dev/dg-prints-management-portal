@@ -1,22 +1,33 @@
-import { useState } from "react"
-import { HandCoinsIcon } from "lucide-react"
+import { useState, type ReactNode } from "react"
+import { HandCoinsIcon, MoreHorizontalIcon, Undo2Icon } from "lucide-react"
 
-import { ConfirmDialog } from "@/components/confirm-dialog"
-import { Button } from "@/components/ui/button"
-import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Empty, EmptyDescription, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
-import { Skeleton } from "@/components/ui/skeleton"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { ConfirmDialog, Name } from "@/components/confirm-dialog"
 import {
   CommissionReleaseBadge,
   getCommissionReleaseStatus,
 } from "@/components/commission/commission-release-badge"
+import { OrderFormSectionHeader } from "@/components/orders/order-form-section-header"
 import { PaymentStatusBadge } from "@/components/orders/payment-status-badge"
+import { TABLE_HEAD_CLASS, TABLE_HEADER_CLASS } from "@/components/table-surface"
+import { Button } from "@/components/ui/button"
+import { Card, CardAction, CardContent, CardHeader } from "@/components/ui/card"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { Empty, EmptyDescription, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
+import { Skeleton } from "@/components/ui/skeleton"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import type { CommissionOrderRow } from "@/lib/commission"
-import { formatCurrency, formatDate } from "@/lib/utils"
+import { cn, formatCurrency, formatDate } from "@/lib/utils"
 
 export function CommissionOrdersTable({
   rows,
+  total,
+  pendingReleaseIds,
+  footer,
   isLoading,
   isError,
   isStaffView,
@@ -26,6 +37,12 @@ export function CommissionOrdersTable({
   isMutating,
 }: {
   rows: CommissionOrderRow[]
+  /** Rows matching the release filter across every page. */
+  total: number
+  /** Every pending-release order in the period, across pages — what "Release all pending" acts on. */
+  pendingReleaseIds: string[]
+  /** Rendered below the rows (the pager). */
+  footer?: ReactNode
   isLoading: boolean
   isError: boolean
   isStaffView: boolean
@@ -35,105 +52,143 @@ export function CommissionOrdersTable({
   isMutating: boolean
 }) {
   const [confirmingBulkRelease, setConfirmingBulkRelease] = useState(false)
+  const [undoTarget, setUndoTarget] = useState<CommissionOrderRow | null>(null)
 
-  const pendingReleaseIds = rows
-    .filter((row) => getCommissionReleaseStatus(row.paymentStatus, row.releasedAt) === "pending_release")
-    .map((row) => row.id)
+  const hasPending = pendingReleaseIds.length > 0
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Layout orders</CardTitle>
+    <Card className="gap-0 pb-0">
+      <CardHeader className="pb-4">
+        <OrderFormSectionHeader
+          icon={HandCoinsIcon}
+          title="Layout orders"
+          description={
+            isLoading
+              ? "Orders with layout work in this period"
+              : `${total.toLocaleString()} ${total === 1 ? "order" : "orders"} in this period`
+          }
+        />
         {!isStaffView ? (
           <CardAction>
             <Button
               type="button"
-              variant="outline"
+              variant={hasPending ? "default" : "outline"}
               size="sm"
-              disabled={pendingReleaseIds.length === 0 || isMutating}
+              disabled={!hasPending || isMutating}
               onClick={() => setConfirmingBulkRelease(true)}
             >
-              Release all pending ({pendingReleaseIds.length})
+              <HandCoinsIcon data-icon="inline-start" />
+              Release all pending
+              <span className="tabular-nums opacity-80">({pendingReleaseIds.length})</span>
             </Button>
           </CardAction>
         ) : null}
       </CardHeader>
-      <CardContent>
+      <CardContent className="px-0">
         {isLoading ? (
-          <Skeleton className="h-48 w-full" />
+          <div className="px-4 pb-4">
+            <Skeleton className="h-48 w-full" />
+          </div>
         ) : isError ? (
-          <Empty className="border">
-            <EmptyMedia variant="icon">
-              <HandCoinsIcon />
-            </EmptyMedia>
-            <EmptyTitle>Couldn't load commission data</EmptyTitle>
-            <EmptyDescription>Try refreshing the page.</EmptyDescription>
-          </Empty>
+          <div className="px-4 pb-4">
+            <Empty className="border">
+              <EmptyMedia variant="icon">
+                <HandCoinsIcon />
+              </EmptyMedia>
+              <EmptyTitle>Couldn't load commission data</EmptyTitle>
+              <EmptyDescription>Try refreshing the page.</EmptyDescription>
+            </Empty>
+          </div>
         ) : rows.length === 0 ? (
-          <Empty className="border">
-            <EmptyMedia variant="icon">
-              <HandCoinsIcon />
-            </EmptyMedia>
-            <EmptyTitle>No commission activity</EmptyTitle>
-            <EmptyDescription>No eligible layout orders in this period yet.</EmptyDescription>
-          </Empty>
+          <div className="px-4 pb-4">
+            <Empty className="border">
+              <EmptyMedia variant="icon">
+                <HandCoinsIcon />
+              </EmptyMedia>
+              <EmptyTitle>No commission activity</EmptyTitle>
+              <EmptyDescription>No eligible layout orders in this period yet.</EmptyDescription>
+            </Empty>
+          </div>
         ) : (
           <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Order</TableHead>
-                <TableHead>Customer</TableHead>
-                {showStaffColumn ? <TableHead>Staff</TableHead> : null}
-                <TableHead className="text-right">Layout Fee</TableHead>
-                <TableHead className="text-right">Commission</TableHead>
-                <TableHead>Created</TableHead>
-                <TableHead>Payment</TableHead>
-                <TableHead>Release</TableHead>
-                {!isStaffView ? <TableHead className="text-right">Actions</TableHead> : null}
+            <TableHeader className={TABLE_HEADER_CLASS}>
+              <TableRow className="hover:bg-transparent">
+                <TableHead className={TABLE_HEAD_CLASS}>Order</TableHead>
+                {showStaffColumn ? <TableHead className={TABLE_HEAD_CLASS}>Staff</TableHead> : null}
+                <TableHead className={cn(TABLE_HEAD_CLASS, "text-right")}>Layout fee</TableHead>
+                <TableHead className={cn(TABLE_HEAD_CLASS, "text-right")}>Commission</TableHead>
+                <TableHead className={TABLE_HEAD_CLASS}>Created</TableHead>
+                <TableHead className={TABLE_HEAD_CLASS}>Payment</TableHead>
+                <TableHead className={TABLE_HEAD_CLASS}>Release</TableHead>
+                {!isStaffView ? (
+                  <TableHead className={cn(TABLE_HEAD_CLASS, "w-0 text-right")}>
+                    <span className="sr-only">Actions</span>
+                  </TableHead>
+                ) : null}
               </TableRow>
             </TableHeader>
             <TableBody>
               {rows.map((row) => {
                 const releaseStatus = getCommissionReleaseStatus(row.paymentStatus, row.releasedAt)
                 return (
-                  <TableRow key={row.id}>
-                    <TableCell className="font-medium">{row.orderNumber}</TableCell>
-                    <TableCell>{row.customerName}</TableCell>
-                    {showStaffColumn ? <TableCell>{row.layoutByName}</TableCell> : null}
-                    <TableCell className="text-right tabular-nums">{formatCurrency(row.layoutFee)}</TableCell>
-                    <TableCell className="text-right tabular-nums font-medium">
+                  <TableRow key={row.id} className="hover:bg-transparent">
+                    <TableCell className="px-4">
+                      <div className="font-medium">{row.orderNumber}</div>
+                      <div className="max-w-48 truncate text-xs text-muted-foreground">{row.customerName}</div>
+                    </TableCell>
+                    {showStaffColumn ? <TableCell className="px-4">{row.layoutByName}</TableCell> : null}
+                    <TableCell className="px-4 text-right text-muted-foreground tabular-nums">
+                      {formatCurrency(row.layoutFee)}
+                    </TableCell>
+                    <TableCell className="px-4 text-right font-semibold tabular-nums">
                       {formatCurrency(row.commissionAmount)}
                     </TableCell>
-                    <TableCell>{formatDate(row.createdAt)}</TableCell>
-                    <TableCell>
+                    <TableCell className="px-4 whitespace-nowrap text-muted-foreground">
+                      {formatDate(row.createdAt)}
+                    </TableCell>
+                    <TableCell className="px-4">
                       <PaymentStatusBadge status={row.paymentStatus} />
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="px-4">
                       <CommissionReleaseBadge status={releaseStatus} />
                     </TableCell>
                     {!isStaffView ? (
-                      <TableCell className="text-right">
-                        {releaseStatus === "pending_release" ? (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            disabled={isMutating}
-                            onClick={() => onRelease([row.id])}
-                          >
-                            Release
-                          </Button>
-                        ) : releaseStatus === "released" ? (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            disabled={isMutating}
-                            onClick={() => onUnrelease([row.id])}
-                          >
-                            Undo Release
-                          </Button>
-                        ) : null}
+                      <TableCell className="px-4">
+                        <div className="flex justify-end">
+                          {releaseStatus === "pending_release" ? (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              disabled={isMutating}
+                              onClick={() => onRelease([row.id])}
+                            >
+                              Release
+                            </Button>
+                          ) : releaseStatus === "released" ? (
+                            <DropdownMenu>
+                              <DropdownMenuTrigger
+                                render={
+                                  <Button
+                                    variant="ghost"
+                                    size="icon-sm"
+                                    aria-label={`More actions for ${row.orderNumber}`}
+                                    disabled={isMutating}
+                                    className="data-popup-open:bg-accent data-popup-open:text-accent-foreground"
+                                  />
+                                }
+                              >
+                                <MoreHorizontalIcon />
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="min-w-44">
+                                <DropdownMenuItem variant="destructive" onClick={() => setUndoTarget(row)}>
+                                  <Undo2Icon />
+                                  <span className="leading-none">Undo release</span>
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          ) : null}
+                        </div>
                       </TableCell>
                     ) : null}
                   </TableRow>
@@ -142,6 +197,7 @@ export function CommissionOrdersTable({
             </TableBody>
           </Table>
         )}
+        {!isLoading && !isError && rows.length > 0 ? footer : null}
       </CardContent>
 
       <ConfirmDialog
@@ -158,6 +214,27 @@ export function CommissionOrdersTable({
         onConfirm={() => {
           onRelease(pendingReleaseIds)
           setConfirmingBulkRelease(false)
+        }}
+      />
+
+      <ConfirmDialog
+        open={undoTarget !== null}
+        onOpenChange={(open) => !open && setUndoTarget(null)}
+        tone="danger"
+        icon={Undo2Icon}
+        title={
+          <>
+            Undo the release for <Name>{undoTarget?.orderNumber ?? ""}</Name>?
+          </>
+        }
+        description="The commission goes back to pending release, and its amount is taken back out of the payroll expense it was released in."
+        confirmLabel="Yes, undo it"
+        pendingLabel="Undoing…"
+        cancelLabel="No, keep it"
+        isPending={isMutating}
+        onConfirm={() => {
+          if (undoTarget) onUnrelease([undoTarget.id])
+          setUndoTarget(null)
         }}
       />
     </Card>

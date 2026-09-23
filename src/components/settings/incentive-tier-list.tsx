@@ -1,20 +1,33 @@
 import { useEffect, useState } from "react"
-import { PlusIcon, Trash2Icon } from "lucide-react"
+import { ArrowRightIcon, Trash2Icon } from "lucide-react"
 import { toast } from "sonner"
 
 import { ConfirmDialog } from "@/components/confirm-dialog"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { CurrencyInput } from "@/components/ui/currency-input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Spinner } from "@/components/ui/spinner"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import type { IncentiveTier } from "@/lib/incentive-tiers"
+import { formatCurrency } from "@/lib/utils"
 
-/** Add/edit/delete list for the Sales-Target Bonus tier ladder — structurally mirrors
- * CatalogList's inline-edit/AlertDialog-delete/AddRow conventions, adapted for two numeric
- * fields (threshold, amount) per row instead of one text field, and no manual reordering
- * (the list is always threshold-sorted). Relies on the Settings page's own route guard for
- * permission gating, same as CatalogList — no internal permission check here. */
+// Shared grid so the header, every tier row and the add row line their columns up.
+const ROW_GRID = "grid grid-cols-[4.5rem_minmax(0,1fr)_1rem_minmax(0,1fr)_2rem] items-center gap-2"
+
+function formatCompactCurrency(amount: number): string {
+  return new Intl.NumberFormat("en-PH", {
+    style: "currency",
+    currency: "PHP",
+    notation: "compact",
+    maximumFractionDigits: 1,
+  }).format(amount)
+}
+
+/** Add/edit/delete list for the Sales-target bonus tier ladder — the same inline-edit /
+ * confirm-delete / add-row conventions as CatalogList, with two amounts per row (threshold →
+ * reward) and no manual reordering (the list is always threshold-sorted). Relies on the Settings
+ * page's own route guard for permission gating, same as CatalogList. */
 export function IncentiveTierList({
   tiers,
   isLoading,
@@ -46,26 +59,29 @@ export function IncentiveTierList({
   }
 
   return (
-    <div className="w-full">
-      <div className="rounded-lg border">
-        <div className="flex items-center gap-1.5 border-b bg-muted/30 px-2 py-1.5 text-xs font-medium text-muted-foreground">
-          <span className="flex-1">Total sale reaches</span>
-          <span className="flex-1">Team earns</span>
-          <span className="w-6 shrink-0" />
+    <div className="flex w-full flex-col gap-2">
+      <div className="overflow-hidden rounded-xl border bg-card shadow-[var(--shadow-soft)]">
+        <div className={`${ROW_GRID} border-b bg-muted/40 px-3 py-2 text-xs font-medium text-muted-foreground`}>
+          <span>Tier</span>
+          <span>When team sales reach</span>
+          <span />
+          <span>Team earns</span>
+          <span />
         </div>
         {isLoading ? (
-          <div className="flex flex-col gap-2 p-2.5">
-            <Skeleton className="h-7 w-full" />
-            <Skeleton className="h-7 w-full" />
-            <Skeleton className="h-7 w-full" />
+          <div className="flex flex-col gap-2 p-3">
+            <Skeleton className="h-8 w-full" />
+            <Skeleton className="h-8 w-full" />
+            <Skeleton className="h-8 w-full" />
           </div>
         ) : tiers.length === 0 ? (
-          <p className="px-2.5 py-3 text-center text-xs text-muted-foreground">No tiers yet.</p>
+          <p className="px-3 py-6 text-center text-sm text-muted-foreground">No tiers yet. Add the first one below.</p>
         ) : (
-          tiers.map((tier) => (
+          tiers.map((tier, index) => (
             <TierRow
               key={tier.id}
               tier={tier}
+              step={index + 1}
               canDelete={canDelete}
               onUpdate={(input) => onUpdate(tier.id, input)}
               onDeleteRequest={() => setPendingDelete(tier)}
@@ -74,6 +90,13 @@ export function IncentiveTierList({
         )}
         <AddTierRow onAdd={onAdd} />
       </div>
+
+      {/* The whole ladder in one line, so the progression reads at a glance. */}
+      {tiers.length > 0 ? (
+        <p className="text-xs text-muted-foreground tabular-nums">
+          {tiers.map((tier) => `${formatCompactCurrency(tier.threshold)} → ${formatCurrency(tier.amount)}`).join("  ·  ")}
+        </p>
+      ) : null}
 
       <ConfirmDialog
         open={!!pendingDelete}
@@ -93,31 +116,47 @@ export function IncentiveTierList({
 
 function TierRow({
   tier,
+  step,
   canDelete,
   onUpdate,
   onDeleteRequest,
 }: {
   tier: IncentiveTier
+  step: number
   canDelete: boolean
   onUpdate: (input: { threshold?: number; amount?: number }) => Promise<void>
   onDeleteRequest: () => void
 }) {
   const deleteButton = (
-    <Button variant="ghost" size="icon-sm" className="size-6" disabled={!canDelete} onClick={onDeleteRequest}>
-      <Trash2Icon className="size-3.5" />
-      <span className="sr-only">Delete tier</span>
+    <Button
+      variant="ghost"
+      size="icon-sm"
+      disabled={!canDelete}
+      onClick={onDeleteRequest}
+      className="hover:bg-destructive/10 hover:text-destructive"
+    >
+      <Trash2Icon />
+      <span className="sr-only">Delete tier {step}</span>
     </Button>
   )
 
   return (
-    <div className="flex items-center gap-1.5 border-b px-2 py-1 last:border-b-0">
-      <EditableAmount value={tier.threshold} onCommit={(threshold) => onUpdate({ threshold })} />
-      <EditableAmount value={tier.amount} onCommit={(amount) => onUpdate({ amount })} />
+    <div className={`${ROW_GRID} min-h-11 border-b px-3 py-1.5 transition-colors hover:bg-muted/30`}>
+      <Badge variant="secondary" className="w-fit tabular-nums">
+        Tier {step}
+      </Badge>
+      <EditableAmount
+        label={`Tier ${step} threshold`}
+        value={tier.threshold}
+        onCommit={(threshold) => onUpdate({ threshold })}
+      />
+      <ArrowRightIcon aria-hidden className="size-4 text-muted-foreground" />
+      <EditableAmount label={`Tier ${step} reward`} value={tier.amount} onCommit={(amount) => onUpdate({ amount })} />
       {canDelete ? (
         deleteButton
       ) : (
         <Tooltip>
-          <TooltipTrigger render={deleteButton} />
+          <TooltipTrigger render={<span tabIndex={0} className="flex" />}>{deleteButton}</TooltipTrigger>
           <TooltipContent>At least one tier is required.</TooltipContent>
         </Tooltip>
       )}
@@ -125,7 +164,15 @@ function TierRow({
   )
 }
 
-function EditableAmount({ value, onCommit }: { value: number; onCommit: (value: number) => Promise<void> }) {
+function EditableAmount({
+  label,
+  value,
+  onCommit,
+}: {
+  label: string
+  value: number
+  onCommit: (value: number) => Promise<void>
+}) {
   const [draft, setDraft] = useState(String(value))
 
   useEffect(() => setDraft(String(value)), [value])
@@ -151,6 +198,7 @@ function EditableAmount({ value, onCommit }: { value: number; onCommit: (value: 
 
   return (
     <CurrencyInput
+      aria-label={label}
       value={draft}
       onChange={(event) => setDraft(event.target.value)}
       onBlur={commit}
@@ -158,7 +206,7 @@ function EditableAmount({ value, onCommit }: { value: number; onCommit: (value: 
         if (event.key === "Enter") (event.target as HTMLInputElement).blur()
         if (event.key === "Escape") setDraft(String(value))
       }}
-      className="h-7 flex-1 text-sm"
+      className="h-8 tabular-nums"
     />
   )
 }
@@ -193,25 +241,31 @@ function AddTierRow({ onAdd }: { onAdd: (threshold: number, amount: number) => P
   }
 
   return (
-    <div className="flex items-center gap-1.5 border-t p-1.5">
-      <CurrencyInput
-        value={threshold}
-        onChange={(event) => setThreshold(event.target.value)}
-        onKeyDown={(event) => event.key === "Enter" && submit()}
-        placeholder="New threshold"
-        disabled={isSubmitting}
-        className="h-7 flex-1 text-sm"
-      />
-      <CurrencyInput
-        value={amount}
-        onChange={(event) => setAmount(event.target.value)}
-        onKeyDown={(event) => event.key === "Enter" && submit()}
-        placeholder="New amount"
-        disabled={isSubmitting}
-        className="h-7 flex-1 text-sm"
-      />
-      <Button size="icon-sm" className="size-7 shrink-0" onClick={submit} disabled={isSubmitting || !isValid}>
-        {isSubmitting ? <Spinner className="size-3.5" /> : <PlusIcon className="size-3.5" />}
+    <div className="flex flex-col gap-2 border-t bg-muted/20 p-2 sm:flex-row sm:items-center">
+      <div className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_1rem_minmax(0,1fr)] items-center gap-2">
+        <CurrencyInput
+          aria-label="New tier threshold"
+          value={threshold}
+          onChange={(event) => setThreshold(event.target.value)}
+          onKeyDown={(event) => event.key === "Enter" && submit()}
+          placeholder="New threshold"
+          disabled={isSubmitting}
+          className="h-8 bg-background"
+        />
+        <ArrowRightIcon aria-hidden className="size-4 text-muted-foreground" />
+        <CurrencyInput
+          aria-label="New tier reward"
+          value={amount}
+          onChange={(event) => setAmount(event.target.value)}
+          onKeyDown={(event) => event.key === "Enter" && submit()}
+          placeholder="New reward"
+          disabled={isSubmitting}
+          className="h-8 bg-background"
+        />
+      </div>
+      <Button size="sm" className="shrink-0" onClick={submit} disabled={isSubmitting || !isValid}>
+        {isSubmitting && <Spinner data-icon="inline-start" />}
+        Add tier
       </Button>
     </div>
   )

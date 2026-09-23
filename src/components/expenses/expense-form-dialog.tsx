@@ -1,48 +1,44 @@
-import { LockIcon, ReceiptTextIcon } from "lucide-react"
+import { CalendarIcon, LockIcon, ReceiptTextIcon } from "lucide-react"
 import { useEffect, useState } from "react"
-import { format, parseISO } from "date-fns"
+import { format, parseISO, subDays } from "date-fns"
 import { toast } from "sonner"
 
-import { CharCount } from "@/components/char-count"
 import { ChoiceTile } from "@/components/choice-tile"
+import {
+  EXPENSE_NOTES_MAX_LENGTH,
+  ExpenseAmountField,
+  ExpenseCategoryField,
+  ExpenseNotesField,
+  PaymentMethodTiles,
+} from "@/components/expenses/expense-fields"
+import { FormDialogHeader } from "@/components/form-dialog-header"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
-import { FormDialogHeader } from "@/components/form-dialog-header"
 import { Dialog, DialogBody, DialogContent, DialogFooter } from "@/components/ui/dialog"
-import { CurrencyInput } from "@/components/ui/currency-input"
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { Spinner } from "@/components/ui/spinner"
-import { Textarea } from "@/components/ui/textarea"
 import { ToggleGroup } from "@/components/ui/toggle-group"
 import {
-  EXPENSE_CATEGORIES,
   useExpenseActions,
   type Expense,
   type ExpenseAutoSource,
   type ExpenseInput,
 } from "@/lib/expenses"
 import { useEnabledPaymentMethods } from "@/lib/payment-methods"
-import { cn } from "@/lib/utils"
+import { formatCurrency, formatDate } from "@/lib/utils"
 import { maxLengthMessage, parsePositiveAmount, positiveAmountMessage, requiredMessage } from "@/lib/validation"
-
-const NOTES_MAX_LENGTH = 300
 
 const AUTO_SOURCE_TITLES: Record<ExpenseAutoSource, string> = {
   commission_release: "Created by a commission release",
   monthly_incentive_release: "Created by a monthly incentive release",
 }
 
+const ISO = "yyyy-MM-dd"
+
 function emptyDraft(): ExpenseInput {
   return {
-    date: format(new Date(), "yyyy-MM-dd"),
+    date: format(new Date(), ISO),
     amount: 0,
     category: "",
     paymentMethod: "",
@@ -82,6 +78,7 @@ export function ExpenseFormDialog({
   const [categoryError, setCategoryError] = useState<string | null>(null)
   const [paymentMethodError, setPaymentMethodError] = useState<string | null>(null)
   const [notesError, setNotesError] = useState<string | null>(null)
+  const [datePickerOpen, setDatePickerOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   useEffect(() => {
@@ -95,6 +92,24 @@ export function ExpenseFormDialog({
     setPaymentMethodError(null)
     setNotesError(null)
   }, [open, expense])
+
+  // Quick dates: most expenses are logged the day they happen, or the day after.
+  const today = format(new Date(), ISO)
+  const yesterday = format(subDays(new Date(), 1), ISO)
+  const quickDate = draft.date === today ? "today" : draft.date === yesterday ? "yesterday" : null
+
+  function setDate(iso: string) {
+    setDraft((prev) => ({ ...prev, date: iso }))
+    setDateError(null)
+  }
+
+  // "₱1,200.00 · Office Supplies and Equipment · Cash" — builds up as the form is filled in.
+  const previewAmount = parsePositiveAmount(amountInput)
+  const recap = [
+    previewAmount !== null ? formatCurrency(previewAmount) : null,
+    draft.category || null,
+    draft.paymentMethod || null,
+  ].filter(Boolean)
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -116,8 +131,8 @@ export function ExpenseFormDialog({
       setPaymentMethodError(requiredMessage("Payment method"))
       return
     }
-    if (draft.notes.length > NOTES_MAX_LENGTH) {
-      setNotesError(maxLengthMessage("Notes", NOTES_MAX_LENGTH))
+    if (draft.notes.length > EXPENSE_NOTES_MAX_LENGTH) {
+      setNotesError(maxLengthMessage("Notes", EXPENSE_NOTES_MAX_LENGTH))
       return
     }
 
@@ -143,156 +158,137 @@ export function ExpenseFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-lg">
         <FormDialogHeader
           icon={ReceiptTextIcon}
-          title={<>{expense ? "Edit expense" : "New expense"}</>}
-          description={<>{expense ? "Update this expense's details." : "Log a new business expense."}</>}
+          title={expense ? "Edit expense" : "New expense"}
+          description={
+            expense
+              ? expense.createdByName
+                ? `Logged by ${expense.createdByName} · ${formatDate(expense.createdAt)}`
+                : `Logged ${formatDate(expense.createdAt)}`
+              : "Log a new business expense."
+          }
         />
 
         <DialogBody>
-        <form id="expense-form" onSubmit={handleSubmit} className="flex flex-col gap-4">
-          {autoSource && (
-            <div className="flex gap-2.5 rounded-lg border bg-muted/40 px-3 py-2.5 text-sm">
-              <LockIcon aria-hidden className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-              <div className="flex flex-col gap-0.5">
-                <span className="font-medium">{AUTO_SOURCE_TITLES[autoSource]}</span>
-                <span className="text-muted-foreground">
-                  Amount, category and date are locked. Undo the release on the Incentives page to change them.
-                </span>
+          <form id="expense-form" onSubmit={handleSubmit} className="flex flex-col gap-4">
+            {autoSource && (
+              <div className="flex gap-2.5 rounded-lg border bg-muted/40 px-3 py-2.5 text-sm">
+                <LockIcon aria-hidden className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                <div className="flex flex-col gap-0.5">
+                  <span className="font-medium">{AUTO_SOURCE_TITLES[autoSource]}</span>
+                  <span className="text-muted-foreground">
+                    Amount, category and date are locked. Undo the release on the Incentives page to change them.
+                  </span>
+                </div>
               </div>
-            </div>
-          )}
-          <FieldGroup>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field data-invalid={!!amountError}>
-                <FieldLabel htmlFor="expense-amount">Amount</FieldLabel>
-                <CurrencyInput
-                  id="expense-amount"
-                  value={amountInput}
-                  disabled={isLocked}
-                  onChange={(event) => {
-                    setAmountInput(event.target.value)
-                    setAmountError(null)
-                  }}
-                  aria-invalid={!!amountError}
-                />
-                <FieldError>{amountError ?? undefined}</FieldError>
-              </Field>
+            )}
+            <FieldGroup>
+              <ExpenseAmountField
+                id="expense-amount"
+                value={amountInput}
+                error={amountError}
+                disabled={isLocked}
+                autoFocus={!expense}
+                onChange={(value) => {
+                  setAmountInput(value)
+                  setAmountError(null)
+                }}
+              />
 
               <Field data-invalid={!!dateError}>
-                <FieldLabel htmlFor="expense-date">Date</FieldLabel>
-                <Popover>
-                  <PopoverTrigger
-                    id="expense-date"
+                <FieldLabel id="expense-date-label">Date</FieldLabel>
+                <div className="flex flex-wrap items-center gap-2">
+                  <ToggleGroup
+                    aria-labelledby="expense-date-label"
+                    value={quickDate ? [quickDate] : []}
                     disabled={isLocked}
-                    render={
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="w-full justify-start font-normal"
-                        aria-invalid={!!dateError}
-                      />
-                    }
+                    onValueChange={(next) => {
+                      if (next[0] === "today") setDate(today)
+                      else if (next[0] === "yesterday") setDate(yesterday)
+                    }}
+                    className="gap-2"
                   >
-                    {draft.date ? format(parseISO(draft.date), "MMM d, yyyy") : "Select date"}
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={draft.date ? parseISO(draft.date) : undefined}
-                      onSelect={(date) => {
-                        setDraft((prev) => ({ ...prev, date: date ? format(date, "yyyy-MM-dd") : "" }))
-                        setDateError(null)
-                      }}
-                      autoFocus
-                    />
-                  </PopoverContent>
-                </Popover>
+                    <ChoiceTile value="today">Today</ChoiceTile>
+                    <ChoiceTile value="yesterday">Yesterday</ChoiceTile>
+                  </ToggleGroup>
+                  <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+                    <PopoverTrigger
+                      id="expense-date"
+                      disabled={isLocked}
+                      render={
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className={
+                            quickDate
+                              ? "font-normal text-muted-foreground"
+                              : "border-primary bg-accent font-normal text-accent-foreground hover:bg-accent"
+                          }
+                          aria-invalid={!!dateError}
+                        />
+                      }
+                    >
+                      <CalendarIcon data-icon="inline-start" />
+                      {quickDate || !draft.date ? "Other date…" : format(parseISO(draft.date), "MMM d, yyyy")}
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={draft.date ? parseISO(draft.date) : undefined}
+                        onSelect={(date) => {
+                          setDate(date ? format(date, ISO) : "")
+                          setDatePickerOpen(false)
+                        }}
+                        autoFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
                 <FieldError>{dateError ?? undefined}</FieldError>
               </Field>
-            </div>
 
-            <Field data-invalid={!!categoryError}>
-              <FieldLabel htmlFor="expense-category">Category</FieldLabel>
-              <Select
-                value={draft.category || undefined}
+              <ExpenseCategoryField
+                id="expense-category"
+                value={draft.category}
+                error={categoryError}
                 disabled={isLocked}
-                onValueChange={(value) => {
-                  setDraft((prev) => ({ ...prev, category: value ?? "" }))
+                onChange={(value) => {
+                  setDraft((prev) => ({ ...prev, category: value }))
                   setCategoryError(null)
                 }}
-              >
-                <SelectTrigger id="expense-category" className="w-full" aria-invalid={!!categoryError}>
-                  <SelectValue placeholder="Select a category" />
-                </SelectTrigger>
-                <SelectContent className="min-w-64">
-                  {EXPENSE_CATEGORIES.map((category) => (
-                    <SelectItem key={category} value={category}>
-                      {category}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <FieldError>{categoryError}</FieldError>
-            </Field>
+              />
 
-            <Field data-invalid={!!paymentMethodError}>
-              <FieldLabel htmlFor="expense-payment-method">Payment method</FieldLabel>
-              <ToggleGroup
+              <PaymentMethodTiles
                 id="expense-payment-method"
-                value={draft.paymentMethod ? [draft.paymentMethod] : []}
-                onValueChange={(next) => {
-                  const value = next[0]
-                  if (value) {
-                    setDraft((prev) => ({ ...prev, paymentMethod: value }))
-                    setPaymentMethodError(null)
-                  }
+                value={draft.paymentMethod}
+                methods={enabledMethods}
+                error={paymentMethodError}
+                onChange={(value) => {
+                  setDraft((prev) => ({ ...prev, paymentMethod: value }))
+                  setPaymentMethodError(null)
                 }}
-                className={cn(
-                  "flex-wrap gap-2",
-                  paymentMethodError && "rounded-lg ring-1 ring-destructive ring-offset-2 ring-offset-background"
-                )}
-              >
-                {/* Merge in the current value even if it's since been disabled/deleted in
-                  Settings, so an existing expense using a retired method still renders. */}
-                {(draft.paymentMethod && !enabledMethods.includes(draft.paymentMethod)
-                  ? [...enabledMethods, draft.paymentMethod]
-                  : enabledMethods
-                ).map((method) => (
-                  <ChoiceTile key={method} value={method}>
-                    {method}
-                  </ChoiceTile>
-                ))}
-              </ToggleGroup>
-              <FieldError>{paymentMethodError}</FieldError>
-            </Field>
+              />
 
-            <Field data-invalid={!!notesError}>
-              <div className="flex items-baseline justify-between gap-2">
-                <FieldLabel htmlFor="expense-notes">
-                  Notes <span className="font-normal text-muted-foreground">(optional)</span>
-                </FieldLabel>
-                <CharCount value={draft.notes} max={NOTES_MAX_LENGTH} />
-              </div>
-              <Textarea
+              <ExpenseNotesField
                 id="expense-notes"
                 value={draft.notes}
-                onChange={(event) => {
-                  setDraft((prev) => ({ ...prev, notes: event.target.value }))
+                error={notesError}
+                onChange={(value) => {
+                  setDraft((prev) => ({ ...prev, notes: value }))
                   setNotesError(null)
                 }}
-                placeholder="Vendor, reason, or other context"
-                maxLength={NOTES_MAX_LENGTH}
-                aria-invalid={!!notesError}
               />
-              <FieldError>{notesError ?? undefined}</FieldError>
-            </Field>
-          </FieldGroup>
-        </form>
+            </FieldGroup>
+          </form>
         </DialogBody>
 
-        <DialogFooter>
+        <DialogFooter className="sm:items-center">
+          <p className="mr-auto hidden min-w-0 truncate text-sm text-muted-foreground tabular-nums sm:block">
+            {recap.join(" · ")}
+          </p>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>

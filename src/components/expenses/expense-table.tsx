@@ -1,4 +1,4 @@
-import { type MouseEvent } from "react"
+import { type MouseEvent, type ReactNode } from "react"
 import {
   Loader2Icon,
   MoreHorizontalIcon,
@@ -11,6 +11,7 @@ import {
 } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
+import { TABLE_HEAD_CLASS, TABLE_HEADER_CLASS, TABLE_SURFACE_CLASS } from "@/components/table-surface"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -39,10 +40,6 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import type { Expense, ExpenseAutoSource } from "@/lib/expenses"
 import { cn, formatCurrency, formatDate } from "@/lib/utils"
 
-/** Same card surface as the Products / Orders tables. */
-const SURFACE_CLASS = "overflow-hidden rounded-xl border border-border bg-card shadow-[var(--shadow-soft)]"
-const HEAD_CLASS = "px-4 text-xs font-medium text-muted-foreground"
-
 const AUTO_SOURCE_LABELS: Record<ExpenseAutoSource, string> = {
   commission_release: "Created by a commission release",
   monthly_incentive_release: "Created by a monthly incentive release",
@@ -52,15 +49,15 @@ const AUTO_DELETE_REASON = "Undo the release on the Incentives page to remove it
 
 function Columns({ canManage }: { canManage?: boolean }) {
   return (
-    <TableHeader className="bg-muted/40">
+    <TableHeader className={TABLE_HEADER_CLASS}>
       <TableRow className="hover:bg-transparent">
-        <TableHead className={HEAD_CLASS}>Expense</TableHead>
-        <TableHead className={HEAD_CLASS}>Date</TableHead>
-        <TableHead className={HEAD_CLASS}>Payment method</TableHead>
-        {canManage && <TableHead className={HEAD_CLASS}>Created by</TableHead>}
-        <TableHead className={cn(HEAD_CLASS, "text-right")}>Amount</TableHead>
+        <TableHead className={TABLE_HEAD_CLASS}>Expense</TableHead>
+        <TableHead className={TABLE_HEAD_CLASS}>Date</TableHead>
+        <TableHead className={TABLE_HEAD_CLASS}>Payment method</TableHead>
+        {canManage && <TableHead className={TABLE_HEAD_CLASS}>Created by</TableHead>}
+        <TableHead className={cn(TABLE_HEAD_CLASS, "text-right")}>Amount</TableHead>
         {canManage && (
-          <TableHead className={cn(HEAD_CLASS, "w-0 text-right")}>
+          <TableHead className={cn(TABLE_HEAD_CLASS, "w-0 text-right")}>
             <span className="sr-only">Actions</span>
           </TableHead>
         )}
@@ -89,6 +86,7 @@ function AutoBadge({ source }: { source: ExpenseAutoSource }) {
 }
 
 export function ExpenseTable({
+  footer,
   expenses,
   isLoading,
   isFetching,
@@ -102,6 +100,8 @@ export function ExpenseTable({
   onEdit,
   onDelete,
 }: {
+  /** Rendered inside the table surface, below the rows (the pager). Hidden in loading/empty/error states. */
+  footer?: ReactNode
   expenses: Expense[]
   isLoading?: boolean
   isFetching?: boolean
@@ -117,7 +117,7 @@ export function ExpenseTable({
 }) {
   if (isLoading) {
     return (
-      <div className={SURFACE_CLASS}>
+      <div className={TABLE_SURFACE_CLASS}>
         <Table>
           <Columns canManage={canManage} />
           <TableBody>
@@ -161,7 +161,7 @@ export function ExpenseTable({
 
   if (isError) {
     return (
-      <Empty className={SURFACE_CLASS}>
+      <Empty className={TABLE_SURFACE_CLASS}>
         <EmptyHeader>
           <EmptyMedia variant="icon">
             <TriangleAlertIcon />
@@ -176,7 +176,7 @@ export function ExpenseTable({
   if (expenses.length === 0) {
     if (hasActiveFilters) {
       return (
-        <Empty className={SURFACE_CLASS}>
+        <Empty className={TABLE_SURFACE_CLASS}>
           <EmptyHeader>
             <EmptyMedia variant="icon">
               <ReceiptTextIcon />
@@ -198,7 +198,7 @@ export function ExpenseTable({
       )
     }
     return (
-      <Empty className={SURFACE_CLASS}>
+      <Empty className={TABLE_SURFACE_CLASS}>
         <EmptyHeader>
           <EmptyMedia variant="icon">
             <ReceiptTextIcon />
@@ -218,7 +218,7 @@ export function ExpenseTable({
 
   return (
     <div className="relative" aria-busy={isFetching}>
-      <div className={cn(SURFACE_CLASS, isFetching && "opacity-60 transition-opacity duration-150")}>
+      <div className={cn(TABLE_SURFACE_CLASS, isFetching && "opacity-60 transition-opacity duration-150")}>
         <Table>
           <Columns canManage={canManage} />
           <TableBody>
@@ -316,6 +316,7 @@ export function ExpenseTable({
             })}
           </TableBody>
         </Table>
+        {footer}
       </div>
       {isFetching && (
         <div className="absolute top-3 right-3 flex items-center gap-1.5 rounded-full bg-background/90 px-2 py-1 text-xs text-muted-foreground shadow-sm ring-1 ring-border">

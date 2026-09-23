@@ -1,18 +1,29 @@
 import { useMemo, useState } from "react"
 import { endOfMonth, format, parseISO } from "date-fns"
-import { HandCoinsIcon, HistoryIcon } from "lucide-react"
+import { HandCoinsIcon, HistoryIcon, MoreHorizontalIcon, Undo2Icon } from "lucide-react"
 import { toast } from "sonner"
 
+import { Money } from "@/components/money"
 import { ConfirmDialog } from "@/components/confirm-dialog"
-import { Badge } from "@/components/ui/badge"
+import { DotBadge } from "@/components/dot-badge"
+import { OrderFormSectionHeader } from "@/components/orders/order-form-section-header"
+import { TABLE_HEAD_CLASS, TABLE_HEADER_CLASS } from "@/components/table-surface"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardAction, CardContent, CardHeader } from "@/components/ui/card"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Empty, EmptyDescription, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useMonthlyIncentiveHistory, useMonthlyIncentiveReleaseActions } from "@/lib/commission"
-import { formatCurrency } from "@/lib/utils"
+import { useSalesVisibility } from "@/lib/sales-visibility"
+import { cn, formatCurrency } from "@/lib/utils"
 
 const MONTH_NAMES = Array.from({ length: 12 }, (_, i) => format(new Date(2000, i, 1), "MMMM"))
 const MONTH_FILTER_OPTIONS = [{ value: "all", label: "All months" }, ...MONTH_NAMES.map((label, i) => ({ value: String(i + 1), label }))]
@@ -28,6 +39,7 @@ export function IncentiveHistoryTable() {
   const [confirmTarget, setConfirmTarget] = useState<ConfirmTarget | null>(null)
 
   const { rows, isLoading, isError, refetch } = useMonthlyIncentiveHistory(year)
+  const { isVisible } = useSalesVisibility()
   const { release, unrelease } = useMonthlyIncentiveReleaseActions()
 
   const yearOptions = useMemo(
@@ -68,15 +80,16 @@ export function IncentiveHistoryTable() {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Incentive releases</CardTitle>
-        <CardDescription>Review past months and release each one's incentive pool to staff</CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-4">
-        <div className="flex flex-wrap gap-3">
+    <Card className="gap-0 pb-0">
+      <CardHeader className="pb-4">
+        <OrderFormSectionHeader
+          icon={HistoryIcon}
+          title="Incentive releases"
+          description="Release each past month's pool to staff"
+        />
+        <CardAction className="flex items-center gap-2">
           <Select value={String(year)} onValueChange={(value) => value && setYear(Number(value))}>
-            <SelectTrigger size="sm" className="w-28 text-xs">
+            <SelectTrigger size="sm" aria-label="Year" className="w-24 text-xs">
               <SelectValue>{(value: string | null) => value ?? String(year)}</SelectValue>
             </SelectTrigger>
             <SelectContent>
@@ -89,7 +102,7 @@ export function IncentiveHistoryTable() {
           </Select>
 
           <Select value={monthFilter} onValueChange={(value) => value && setMonthFilter(value)}>
-            <SelectTrigger size="sm" className="w-36 text-xs">
+            <SelectTrigger size="sm" aria-label="Month" className="w-32 text-xs">
               <SelectValue>
                 {(value: string | null) =>
                   MONTH_FILTER_OPTIONS.find((option) => option.value === (value ?? monthFilter))?.label ??
@@ -105,79 +118,122 @@ export function IncentiveHistoryTable() {
               ))}
             </SelectContent>
           </Select>
-        </div>
-
+        </CardAction>
+      </CardHeader>
+      <CardContent className="px-0">
         {isLoading ? (
-          <Skeleton className="h-48 w-full" />
+          <div className="px-4 pb-4">
+            <Skeleton className="h-40 w-full" />
+          </div>
         ) : isError ? (
-          <Empty className="border">
-            <EmptyMedia variant="icon">
-              <HistoryIcon />
-            </EmptyMedia>
-            <EmptyTitle>Couldn't load the release history</EmptyTitle>
-            <EmptyDescription>Try refreshing the page.</EmptyDescription>
-          </Empty>
+          <div className="px-4 pb-4">
+            <Empty className="border">
+              <EmptyMedia variant="icon">
+                <HistoryIcon />
+              </EmptyMedia>
+              <EmptyTitle>Couldn't load the release history</EmptyTitle>
+              <EmptyDescription>Try refreshing the page.</EmptyDescription>
+            </Empty>
+          </div>
         ) : sortedRows.length === 0 ? (
-          <Empty className="border">
-            <EmptyMedia variant="icon">
-              <HistoryIcon />
-            </EmptyMedia>
-            <EmptyTitle>No months to show</EmptyTitle>
-            <EmptyDescription>Try a different year or month filter.</EmptyDescription>
-          </Empty>
+          <div className="px-4 pb-4">
+            <Empty className="border">
+              <EmptyMedia variant="icon">
+                <HistoryIcon />
+              </EmptyMedia>
+              <EmptyTitle>No months to show</EmptyTitle>
+              <EmptyDescription>Try a different year or month filter.</EmptyDescription>
+            </Empty>
+          </div>
         ) : (
           <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Month</TableHead>
-                <TableHead className="text-right">Staff Sales</TableHead>
-                <TableHead className="text-right">Pool</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+            <TableHeader className={TABLE_HEADER_CLASS}>
+              <TableRow className="hover:bg-transparent">
+                <TableHead className={TABLE_HEAD_CLASS}>Month</TableHead>
+                <TableHead className={cn(TABLE_HEAD_CLASS, "text-right")}>Staff sales</TableHead>
+                <TableHead className={cn(TABLE_HEAD_CLASS, "text-right")}>Pool</TableHead>
+                <TableHead className={TABLE_HEAD_CLASS}>Status</TableHead>
+                <TableHead className={cn(TABLE_HEAD_CLASS, "w-0 text-right")}>
+                  <span className="sr-only">Actions</span>
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {sortedRows.map((row) => (
-                <TableRow key={row.periodMonth}>
-                  <TableCell className="font-medium">{format(parseISO(row.periodMonth), "MMMM yyyy")}</TableCell>
-                  <TableCell className="text-right tabular-nums">{formatCurrency(row.totalStaffSales)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{formatCurrency(row.pool)}</TableCell>
-                  <TableCell>
-                    {row.isCurrentMonth ? (
-                      <Badge variant="secondary">In progress</Badge>
-                    ) : row.releasedAt ? (
-                      <Badge className="bg-status-success/10 text-status-success">Released</Badge>
-                    ) : (
-                      <Badge variant="secondary">Not released</Badge>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {row.isCurrentMonth ? (
-                      <span className="text-xs text-muted-foreground">Ends before it can be released</span>
-                    ) : row.releasedAt ? (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        disabled={isMutating}
-                        onClick={() => setConfirmTarget({ periodMonth: row.periodMonth, action: "unrelease" })}
-                      >
-                        Undo Release
-                      </Button>
-                    ) : (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        disabled={isMutating || row.pool <= 0}
-                        onClick={() => setConfirmTarget({ periodMonth: row.periodMonth, action: "release" })}
-                      >
-                        Release
-                      </Button>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
+              {sortedRows.map((row) => {
+                const monthLabel = format(parseISO(row.periodMonth), "MMMM yyyy")
+                return (
+                  <TableRow key={row.periodMonth} className="hover:bg-transparent">
+                    <TableCell className="px-4 font-medium">{monthLabel}</TableCell>
+                    <TableCell className="px-4 text-right tabular-nums">
+                      <Money amount={row.totalStaffSales} hidden={!isVisible} />
+                    </TableCell>
+                    <TableCell className="px-4 text-right font-semibold tabular-nums">
+                      {formatCurrency(row.pool)}
+                    </TableCell>
+                    <TableCell className="px-4">
+                      {row.isCurrentMonth ? (
+                        <DotBadge dotClassName="bg-order-status-violet">In progress</DotBadge>
+                      ) : row.releasedAt ? (
+                        <DotBadge dotClassName="bg-order-status-teal">Released</DotBadge>
+                      ) : (
+                        <DotBadge dotClassName="bg-order-status-gold">Not released</DotBadge>
+                      )}
+                    </TableCell>
+                    <TableCell className="px-4">
+                      <div className="flex justify-end">
+                        {row.isCurrentMonth ? (
+                          <span className="text-xs whitespace-nowrap text-muted-foreground">After month ends</span>
+                        ) : row.releasedAt ? (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger
+                              render={
+                                <Button
+                                  variant="ghost"
+                                  size="icon-sm"
+                                  aria-label={`More actions for ${monthLabel}`}
+                                  disabled={isMutating}
+                                  className="data-popup-open:bg-accent data-popup-open:text-accent-foreground"
+                                />
+                              }
+                            >
+                              <MoreHorizontalIcon />
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="min-w-44">
+                              <DropdownMenuItem
+                                variant="destructive"
+                                onClick={() => setConfirmTarget({ periodMonth: row.periodMonth, action: "unrelease" })}
+                              >
+                                <Undo2Icon />
+                                <span className="leading-none">Undo release</span>
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        ) : row.pool <= 0 ? (
+                          <Tooltip>
+                            <TooltipTrigger render={<span tabIndex={0} />}>
+                              <Button type="button" variant="outline" size="sm" disabled>
+                                Release
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>No incentive to release — no tier was reached.</TooltipContent>
+                          </Tooltip>
+                        ) : (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={isMutating}
+                            onClick={() => setConfirmTarget({ periodMonth: row.periodMonth, action: "release" })}
+                          >
+                            <HandCoinsIcon data-icon="inline-start" />
+                            Release
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                )
+              })}
             </TableBody>
           </Table>
         )}

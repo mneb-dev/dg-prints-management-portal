@@ -14,6 +14,7 @@ import { type MouseEvent, type ReactNode } from "react"
 import { Link } from "react-router-dom"
 
 import { Badge } from "@/components/ui/badge"
+import { TABLE_HEAD_CLASS, TABLE_HEADER_CLASS, TABLE_SURFACE_CLASS } from "@/components/table-surface"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -56,10 +57,6 @@ import { OrderStatusMenu } from "./order-status-menu"
 import { PaymentStatusBadge } from "./payment-status-badge"
 import { PaymentStatusMenu } from "./payment-status-menu"
 
-/** Card-like surface shared by the table, its skeleton, and its empty/error states — matches the
- * dashboard `Card` (rounded-xl, bg-card, soft shadow). */
-const SURFACE_CLASS = "overflow-hidden rounded-xl border border-border bg-card shadow-[var(--shadow-soft)]"
-const HEAD_CLASS = "px-4 text-xs font-medium text-muted-foreground"
 const STICKY_CELL_CLASS = "sticky left-0 z-10 bg-card"
 
 /** Cells holding their own controls (menus, tooltips, buttons) stop the click here so it doesn't
@@ -71,16 +68,16 @@ function stopRowClick(event: MouseEvent) {
 
 function TableColumns() {
   return (
-    <TableHeader className="bg-muted/40">
+    <TableHeader className={TABLE_HEADER_CLASS}>
       <TableRow className="hover:bg-transparent">
-        <TableHead className={cn(HEAD_CLASS, STICKY_CELL_CLASS, "bg-muted/40 backdrop-blur-sm")}>Order</TableHead>
-        <TableHead className={HEAD_CLASS}>Customer</TableHead>
-        <TableHead className={HEAD_CLASS}>Product</TableHead>
-        <TableHead className={cn(HEAD_CLASS, "text-right")}>Total</TableHead>
-        <TableHead className={HEAD_CLASS}>Payment</TableHead>
-        <TableHead className={HEAD_CLASS}>Status</TableHead>
-        <TableHead className={HEAD_CLASS}>Updated</TableHead>
-        <TableHead className={cn(HEAD_CLASS, "text-right")}>
+        <TableHead className={cn(TABLE_HEAD_CLASS, STICKY_CELL_CLASS, "bg-muted/40 backdrop-blur-sm")}>Order</TableHead>
+        <TableHead className={TABLE_HEAD_CLASS}>Customer</TableHead>
+        <TableHead className={TABLE_HEAD_CLASS}>Product</TableHead>
+        <TableHead className={cn(TABLE_HEAD_CLASS, "text-right")}>Total</TableHead>
+        <TableHead className={TABLE_HEAD_CLASS}>Payment</TableHead>
+        <TableHead className={TABLE_HEAD_CLASS}>Status</TableHead>
+        <TableHead className={TABLE_HEAD_CLASS}>Updated</TableHead>
+        <TableHead className={cn(TABLE_HEAD_CLASS, "text-right")}>
           <span className="sr-only">Actions</span>
         </TableHead>
       </TableRow>
@@ -89,6 +86,7 @@ function TableColumns() {
 }
 
 export function OrderTable({
+  footer,
   orders,
   isLoading,
   isFetching,
@@ -110,6 +108,8 @@ export function OrderTable({
   onArrange,
   onRequestOR,
 }: {
+  /** Rendered inside the table surface, below the rows (the pager). Hidden in loading/empty/error states. */
+  footer?: ReactNode
   orders: Order[]
   isLoading?: boolean
   isFetching?: boolean
@@ -135,7 +135,7 @@ export function OrderTable({
 
   if (isLoading) {
     return (
-      <div className={SURFACE_CLASS}>
+      <div className={TABLE_SURFACE_CLASS}>
         <Table>
           <TableColumns />
           <TableBody>
@@ -180,7 +180,7 @@ export function OrderTable({
 
   if (isError) {
     return (
-      <Empty className={SURFACE_CLASS}>
+      <Empty className={TABLE_SURFACE_CLASS}>
         <EmptyHeader>
           <EmptyMedia variant="icon">
             <TriangleAlertIcon />
@@ -195,7 +195,7 @@ export function OrderTable({
   if (orders.length === 0) {
     if (hasActiveFilters) {
       return (
-        <Empty className={SURFACE_CLASS}>
+        <Empty className={TABLE_SURFACE_CLASS}>
           <EmptyHeader>
             <EmptyMedia variant="icon">
               <PackageSearchIcon />
@@ -217,7 +217,7 @@ export function OrderTable({
       )
     }
     return (
-      <Empty className={SURFACE_CLASS}>
+      <Empty className={TABLE_SURFACE_CLASS}>
         <EmptyHeader>
           <EmptyMedia variant="icon">
             <PackageSearchIcon />
@@ -239,7 +239,7 @@ export function OrderTable({
 
   return (
     <div className="relative" aria-busy={isFetching}>
-      <div className={cn(SURFACE_CLASS, isFetching && "opacity-60 transition-opacity duration-150")}>
+      <div className={cn(TABLE_SURFACE_CLASS, isFetching && "opacity-60 transition-opacity duration-150")}>
         <Table>
           <TableColumns />
           <TableBody>
@@ -440,6 +440,7 @@ export function OrderTable({
             })}
           </TableBody>
         </Table>
+        {footer}
       </div>
       {isFetching && (
         <div className="absolute top-3 right-3 z-20 flex items-center gap-1.5 rounded-full bg-background/90 px-2 py-1 text-xs text-muted-foreground shadow-sm ring-1 ring-border">

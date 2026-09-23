@@ -7,12 +7,16 @@ import { DeleteRecurringExpenseDialog } from "@/components/expenses/delete-recur
 import { RecurringExpenseFormDialog } from "@/components/expenses/recurring-expense-form-dialog"
 import { RecurringExpenseTable } from "@/components/expenses/recurring-expense-table"
 import { PageHeader } from "@/components/page-header"
+import { PaginationBar } from "@/components/pagination-bar"
 import { Button } from "@/components/ui/button"
 import { useRecurringExpenseActions, useRecurringExpenses, type RecurringExpense } from "@/lib/expenses"
+import { useClampPage } from "@/lib/pagination"
 
 export function RecurringExpensesPage() {
   const navigate = useNavigate()
-  const { recurring, isLoading, isError, error } = useRecurringExpenses()
+  const { recurring, total, activeCount, params, setParams, refetch, isLoading, isFetching, isError, error } =
+    useRecurringExpenses()
+  useClampPage(params.page, params.pageSize, total, isFetching, (page) => setParams({ page }))
   const { setRecurringExpenseActive, deleteRecurringExpense } = useRecurringExpenseActions()
 
   const [formOpen, setFormOpen] = useState(false)
@@ -20,7 +24,6 @@ export function RecurringExpensesPage() {
   const [deletingRecurring, setDeletingRecurring] = useState<RecurringExpense | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
   const [togglingId, setTogglingId] = useState<string | null>(null)
-  const activeCount = recurring.filter((item) => item.active).length
 
   function handleAdd() {
     setEditingRecurring(null)
@@ -37,6 +40,7 @@ export function RecurringExpensesPage() {
     try {
       await setRecurringExpenseActive(recurring.id, !recurring.active)
       toast.success(recurring.active ? "Schedule paused." : "Schedule resumed.")
+      refetch()
     } catch (err) {
       toast.error(typeof err === "string" ? err : "Failed to update schedule.")
     } finally {
@@ -50,6 +54,7 @@ export function RecurringExpensesPage() {
       await deleteRecurringExpense(recurring.id)
       toast.success("Recurring expense deleted.")
       setDeletingRecurring(null)
+      refetch()
     } catch (err) {
       toast.error(typeof err === "string" ? err : "Failed to delete recurring expense.")
     } finally {
@@ -62,9 +67,9 @@ export function RecurringExpensesPage() {
       <PageHeader
         title="Recurring expenses"
         description={
-          isLoading || isError || recurring.length === 0
+          isLoading || isError || total === 0
             ? "Expenses that repeat automatically on a schedule."
-            : `${recurring.length} ${recurring.length === 1 ? "schedule" : "schedules"} · ${activeCount} active`
+            : `${total} ${total === 1 ? "schedule" : "schedules"} · ${activeCount} active`
         }
         actions={
           <>
@@ -83,6 +88,7 @@ export function RecurringExpensesPage() {
       <RecurringExpenseTable
         recurring={recurring}
         isLoading={isLoading}
+        isFetching={isFetching}
         isError={isError}
         error={error}
         togglingId={togglingId}
@@ -90,12 +96,26 @@ export function RecurringExpensesPage() {
         onEdit={handleEdit}
         onDelete={setDeletingRecurring}
         onToggleActive={handleToggleActive}
+        footer={
+          total > 0 && (
+            <PaginationBar
+              page={params.page}
+              pageSize={params.pageSize}
+              total={total}
+              itemLabel="schedules"
+              onPageChange={(page) => setParams({ page })}
+              onPageSizeChange={(pageSize) => setParams({ pageSize, page: 1 })}
+              disabled={isLoading || isFetching || isError}
+            />
+          )
+        }
       />
 
       <RecurringExpenseFormDialog
         open={formOpen}
         onOpenChange={setFormOpen}
         recurringExpense={editingRecurring}
+        onSaved={refetch}
       />
 
       <DeleteRecurringExpenseDialog

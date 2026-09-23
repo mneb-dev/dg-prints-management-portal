@@ -1,21 +1,22 @@
 import { useEffect, useState } from "react"
-import { addDays, eachDayOfInterval, format, isSameDay, min, startOfWeek } from "date-fns"
-import { CalendarDaysIcon, CheckIcon, HandCoinsIcon, ReceiptTextIcon, UsersIcon } from "lucide-react"
+import { addDays, eachDayOfInterval, format, isSameDay, min, startOfWeek, subWeeks } from "date-fns"
+import { CheckIcon, HandCoinsIcon, UsersIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { ChoiceTile } from "@/components/choice-tile"
 import { ConfirmDialog, Name } from "@/components/confirm-dialog"
 import { FormDialogHeader } from "@/components/form-dialog-header"
-import { OrderFormSectionHeader } from "@/components/orders/order-form-section-header"
+import { FormSection } from "@/components/form-section"
+import { RecapStrip } from "@/components/recap-strip"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
-import { Card, CardAction, CardContent, CardHeader } from "@/components/ui/card"
 import { Dialog, DialogBody, DialogContent, DialogFooter } from "@/components/ui/dialog"
 import { Empty, EmptyDescription, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { ToggleGroup } from "@/components/ui/toggle-group"
 import { useExpenseActions } from "@/lib/expenses"
 import { useStaffWithDailyRate } from "@/lib/users"
 import { cn, formatCurrency } from "@/lib/utils"
@@ -27,6 +28,19 @@ function defaultWorkedDates(): Date[] {
   const monday = startOfWeek(now, { weekStartsOn: 1 })
   const saturday = addDays(monday, 5)
   return eachDayOfInterval({ start: monday, end: min([saturday, now]) })
+}
+
+/** Mon-Sat of last week, for the "Last week" quick pick. */
+function lastWeekDates(): Date[] {
+  const monday = startOfWeek(subWeeks(new Date(), 1), { weekStartsOn: 1 })
+  return eachDayOfInterval({ start: monday, end: addDays(monday, 5) })
+}
+
+/** True when two date selections cover exactly the same days (order-insensitive). */
+function isSameSelection(a: Date[], b: Date[]): boolean {
+  if (a.length !== b.length) return false
+  const keys = new Set(a.map((date) => format(date, "yyyy-MM-dd")))
+  return b.every((date) => keys.has(format(date, "yyyy-MM-dd")))
 }
 
 /** Collapses selected dates into compact ranges for the expense notes -- consecutive days
@@ -162,6 +176,13 @@ export function RunPayrollDialog({
   )
   const canSubmit = includedStaff.length > 0 && dayCount > 0
 
+  // Quick picks for the days calendar; the matching one shows pressed.
+  const quickRanges = [
+    { value: "this-week", label: "This week", dates: defaultWorkedDates() },
+    { value: "last-week", label: "Last week", dates: lastWeekDates() },
+  ]
+  const activeRange = quickRanges.find((range) => isSameSelection(range.dates, selectedDates))?.value
+
   async function handleConfirm() {
     setIsSubmitting(true)
     try {
@@ -205,37 +226,37 @@ export function RunPayrollDialog({
         <DialogContent className="sm:max-w-3xl">
           <FormDialogHeader
             icon={HandCoinsIcon}
-            title={<>Run payroll</>}
-            description={<>Select staff and the days they reported to work — pay is calculated automatically as daily rate × days. Click a staff member's day count in the summary to mark half days.</>}
+            title="Run payroll"
+            description="Pick who worked and which days. Pay is each person's daily rate × days worked, logged as one expense per person."
           />
 
-          <DialogBody className="flex flex-col gap-4">
-
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Card size="sm" className="flex flex-col">
-                <CardHeader>
-                  <OrderFormSectionHeader
-                    icon={UsersIcon}
-                    title="Staff"
-                    description={`${selectedStaffIds.size} selected`}
-                  />
-                  {staff.length > 0 && (
-                    <CardAction>
+          <DialogBody>
+            <div className="flex flex-col gap-8">
+              <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 sm:gap-6">
+                <FormSection
+                  step={1}
+                  title="Staff"
+                  description={
+                    staff.length > 0
+                      ? `${selectedStaffIds.size} of ${staff.length} selected`
+                      : "Who reported to work"
+                  }
+                  action={
+                    staff.length > 0 ? (
                       <Button type="button" variant="ghost" size="sm" onClick={toggleAllStaff}>
                         {allSelected ? "Clear" : "Select all"}
                       </Button>
-                    </CardAction>
-                  )}
-                </CardHeader>
-                <CardContent className="flex-1">
+                    ) : null
+                  }
+                >
                   {isStaffLoading ? (
                     <div className="flex flex-col gap-2">
                       {Array.from({ length: 3 }).map((_, index) => (
-                        <Skeleton key={index} className="h-11 w-full" />
+                        <Skeleton key={index} className="h-12 w-full rounded-lg" />
                       ))}
                     </div>
                   ) : staff.length === 0 ? (
-                    <Empty>
+                    <Empty className="border">
                       <EmptyMedia variant="icon">
                         <UsersIcon />
                       </EmptyMedia>
@@ -243,7 +264,7 @@ export function RunPayrollDialog({
                       <EmptyDescription>Set one in Edit User first.</EmptyDescription>
                     </Empty>
                   ) : (
-                    <div className="flex max-h-64 flex-col gap-1.5 overflow-y-auto pr-1">
+                    <div className="-mr-1 flex max-h-72 flex-col gap-1.5 overflow-y-auto pr-1">
                       {staff.map((person) => {
                         const isSelected = selectedStaffIds.has(person.id)
                         return (
@@ -282,114 +303,135 @@ export function RunPayrollDialog({
                       })}
                     </div>
                   )}
-                </CardContent>
-              </Card>
+                </FormSection>
 
-              <Card size="sm" className="flex flex-col">
-                <CardHeader>
-                  <OrderFormSectionHeader
-                    icon={CalendarDaysIcon}
-                    title="Days worked"
-                    description={`${dayCount} ${dayCount === 1 ? "day" : "days"} selected`}
-                  />
-                </CardHeader>
-                <CardContent className="flex flex-1 items-center justify-center">
-                  <Calendar
-                    mode="multiple"
-                    selected={selectedDates}
-                    onSelect={handleDatesChange}
-                    disabled={{ after: new Date() }}
-                  />
-                </CardContent>
-              </Card>
-            </div>
-
-            {canSubmit ? (
-              <Card size="sm">
-                <CardHeader>
-                  <OrderFormSectionHeader
-                    icon={ReceiptTextIcon}
-                    title="Summary"
-                    description="Click a day count to mark half days."
-                  />
-                </CardHeader>
-                <CardContent className="flex flex-col gap-3">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="hover:bg-transparent">
-                        <TableHead className="text-xs font-medium text-muted-foreground">Staff</TableHead>
-                        <TableHead className="text-right text-xs font-medium text-muted-foreground">Days</TableHead>
-                        <TableHead className="text-right text-xs font-medium text-muted-foreground">Amount</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {includedStaff.map((person) => {
-                        const personTotal = staffDayTotal(person.id, selectedDates, halfDayOverrides)
-                        const halfCount = halfDayOverrides[person.id]?.size ?? 0
-                        return (
-                          <TableRow key={person.id}>
-                            <TableCell>
-                              {person.firstName} {person.lastName}
-                            </TableCell>
-                            <TableCell className="text-right tabular-nums text-muted-foreground">
-                              <Popover>
-                                <PopoverTrigger className="inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 underline decoration-dotted underline-offset-4 hover:bg-muted hover:text-foreground">
-                                  {formatDays(personTotal)}
-                                  {halfCount > 0 && (
-                                    <Badge variant="secondary" className="px-1.5 text-[10px]">
-                                      {halfCount} half
-                                    </Badge>
-                                  )}
-                                </PopoverTrigger>
-                                <PopoverContent align="end" className="w-64 p-3">
-                                  <p className="mb-2 text-xs font-medium text-muted-foreground">
-                                    Mark half days for {person.firstName}
-                                  </p>
-                                  <div className="flex flex-col gap-1">
-                                    {selectedDates
-                                      .slice()
-                                      .sort((a, b) => a.getTime() - b.getTime())
-                                      .map((date) => {
-                                        const iso = format(date, "yyyy-MM-dd")
-                                        const isHalf = halfDayOverrides[person.id]?.has(iso) ?? false
-                                        return (
-                                          <div key={iso} className="flex items-center justify-between gap-2 text-sm">
-                                            <span className="text-foreground">{format(date, "EEE, MMM d")}</span>
-                                            <ChoiceTile
-                                              className="h-7 px-2 text-xs"
-                                              pressed={isHalf}
-                                              onPressedChange={(pressed) => toggleHalfDay(person.id, iso, pressed)}
-                                            >
-                                              Half day
-                                            </ChoiceTile>
-                                          </div>
-                                        )
-                                      })}
-                                  </div>
-                                </PopoverContent>
-                              </Popover>
-                            </TableCell>
-                            <TableCell className="text-right tabular-nums">
-                              {formatCurrency((person.dailyRate ?? 0) * personTotal)}
-                            </TableCell>
-                          </TableRow>
-                        )
-                      })}
-                    </TableBody>
-                  </Table>
-                  <div className="flex items-baseline justify-between border-t pt-3">
-                    <span className="text-sm text-muted-foreground">
-                      Total payout · {includedStaff.length} {includedStaff.length === 1 ? "person" : "people"}
-                    </span>
-                    <span className="text-xl font-semibold tabular-nums">{formatCurrency(totalAmount)}</span>
+                <FormSection
+                  step={2}
+                  title="Days worked"
+                  description={`${dayCount} ${dayCount === 1 ? "day" : "days"} selected`}
+                >
+                  <div className="flex flex-col items-center gap-3 sm:items-start">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <ToggleGroup
+                        aria-label="Quick pick days"
+                        value={activeRange ? [activeRange] : []}
+                        onValueChange={(next) => {
+                          const range = quickRanges.find((entry) => entry.value === next[0])
+                          if (range) handleDatesChange(range.dates)
+                        }}
+                        className="gap-2"
+                      >
+                        {quickRanges.map((range) => (
+                          <ChoiceTile key={range.value} value={range.value} className="h-7 text-xs">
+                            {range.label}
+                          </ChoiceTile>
+                        ))}
+                      </ToggleGroup>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 text-xs"
+                        disabled={dayCount === 0}
+                        onClick={() => handleDatesChange([])}
+                      >
+                        Clear
+                      </Button>
+                    </div>
+                    <Calendar
+                      mode="multiple"
+                      selected={selectedDates}
+                      onSelect={handleDatesChange}
+                      disabled={{ after: new Date() }}
+                      className="rounded-lg border"
+                    />
                   </div>
-                </CardContent>
-              </Card>
-            ) : (
-              <p className="rounded-lg border border-dashed px-4 py-3 text-center text-sm text-muted-foreground">
-                Select at least one staff member and one day to see the payout summary.
-              </p>
-            )}
+                </FormSection>
+              </div>
+
+              <FormSection step={3} title="Review" description="Click a day count to mark half days.">
+                {canSubmit ? (
+                  <div className="flex flex-col gap-3">
+                    <div className="overflow-hidden rounded-lg border">
+                      <Table>
+                        <TableHeader className="bg-muted/40">
+                          <TableRow className="hover:bg-transparent">
+                            <TableHead className="px-3 text-xs font-medium text-muted-foreground">Staff</TableHead>
+                            <TableHead className="px-3 text-right text-xs font-medium text-muted-foreground">Days</TableHead>
+                            <TableHead className="px-3 text-right text-xs font-medium text-muted-foreground">Amount</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {includedStaff.map((person) => {
+                            const personTotal = staffDayTotal(person.id, selectedDates, halfDayOverrides)
+                            const halfCount = halfDayOverrides[person.id]?.size ?? 0
+                            return (
+                              <TableRow key={person.id} className="hover:bg-transparent">
+                                <TableCell className="px-3">
+                                  {person.firstName} {person.lastName}
+                                </TableCell>
+                                <TableCell className="px-3 text-right tabular-nums text-muted-foreground">
+                                  <Popover>
+                                    <PopoverTrigger className="inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 underline decoration-dotted underline-offset-4 hover:bg-muted hover:text-foreground">
+                                      {formatDays(personTotal)}
+                                      {halfCount > 0 && (
+                                        <Badge variant="secondary" className="px-1.5 text-[10px]">
+                                          {halfCount} half
+                                        </Badge>
+                                      )}
+                                    </PopoverTrigger>
+                                    <PopoverContent align="end" className="w-64 p-3">
+                                      <p className="mb-2 text-xs font-medium text-muted-foreground">
+                                        Mark half days for {person.firstName}
+                                      </p>
+                                      <div className="flex flex-col gap-1">
+                                        {selectedDates
+                                          .slice()
+                                          .sort((a, b) => a.getTime() - b.getTime())
+                                          .map((date) => {
+                                            const iso = format(date, "yyyy-MM-dd")
+                                            const isHalf = halfDayOverrides[person.id]?.has(iso) ?? false
+                                            return (
+                                              <div key={iso} className="flex items-center justify-between gap-2 text-sm">
+                                                <span className="text-foreground">{format(date, "EEE, MMM d")}</span>
+                                                <ChoiceTile
+                                                  className="h-7 px-2 text-xs"
+                                                  pressed={isHalf}
+                                                  onPressedChange={(pressed) => toggleHalfDay(person.id, iso, pressed)}
+                                                >
+                                                  Half day
+                                                </ChoiceTile>
+                                              </div>
+                                            )
+                                          })}
+                                      </div>
+                                    </PopoverContent>
+                                  </Popover>
+                                </TableCell>
+                                <TableCell className="px-3 text-right font-medium tabular-nums">
+                                  {formatCurrency((person.dailyRate ?? 0) * personTotal)}
+                                </TableCell>
+                              </TableRow>
+                            )
+                          })}
+                        </TableBody>
+                      </Table>
+                    </div>
+                    <RecapStrip
+                      items={[
+                        { label: "Staff", value: includedStaff.length.toLocaleString() },
+                        { label: "Days", value: dayCount.toLocaleString() },
+                        { label: "Total payout", value: formatCurrency(totalAmount), emphasis: true },
+                      ]}
+                    />
+                  </div>
+                ) : (
+                  <p className="rounded-lg border border-dashed px-4 py-3 text-center text-sm text-muted-foreground">
+                    Select at least one staff member and one day to see the payout.
+                  </p>
+                )}
+              </FormSection>
+            </div>
           </DialogBody>
 
           <DialogFooter>
@@ -398,7 +440,14 @@ export function RunPayrollDialog({
             </Button>
             <Button disabled={!canSubmit} onClick={() => setConfirmOpen(true)}>
               <HandCoinsIcon data-icon="inline-start" />
-              Run payroll
+              {canSubmit ? (
+                <>
+                  Run payroll
+                  <span className="tabular-nums opacity-80">· {formatCurrency(totalAmount)}</span>
+                </>
+              ) : (
+                "Run payroll"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

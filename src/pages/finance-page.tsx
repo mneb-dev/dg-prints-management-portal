@@ -1,17 +1,28 @@
 import { useMemo, useState } from "react"
 import { format } from "date-fns"
-import { PiggyBankIcon, ReceiptTextIcon, TrendingUpIcon, WalletIcon } from "lucide-react"
+import {
+  CreditCardIcon,
+  Loader2Icon,
+  PieChartIcon,
+  PiggyBankIcon,
+  ReceiptTextIcon,
+  Share2Icon,
+  TrendingUpIcon,
+  WalletIcon,
+} from "lucide-react"
 
-import { PageHeader } from "@/components/page-header"
+import { Money } from "@/components/money"
+import { DateRangeFilter } from "@/components/date-range-filter"
 import { StatCard } from "@/components/dashboard/stat-card"
-import { ExpenseBreakdownCard } from "@/components/finance/expense-breakdown-card"
+import { BreakdownCard } from "@/components/finance/breakdown-card"
 import { FinanceTrendChartCard } from "@/components/finance/finance-trend-chart-card"
-import { PaymentMethodBreakdownCard } from "@/components/finance/payment-method-breakdown-card"
-import { RevenueBreakdownCard } from "@/components/finance/revenue-breakdown-card"
+import { PageHeader } from "@/components/page-header"
+import { PeriodTrack } from "@/components/period-track"
 import { Skeleton } from "@/components/ui/skeleton"
-import { computePeriodRange, type PeriodPreset } from "@/lib/finance-period"
+import { EXPENSE_CATEGORIES } from "@/lib/expenses"
+import { computePeriodRange, PERIOD_PRESETS, type PeriodPreset, type PeriodRange } from "@/lib/finance-period"
 import { useFinanceSummary } from "@/lib/finance"
-import { MASKED_AMOUNT, useSalesVisibility } from "@/lib/sales-visibility"
+import { useSalesVisibility } from "@/lib/sales-visibility"
 import { formatCurrency } from "@/lib/utils"
 
 // Share-of-revenue percentages for the KPI cards, computed from the already-fetched summary
@@ -19,6 +30,12 @@ import { formatCurrency } from "@/lib/utils"
 function formatSharePercent(value: number, total: number): number | null {
   if (total <= 0) return null
   return Math.round((value / total) * 100)
+}
+
+/** "Sep 1 – Sep 24, 2026", or "Dec 1, 2025 – Jan 15, 2026" across years. */
+function formatRange(range: PeriodRange): string {
+  const sameYear = range.start.getFullYear() === range.end.getFullYear()
+  return `${format(range.start, sameYear ? "MMM d" : "MMM d, yyyy")} – ${format(range.end, "MMM d, yyyy")}`
 }
 
 export function FinancePage() {
@@ -39,17 +56,57 @@ export function FinancePage() {
   // Once a summary has loaded, keep it visible while a range change refetches in the background
   // instead of flashing every card back to a skeleton — only the very first load blocks on one.
   const showSkeleton = isLoading && !summary
+  const isRefreshing = isLoading && !!summary
   const totalRevenue = summary?.totalRevenue ?? 0
   const totalExpenses = summary?.totalExpenses ?? 0
   const netProfit = summary?.netProfit ?? 0
   const outstandingBalance = summary?.outstandingBalance ?? 0
+  const orderCount = summary?.revenueOrderCount ?? 0
+  const expenseCount = summary?.expenseCount ?? 0
 
   const expensesPct = formatSharePercent(totalExpenses, totalRevenue)
   const netProfitPct = formatSharePercent(netProfit, totalRevenue)
+  // The server buckets orders without a payment method under "unspecified".
+  const paymentMethodData = Object.fromEntries(
+    Object.entries(summary?.revenueByPaymentMethod ?? {}).map(([method, amount]) => [
+      method === "unspecified" ? "Not specified" : method,
+      amount,
+    ])
+  )
+  const money = (amount: number) => <Money amount={amount} hidden={!isVisible} />
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader title="Finance" description="Revenue, expenses, and profit for the selected period." />
+      <PageHeader
+        title="Finance"
+        description={range ? formatRange(range) : "Pick a start and end date"}
+        actions={
+          isRefreshing ? (
+            <span className="flex items-center gap-1.5 rounded-full bg-background px-2 py-1 text-xs text-muted-foreground ring-1 ring-border">
+              <Loader2Icon className="size-3.5 animate-spin" />
+              Updating…
+            </span>
+          ) : undefined
+        }
+      />
+
+      {/* One period control for the whole page: KPIs, chart and breakdowns all follow it. */}
+      <div className="-mt-2 flex flex-col gap-3">
+        <PeriodTrack presets={PERIOD_PRESETS} value={preset} onChange={setPreset} />
+        {preset === "custom" && (
+          <div className="animate-in duration-200 fade-in-0 slide-in-from-top-1 motion-reduce:animate-none">
+            <DateRangeFilter
+              id="finance-date-range"
+              from={customFrom}
+              to={customTo}
+              onChange={(from, to) => {
+                setCustomFrom(from)
+                setCustomTo(to)
+              }}
+            />
+          </div>
+        )}
+      </div>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {showSkeleton ? (
@@ -60,70 +117,80 @@ export function FinancePage() {
           <>
             <StatCard
               icon={TrendingUpIcon}
-              label="Total Revenue"
-              value={isVisible ? formatCurrency(summary?.totalRevenue ?? 0) : MASKED_AMOUNT}
-              description={`${summary?.revenueOrderCount ?? 0} paid orders`}
-              iconClassName="bg-status-success/10 text-status-success"
+              label="Revenue"
+              value={money(totalRevenue)}
+              description={`From ${orderCount.toLocaleString()} fully paid ${orderCount === 1 ? "order" : "orders"}`}
             />
             <StatCard
               icon={ReceiptTextIcon}
-              label="Total Expenses"
+              label="Expenses"
               value={formatCurrency(totalExpenses)}
               description={
-                expensesPct !== null
-                  ? `${summary?.expenseCount ?? 0} expenses logged · ${expensesPct}% of revenue`
-                  : `${summary?.expenseCount ?? 0} expenses logged`
+                `${expenseCount.toLocaleString()} logged` +
+                (expensesPct !== null && isVisible ? ` · ${expensesPct}% of revenue` : "")
               }
             />
             <StatCard
               icon={PiggyBankIcon}
-              label="Net Profit"
-              value={isVisible ? formatCurrency(netProfit) : MASKED_AMOUNT}
-              description={netProfitPct !== null ? `${netProfitPct}% margin` : undefined}
-              iconClassName={
-                netProfit >= 0 ? "bg-status-success/10 text-status-success" : "bg-destructive/10 text-destructive"
-              }
+              label={netProfit < 0 && isVisible ? "Net loss" : "Net profit"}
+              value={money(netProfit)}
+              valueClassName={isVisible && netProfit < 0 ? "text-destructive" : undefined}
+              description={netProfitPct !== null && isVisible ? `${netProfitPct}% margin` : "Revenue minus expenses"}
             />
             <StatCard
               icon={WalletIcon}
-              label="Outstanding Balance"
+              label="Outstanding"
               value={formatCurrency(outstandingBalance)}
-              iconClassName="bg-status-warning/10 text-status-warning"
+              description="Unpaid balance on orders"
             />
           </>
         )}
       </div>
 
       <FinanceTrendChartCard
-        preset={preset}
-        onPresetChange={setPreset}
-        customFrom={customFrom}
-        customTo={customTo}
-        onCustomRangeChange={(from, to) => {
-          setCustomFrom(from)
-          setCustomTo(to)
-        }}
         range={range}
         series={summary?.series ?? []}
+        totals={{ revenue: totalRevenue, expenses: totalExpenses, net: netProfit }}
         isLoading={showSkeleton}
         isError={isError}
       />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <ExpenseBreakdownCard
-          expensesByCategory={summary?.expensesByCategory ?? {}}
+        <BreakdownCard
+          icon={ReceiptTextIcon}
+          title="Expenses by category"
+          description="Where the money went"
+          data={summary?.expensesByCategory ?? {}}
+          order={EXPENSE_CATEGORIES}
           isLoading={showSkeleton}
           isError={isError}
+          emptyIcon={PieChartIcon}
+          emptyTitle="No expenses in this period"
+          emptyDescription="The category breakdown appears once expenses are logged."
         />
-        <RevenueBreakdownCard
-          revenueByChannel={summary?.revenueByChannel ?? {}}
+        <BreakdownCard
+          icon={Share2Icon}
+          title="Revenue by channel"
+          description="Where paid orders came from"
+          data={summary?.revenueByChannel ?? {}}
+          masked={!isVisible}
           isLoading={showSkeleton}
           isError={isError}
+          emptyIcon={Share2Icon}
+          emptyTitle="No revenue in this period"
+          emptyDescription="The channel breakdown appears once orders are paid."
         />
-        <PaymentMethodBreakdownCard
-          revenueByPaymentMethod={summary?.revenueByPaymentMethod ?? {}}
+        <BreakdownCard
+          icon={CreditCardIcon}
+          title="Payment methods"
+          description="How customers paid"
+          data={paymentMethodData}
+          masked={!isVisible}
           isLoading={showSkeleton}
           isError={isError}
+          emptyIcon={CreditCardIcon}
+          emptyTitle="No revenue in this period"
+          emptyDescription="The payment method breakdown appears once orders are paid."
         />
       </div>
     </div>

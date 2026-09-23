@@ -31,6 +31,7 @@ export function StatCard({
   iconClassName = DEFAULT_ICON_CLASSNAME,
   dotClassName = DEFAULT_DOT_CLASSNAME,
   dotRingClassName = DEFAULT_DOT_RING_CLASSNAME,
+  valueClassName,
   href,
   onClick,
 }: {
@@ -48,6 +49,8 @@ export function StatCard({
   /** `group-hover/statcard:ring-*` class for the dot's hover halo — the status's `ring` color,
    * so the tile chrome stays neutral/brand and only the dot carries the status color. */
   dotRingClassName?: string
+  /** Extra classes for the value, e.g. `text-destructive` for a loss. */
+  valueClassName?: string
   href?: string
   onClick?: () => void
 }) {
@@ -65,7 +68,7 @@ export function StatCard({
             <Icon className="size-5" />
           </div>
           <div className="flex min-w-0 flex-col">
-            <span className="text-2xl leading-tight font-semibold tabular-nums">{value}</span>
+            <span className={cn("text-2xl leading-tight font-semibold tabular-nums", valueClassName)}>{value}</span>
             <span className="truncate text-sm text-muted-foreground">{label}</span>
           </div>
         </CardContent>
@@ -84,7 +87,7 @@ export function StatCard({
               {label}
             </span>
           </div>
-          <span className="text-2xl leading-none font-bold tabular-nums">{value}</span>
+          <span className={cn("text-2xl leading-none font-bold tabular-nums", valueClassName)}>{value}</span>
         </CardContent>
       )}
       {description ? (

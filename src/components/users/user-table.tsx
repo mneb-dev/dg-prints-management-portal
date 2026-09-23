@@ -1,5 +1,7 @@
+import { type MouseEvent, type ReactNode } from "react"
 import {
   Loader2Icon,
+  MoreHorizontalIcon,
   PencilIcon,
   PlusIcon,
   Trash2Icon,
@@ -8,9 +10,16 @@ import {
   XIcon,
 } from "lucide-react"
 
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
+import { TABLE_HEAD_CLASS, TABLE_HEADER_CLASS, TABLE_SURFACE_CLASS } from "@/components/table-surface"
 import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import {
   Empty,
   EmptyContent,
@@ -28,19 +37,20 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { getAvatarDataUri } from "@/lib/avatars"
-import { cn } from "@/lib/utils"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { UserAvatarImage } from "@/components/user-avatar-image"
+import { cn, formatDate } from "@/lib/utils"
 import { canManageUser, PERMISSION_LABELS, ROLE_LABELS, type Role, type User, type UserStatus } from "@/lib/users"
 
-const ROLE_BADGE_VARIANT: Record<Role, "default" | "secondary" | "outline"> = {
-  superadmin: "default",
-  admin: "secondary",
-  staff: "outline",
+const ROLE_DOT_CLASS: Record<Role, string> = {
+  superadmin: "bg-primary",
+  admin: "bg-order-status-violet",
+  staff: "bg-muted-foreground/40",
 }
 
-const STATUS_BADGE_VARIANT: Record<UserStatus, "success" | "secondary"> = {
-  active: "success",
-  inactive: "secondary",
+const STATUS_DOT_CLASS: Record<UserStatus, string> = {
+  active: "bg-order-status-teal",
+  inactive: "bg-muted-foreground/40",
 }
 
 const STATUS_LABELS: Record<UserStatus, string> = {
@@ -52,7 +62,62 @@ function initials(user: User): string {
   return `${user.firstName[0] ?? ""}${user.lastName[0] ?? ""}`.toUpperCase() || "?"
 }
 
+function stopRowClick(event: MouseEvent) {
+  event.stopPropagation()
+}
+
+/** Neutral chip + dot (docs/design-system.md). */
+function DotBadge({ dotClass, label }: { dotClass: string; label: string }) {
+  return (
+    <Badge variant="secondary" className="gap-1.5">
+      <span aria-hidden className={cn("size-2 shrink-0 translate-y-px rounded-full", dotClass)} />
+      <span className="leading-none">{label}</span>
+    </Badge>
+  )
+}
+
+function Columns() {
+  return (
+    <TableHeader className={TABLE_HEADER_CLASS}>
+      <TableRow className="hover:bg-transparent">
+        <TableHead className={TABLE_HEAD_CLASS}>User</TableHead>
+        <TableHead className={TABLE_HEAD_CLASS}>Role</TableHead>
+        <TableHead className={TABLE_HEAD_CLASS}>Status</TableHead>
+        <TableHead className={TABLE_HEAD_CLASS}>Access</TableHead>
+        <TableHead className={TABLE_HEAD_CLASS}>Joined</TableHead>
+        <TableHead className={cn(TABLE_HEAD_CLASS, "w-0 text-right")}>
+          <span className="sr-only">Actions</span>
+        </TableHead>
+      </TableRow>
+    </TableHeader>
+  )
+}
+
+function AccessCell({ user }: { user: User }) {
+  const count = user.permissions.length
+  if (count === 0) return <span className="text-muted-foreground">—</span>
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={<span />}
+        onClick={stopRowClick}
+        className="cursor-default text-muted-foreground underline decoration-dotted underline-offset-4"
+      >
+        {count} {count === 1 ? "permission" : "permissions"}
+      </TooltipTrigger>
+      <TooltipContent>
+        <ul className="flex flex-col gap-0.5">
+          {user.permissions.map((key) => (
+            <li key={key}>{PERMISSION_LABELS[key]}</li>
+          ))}
+        </ul>
+      </TooltipContent>
+    </Tooltip>
+  )
+}
+
 export function UserTable({
+  footer,
   users,
   isLoading,
   isFetching,
@@ -67,6 +132,8 @@ export function UserTable({
   onEdit,
   onDelete,
 }: {
+  /** Rendered inside the table surface, below the rows (the pager). Hidden in loading/empty/error states. */
+  footer?: ReactNode
   users: User[]
   isLoading?: boolean
   isFetching?: boolean
@@ -83,41 +150,38 @@ export function UserTable({
 }) {
   if (isLoading) {
     return (
-      <div className="rounded-lg border">
+      <div className={TABLE_SURFACE_CLASS}>
         <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Username</TableHead>
-              <TableHead>Role</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Permissions</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
+          <Columns />
           <TableBody>
             {Array.from({ length: 10 }).map((_, index) => (
               <TableRow key={index}>
-                <TableCell>
-                  <div className="flex items-center gap-2">
-                    <Skeleton className="size-6 rounded-full" />
-                    <Skeleton className="h-4 w-32" />
+                <TableCell className="px-4">
+                  <div className="flex items-center gap-3">
+                    <Skeleton className="size-8 rounded-full" />
+                    <div className="flex flex-col gap-1.5">
+                      <Skeleton className="h-4 w-32" />
+                      <Skeleton className="h-3 w-20" />
+                    </div>
                   </div>
                 </TableCell>
-                <TableCell>
+                <TableCell className="px-4">
+                  <Skeleton className="h-5 w-20 rounded-full" />
+                </TableCell>
+                <TableCell className="px-4">
+                  <Skeleton className="h-5 w-16 rounded-full" />
+                </TableCell>
+                <TableCell className="px-4">
                   <Skeleton className="h-4 w-24" />
                 </TableCell>
-                <TableCell>
-                  <Skeleton className="h-5 w-16 rounded-full" />
+                <TableCell className="px-4">
+                  <Skeleton className="h-4 w-24" />
                 </TableCell>
-                <TableCell>
-                  <Skeleton className="h-5 w-16 rounded-full" />
-                </TableCell>
-                <TableCell>
-                  <Skeleton className="h-4 w-40" />
-                </TableCell>
-                <TableCell className="text-right">
-                  <Skeleton className="ml-auto h-7 w-16" />
+                <TableCell className="px-4">
+                  <div className="flex justify-end gap-1">
+                    <Skeleton className="size-7 rounded-md" />
+                    <Skeleton className="size-7 rounded-md" />
+                  </div>
                 </TableCell>
               </TableRow>
             ))}
@@ -129,7 +193,7 @@ export function UserTable({
 
   if (isError) {
     return (
-      <Empty className="border">
+      <Empty className={TABLE_SURFACE_CLASS}>
         <EmptyHeader>
           <EmptyMedia variant="icon">
             <TriangleAlertIcon />
@@ -144,7 +208,7 @@ export function UserTable({
   if (users.length === 0) {
     if (hasActiveFilters) {
       return (
-        <Empty className="border">
+        <Empty className={TABLE_SURFACE_CLASS}>
           <EmptyHeader>
             <EmptyMedia variant="icon">
               <UsersIcon />
@@ -166,7 +230,7 @@ export function UserTable({
       )
     }
     return (
-      <Empty className="border">
+      <Empty className={TABLE_SURFACE_CLASS}>
         <EmptyHeader>
           <EmptyMedia variant="icon">
             <UsersIcon />
@@ -177,7 +241,7 @@ export function UserTable({
         <EmptyContent>
           <Button size="sm" onClick={onCreate}>
             <PlusIcon data-icon="inline-start" />
-            Add User
+            Add user
           </Button>
         </EmptyContent>
       </Empty>
@@ -186,73 +250,106 @@ export function UserTable({
 
   return (
     <div className="relative" aria-busy={isFetching}>
-      <div className={cn("rounded-lg border", isFetching && "opacity-60 transition-opacity duration-150")}>
+      <div className={cn(TABLE_SURFACE_CLASS, isFetching && "opacity-60 transition-opacity duration-150")}>
         <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Username</TableHead>
-              <TableHead>Role</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Permissions</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
+          <Columns />
           <TableBody>
             {users.map((user) => {
               const isSelf = user.id === currentUserId
-              const deletable = !isSelf && (currentUserRole ? canManageUser(currentUserRole, user) : false)
               const editable = currentUserRole ? canManageUser(currentUserRole, user) : false
+              const deletable = !isSelf && editable
+              const fullName = `${user.firstName} ${user.lastName}`
+              const inactive = user.status !== "active"
 
               return (
-                <TableRow key={user.id}>
-                  <TableCell className="font-medium">
-                    <div className="flex items-center gap-2">
-                      <Avatar size="sm">
-                        {user.avatar && (
-                          <AvatarImage
-                            src={getAvatarDataUri(user.avatar)}
-                            alt={`${user.firstName} ${user.lastName}`}
-                          />
-                        )}
+                <TableRow
+                  key={user.id}
+                  // Managers open the editor by clicking anywhere on the row (like Products/Expenses).
+                  onClick={
+                    editable
+                      ? () => {
+                          if (window.getSelection()?.toString()) return
+                          onEdit(user)
+                        }
+                      : undefined
+                  }
+                  className={cn(
+                    editable ? "cursor-pointer transition-colors duration-150 hover:bg-accent/40" : "hover:bg-transparent"
+                  )}
+                >
+                  <TableCell className="max-w-80 px-4">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <Avatar className={cn(inactive && "opacity-60 grayscale")}>
+                        <UserAvatarImage avatarKey={user.avatar} alt={fullName} />
                         <AvatarFallback>{initials(user)}</AvatarFallback>
                       </Avatar>
-                      <span>
-                        {user.firstName} {user.lastName}
-                      </span>
+                      <div className="flex min-w-0 flex-col gap-0.5">
+                        <span className="flex min-w-0 items-center gap-2">
+                          <span className={cn("truncate font-medium", inactive && "text-muted-foreground")}>
+                            {fullName}
+                          </span>
+                          {isSelf && (
+                            <Badge variant="outline" className="h-4.5 px-1.5 text-[0.65rem]">
+                              You
+                            </Badge>
+                          )}
+                        </span>
+                        <span className="truncate text-xs text-muted-foreground">@{user.username}</span>
+                      </div>
                     </div>
                   </TableCell>
-                  <TableCell className="text-muted-foreground">{user.username}</TableCell>
-                  <TableCell>
-                    <Badge variant={ROLE_BADGE_VARIANT[user.role]}>{ROLE_LABELS[user.role]}</Badge>
+                  <TableCell className="px-4">
+                    <DotBadge dotClass={ROLE_DOT_CLASS[user.role]} label={ROLE_LABELS[user.role]} />
                   </TableCell>
-                  <TableCell>
-                    <Badge variant={STATUS_BADGE_VARIANT[user.status]}>
-                      {STATUS_LABELS[user.status]}
-                    </Badge>
+                  <TableCell className="px-4">
+                    <DotBadge dotClass={STATUS_DOT_CLASS[user.status]} label={STATUS_LABELS[user.status]} />
                   </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {user.permissions.length > 0
-                      ? user.permissions.map((key) => PERMISSION_LABELS[key]).join(", ")
-                      : "—"}
+                  <TableCell className="px-4 whitespace-nowrap">
+                    <AccessCell user={user} />
                   </TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className="px-4 whitespace-nowrap text-muted-foreground">
+                    {formatDate(user.createdAt)}
+                  </TableCell>
+                  <TableCell className="px-4" onClick={stopRowClick}>
                     <div className="flex justify-end gap-1">
                       {editable && (
-                        <Button variant="ghost" size="icon-sm" onClick={() => onEdit(user)}>
-                          <PencilIcon />
-                          <span className="sr-only">
-                            Edit {user.firstName} {user.lastName}
-                          </span>
-                        </Button>
+                        <Tooltip>
+                          <TooltipTrigger
+                            render={
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                aria-label={`Edit ${fullName}`}
+                                onClick={() => onEdit(user)}
+                              />
+                            }
+                          >
+                            <PencilIcon />
+                          </TooltipTrigger>
+                          <TooltipContent>Edit user</TooltipContent>
+                        </Tooltip>
                       )}
                       {deletable && (
-                        <Button variant="ghost" size="icon-sm" onClick={() => onDelete(user)}>
-                          <Trash2Icon />
-                          <span className="sr-only">
-                            Delete {user.firstName} {user.lastName}
-                          </span>
-                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger
+                            render={
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                aria-label="More actions"
+                                className="data-popup-open:bg-accent data-popup-open:text-accent-foreground"
+                              />
+                            }
+                          >
+                            <MoreHorizontalIcon />
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-48">
+                            <DropdownMenuItem variant="destructive" onClick={() => onDelete(user)}>
+                              <Trash2Icon />
+                              <span className="leading-none">Delete user</span>
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       )}
                     </div>
                   </TableCell>
@@ -261,6 +358,7 @@ export function UserTable({
             })}
           </TableBody>
         </Table>
+        {footer}
       </div>
       {isFetching && (
         <div className="absolute top-3 right-3 flex items-center gap-1.5 rounded-full bg-background/90 px-2 py-1 text-xs text-muted-foreground shadow-sm ring-1 ring-border">

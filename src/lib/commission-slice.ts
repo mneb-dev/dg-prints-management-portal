@@ -101,20 +101,43 @@ export const fetchCommissionSummaryThunk = createAsyncThunk<
   }
 })
 
+export type CommissionReleaseFilter = "all" | "released" | "unreleased"
+
+export type CommissionOrdersQuery = {
+  dateFrom: string
+  dateTo: string
+  layoutBy?: string
+  release: CommissionReleaseFilter
+  page: number
+  pageSize: number
+}
+
+export type CommissionOrdersPage = {
+  rows: CommissionOrderRow[]
+  /** Rows matching the release filter across every page. */
+  total: number
+  /** Every paid-but-unreleased order in the range (all pages, ignoring the release filter) — what
+   * "Release all pending" acts on. */
+  pendingReleaseIds: string[]
+}
+
 export const fetchCommissionOrdersThunk = createAsyncThunk<
-  CommissionOrderRow[],
-  { dateFrom: string; dateTo: string; layoutBy?: string },
+  CommissionOrdersPage,
+  CommissionOrdersQuery,
   { rejectValue: string; state: RootState }
->("commission/fetchOrders", async ({ dateFrom, dateTo, layoutBy }, { rejectWithValue }) => {
+>("commission/fetchOrders", async ({ dateFrom, dateTo, layoutBy, release, page, pageSize }, { rejectWithValue }) => {
   try {
-    const { data } = await apiClient.get<{ rows: CommissionOrderRow[] }>("/commissions/orders", {
-      params: { dateFrom, dateTo, layoutBy: layoutBy || undefined },
+    const { data } = await apiClient.get<CommissionOrdersPage>("/commissions/orders", {
+      params: { dateFrom, dateTo, layoutBy: layoutBy || undefined, release, page, pageSize },
     })
-    return data.rows
+    return data
   } catch (err) {
     return rejectWithValue(getErrorMessage(err))
   }
 })
+
+// The server caps /commissions/release at this many ids per request.
+const RELEASE_BATCH_SIZE = 500
 
 export const releaseCommissionOrdersThunk = createAsyncThunk<
   string[],
@@ -122,8 +145,14 @@ export const releaseCommissionOrdersThunk = createAsyncThunk<
   { rejectValue: string; state: RootState }
 >("commission/release", async (orderIds, { rejectWithValue }) => {
   try {
-    const { data } = await apiClient.post<{ releasedIds: string[] }>("/commissions/release", { orderIds })
-    return data.releasedIds
+    const releasedIds: string[] = []
+    for (let i = 0; i < orderIds.length; i += RELEASE_BATCH_SIZE) {
+      const { data } = await apiClient.post<{ releasedIds: string[] }>("/commissions/release", {
+        orderIds: orderIds.slice(i, i + RELEASE_BATCH_SIZE),
+      })
+      releasedIds.push(...data.releasedIds)
+    }
+    return releasedIds
   } catch (err) {
     return rejectWithValue(getErrorMessage(err))
   }
@@ -229,6 +258,8 @@ type CommissionState = {
   error: string | null
   latestRequestId: string | null
   orderRows: CommissionOrderRow[]
+  orderTotal: number
+  orderPendingReleaseIds: string[]
   orderStatus: "idle" | "loading" | "succeeded" | "failed"
   orderError: string | null
   latestOrdersRequestId: string | null
@@ -252,6 +283,8 @@ const initialState: CommissionState = {
   error: null,
   latestRequestId: null,
   orderRows: [],
+  orderTotal: 0,
+  orderPendingReleaseIds: [],
   orderStatus: "idle",
   orderError: null,
   latestOrdersRequestId: null,
@@ -298,7 +331,9 @@ const commissionSlice = createSlice({
       .addCase(fetchCommissionOrdersThunk.fulfilled, (state, action) => {
         if (action.meta.requestId !== state.latestOrdersRequestId) return
         state.orderStatus = "succeeded"
-        state.orderRows = action.payload
+        state.orderRows = action.payload.rows
+        state.orderTotal = action.payload.total
+        state.orderPendingReleaseIds = action.payload.pendingReleaseIds
       })
       .addCase(fetchCommissionOrdersThunk.rejected, (state, action) => {
         if (action.meta.requestId !== state.latestOrdersRequestId) return

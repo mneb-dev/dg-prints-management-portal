@@ -1,7 +1,7 @@
 import { ChevronsUpDownIcon, LogOutIcon, SettingsIcon, UserIcon } from "lucide-react"
 import { useLocation, useNavigate } from "react-router-dom"
 
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,7 +18,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar"
 import { useAuth } from "@/lib/auth"
-import { getAvatarDataUri } from "@/lib/avatars"
+import { UserAvatarImage } from "@/components/user-avatar-image"
 import { useNavGuard } from "@/lib/nav-guard"
 import { cn } from "@/lib/utils"
 
@@ -58,7 +58,7 @@ export function NavUser() {
 
   const avatar = (
     <Avatar>
-      {user?.avatar && <AvatarImage src={getAvatarDataUri(user.avatar)} alt="" />}
+      <UserAvatarImage avatarKey={user?.avatar} alt="" />
       <AvatarFallback className={AVATAR_FALLBACK_CLASSNAME}>{initials}</AvatarFallback>
     </Avatar>
   )

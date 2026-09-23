@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { PlusIcon, Trash2Icon } from "lucide-react"
+import { XIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -18,21 +18,18 @@ import { formatSize } from "@/lib/quick-sizes"
 import type { StickerUnit } from "@/lib/sticker-quotation"
 import type { LengthUnit } from "@/lib/length-units"
 
-const MAX_SIZES = 8
+export const MAX_COMMON_SIZES = 8
 
-/** Add/delete-only list of {width, height, unit} presets — a sibling to
- * `CatalogList` (settings/catalog-list.tsx), not a retrofit of it: the shape and
- * interactions differ enough (numeric width/height + a unit select instead of a single
- * name field; no rename/enable-toggle/drag-reorder, since ordering isn't admin-meaningful
- * for dimension presets) to warrant its own component, though it reuses the same
- * skeleton/toast conventions. */
+/** Add/delete-only set of {width, height, unit} presets, shown as removable chips — the same look
+ * staff get as quick-size chips on the Calculator. A sibling to `CatalogList`, not a retrofit of it:
+ * no rename/enable-toggle/drag-reorder, since ordering isn't admin-meaningful for dimension presets. */
 export function CommonSizeList({
   sizes,
   unitOptions,
   isLoading,
   onAdd,
   onDelete,
-  defaultUnit
+  defaultUnit,
 }: {
   sizes: CommonSize[]
   unitOptions: readonly string[]
@@ -42,6 +39,7 @@ export function CommonSizeList({
   defaultUnit: StickerUnit | LengthUnit
 }) {
   const [deletingIndex, setDeletingIndex] = useState<number | null>(null)
+  const isFull = sizes.length >= MAX_COMMON_SIZES
 
   async function handleDelete(index: number) {
     setDeletingIndex(index)
@@ -55,42 +53,47 @@ export function CommonSizeList({
   }
 
   return (
-    <div className="w-full">
-      <div className="rounded-lg border">
-        {isLoading ? (
-          <div className="flex flex-col gap-2 p-2.5">
-            <Skeleton className="h-6 w-full" />
-            <Skeleton className="h-6 w-full" />
-          </div>
-        ) : sizes.length === 0 ? (
-          <p className="px-2.5 py-3 text-center text-xs text-muted-foreground">Nothing yet.</p>
-        ) : (
-          sizes.map((size, index) => (
-            <div
-              key={`${formatSize(size)}-${index}`}
-              className="flex items-center gap-1.5 border-b px-2 py-1 last:border-b-0"
-            >
-              <span className="min-w-0 flex-1 truncate text-sm">{formatSize(size)}</span>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                className="size-6"
-                onClick={() => handleDelete(index)}
-                disabled={deletingIndex === index}
+    <div className="flex flex-col gap-3">
+      {isLoading ? (
+        <div className="flex flex-wrap gap-2">
+          <Skeleton className="h-7 w-20 rounded-full" />
+          <Skeleton className="h-7 w-24 rounded-full" />
+          <Skeleton className="h-7 w-16 rounded-full" />
+        </div>
+      ) : sizes.length === 0 ? (
+        <p className="rounded-lg border border-dashed px-3 py-3 text-center text-sm text-muted-foreground">
+          No quick sizes yet.
+        </p>
+      ) : (
+        <ul className="flex flex-wrap gap-2">
+          {sizes.map((size, index) => {
+            const label = formatSize(size)
+            const isDeleting = deletingIndex === index
+            return (
+              <li
+                key={`${label}-${index}`}
+                className="flex h-7 animate-in items-center gap-1 rounded-full border bg-background pr-1 pl-2.5 text-xs font-medium tabular-nums duration-200 fade-in-0 zoom-in-95 motion-reduce:animate-none"
               >
-                {deletingIndex === index ? <Spinner className="size-3.5" /> : <Trash2Icon className="size-3.5" />}
-                <span className="sr-only">Delete {formatSize(size)}</span>
-              </Button>
-            </div>
-          ))
-        )}
-        {!isLoading && (
-          <AddRow unitOptions={unitOptions} disabled={sizes.length >= MAX_SIZES} onAdd={onAdd} defaultUnit={defaultUnit}/>
-        )}
-      </div>
-      {!isLoading && sizes.length >= MAX_SIZES && (
-        <p className="mt-1 text-xs text-muted-foreground">Up to {MAX_SIZES} sizes.</p>
+                {label}
+                <button
+                  type="button"
+                  onClick={() => handleDelete(index)}
+                  disabled={isDeleting}
+                  aria-label={`Remove ${label}`}
+                  className="flex size-5 cursor-pointer items-center justify-center rounded-full text-muted-foreground transition-colors outline-none hover:bg-destructive/10 hover:text-destructive focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-default"
+                >
+                  {isDeleting ? <Spinner className="size-3" /> : <XIcon className="size-3" />}
+                </button>
+              </li>
+            )
+          })}
+        </ul>
       )}
+
+      {!isLoading && (
+        <AddRow unitOptions={unitOptions} disabled={isFull} onAdd={onAdd} defaultUnit={defaultUnit} />
+      )}
+      {!isLoading && isFull && <p className="-mt-1 text-xs text-muted-foreground">Up to {MAX_COMMON_SIZES} sizes.</p>}
     </div>
   )
 }
@@ -99,7 +102,7 @@ function AddRow({
   unitOptions,
   disabled,
   onAdd,
-  defaultUnit
+  defaultUnit,
 }: {
   unitOptions: readonly string[]
   disabled: boolean
@@ -130,32 +133,38 @@ function AddRow({
   }
 
   return (
-    <div className="flex items-center gap-1.5 border-t p-1.5">
+    <div className="flex items-center gap-1.5">
       <Input
         type="number"
+        inputMode="decimal"
         min={0}
         step="0.01"
         value={width}
         onChange={(event) => setWidth(event.target.value)}
         onKeyDown={(event) => event.key === "Enter" && submit()}
-        placeholder="Width"
+        placeholder="W"
+        aria-label="Width"
         disabled={disabled || isSubmitting}
-        className="h-7 w-16 text-sm"
+        className="h-8 w-16 min-w-0 flex-1 tabular-nums sm:flex-none"
       />
-      <span className="text-xs text-muted-foreground">×</span>
+      <span aria-hidden className="text-xs text-muted-foreground">
+        ×
+      </span>
       <Input
         type="number"
+        inputMode="decimal"
         min={0}
         step="0.01"
         value={height}
         onChange={(event) => setHeight(event.target.value)}
         onKeyDown={(event) => event.key === "Enter" && submit()}
-        placeholder="Height"
+        placeholder="H"
+        aria-label="Height"
         disabled={disabled || isSubmitting}
-        className="h-7 w-16 text-sm"
+        className="h-8 w-16 min-w-0 flex-1 tabular-nums sm:flex-none"
       />
       <Select value={unit} onValueChange={(value) => setUnit(value ?? defaultUnit)} disabled={disabled || isSubmitting}>
-        <SelectTrigger className="h-7 w-16 text-sm">
+        <SelectTrigger aria-label="Unit" className="h-8 w-18 shrink-0">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -166,13 +175,9 @@ function AddRow({
           ))}
         </SelectContent>
       </Select>
-      <Button
-        size="icon-sm"
-        className="size-7 shrink-0"
-        onClick={submit}
-        disabled={disabled || isSubmitting || !canSubmit}
-      >
-        {isSubmitting ? <Spinner className="size-3.5" /> : <PlusIcon className="size-3.5" />}
+      <Button size="sm" className="shrink-0" onClick={submit} disabled={disabled || isSubmitting || !canSubmit}>
+        {isSubmitting && <Spinner data-icon="inline-start" />}
+        Add
       </Button>
     </div>
   )

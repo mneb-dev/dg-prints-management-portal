@@ -1,4 +1,4 @@
-import { type MouseEvent } from "react"
+import { type MouseEvent, type ReactNode } from "react"
 import {
   Loader2Icon,
   MoreHorizontalIcon,
@@ -11,6 +11,7 @@ import {
 } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
+import { TABLE_HEAD_CLASS, TABLE_HEADER_CLASS, TABLE_SURFACE_CLASS } from "@/components/table-surface"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -39,10 +40,6 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { cn, formatCurrency } from "@/lib/utils"
 import { summarizePricing, type Product } from "@/lib/products"
 import type { Role } from "@/lib/users-slice"
-
-/** Same card-like surface as the Orders table (rounded-xl, bg-card, soft shadow). */
-const SURFACE_CLASS = "overflow-hidden rounded-xl border border-border bg-card shadow-[var(--shadow-soft)]"
-const HEAD_CLASS = "px-4 text-xs font-medium text-muted-foreground"
 
 /** Neutral chip + dot, like every other status chip in the app (docs/design-system.md). */
 function ProductStatusBadge({ status }: { status: Product["status"] }) {
@@ -76,13 +73,13 @@ function stopRowClick(event: MouseEvent) {
 
 function Columns({ showActions }: { showActions: boolean }) {
   return (
-    <TableHeader className="bg-muted/40">
+    <TableHeader className={TABLE_HEADER_CLASS}>
       <TableRow className="hover:bg-transparent">
-        <TableHead className={HEAD_CLASS}>Product</TableHead>
-        <TableHead className={HEAD_CLASS}>Pricing</TableHead>
-        <TableHead className={HEAD_CLASS}>Status</TableHead>
+        <TableHead className={TABLE_HEAD_CLASS}>Product</TableHead>
+        <TableHead className={TABLE_HEAD_CLASS}>Pricing</TableHead>
+        <TableHead className={TABLE_HEAD_CLASS}>Status</TableHead>
         {showActions && (
-          <TableHead className={cn(HEAD_CLASS, "text-right")}>
+          <TableHead className={cn(TABLE_HEAD_CLASS, "text-right")}>
             <span className="sr-only">Actions</span>
           </TableHead>
         )}
@@ -92,6 +89,7 @@ function Columns({ showActions }: { showActions: boolean }) {
 }
 
 export function ProductTable({
+  footer,
   products,
   isLoading,
   isFetching,
@@ -107,6 +105,8 @@ export function ProductTable({
   onView,
   onDelete,
 }: {
+  /** Rendered inside the table surface, below the rows (the pager). Hidden in loading/empty/error states. */
+  footer?: ReactNode
   products: Product[]
   isLoading?: boolean
   isFetching?: boolean
@@ -127,7 +127,7 @@ export function ProductTable({
 
   if (isLoading) {
     return (
-      <div className={SURFACE_CLASS}>
+      <div className={TABLE_SURFACE_CLASS}>
         <Table>
           <Columns showActions={showActions} />
           <TableBody>
@@ -164,7 +164,7 @@ export function ProductTable({
 
   if (isError) {
     return (
-      <Empty className={SURFACE_CLASS}>
+      <Empty className={TABLE_SURFACE_CLASS}>
         <EmptyHeader>
           <EmptyMedia variant="icon">
             <TriangleAlertIcon />
@@ -179,7 +179,7 @@ export function ProductTable({
   if (products.length === 0) {
     if (hasActiveFilters) {
       return (
-        <Empty className={SURFACE_CLASS}>
+        <Empty className={TABLE_SURFACE_CLASS}>
           <EmptyHeader>
             <EmptyMedia variant="icon">
               <PackageSearchIcon />
@@ -201,7 +201,7 @@ export function ProductTable({
       )
     }
     return (
-      <Empty className={SURFACE_CLASS}>
+      <Empty className={TABLE_SURFACE_CLASS}>
         <EmptyHeader>
           <EmptyMedia variant="icon">
             <PackageSearchIcon />
@@ -223,7 +223,7 @@ export function ProductTable({
 
   return (
     <div className="relative" aria-busy={isFetching}>
-      <div className={cn(SURFACE_CLASS, isFetching && "opacity-60 transition-opacity duration-150")}>
+      <div className={cn(TABLE_SURFACE_CLASS, isFetching && "opacity-60 transition-opacity duration-150")}>
         <Table>
           <Columns showActions={showActions} />
           <TableBody>
@@ -313,6 +313,7 @@ export function ProductTable({
             })}
           </TableBody>
         </Table>
+        {footer}
       </div>
       {isFetching && (
         <div className="absolute top-3 right-3 flex items-center gap-1.5 rounded-full bg-background/90 px-2 py-1 text-xs text-muted-foreground shadow-sm ring-1 ring-border">

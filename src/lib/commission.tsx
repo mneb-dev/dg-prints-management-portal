@@ -12,10 +12,13 @@ import {
   unreleaseCommissionOrdersThunk,
   unreleaseMonthlyIncentiveThunk,
 } from "@/lib/commission-slice"
+import type { CommissionOrdersQuery } from "@/lib/commission-slice"
 import { useAppDispatch, useAppSelector } from "@/lib/hooks"
 
 export type {
   CommissionOrderRow,
+  CommissionOrdersQuery,
+  CommissionReleaseFilter,
   CommissionSummaryRow,
   MonthlyIncentiveHistoryEntry,
   MonthlyIncentiveOwnShare,
@@ -53,28 +56,37 @@ export function useCommissionSummary(dateFrom: string, dateTo: string, layoutBy?
   }
 }
 
-/** Individual commission-eligible orders (one row per order, not aggregated) for the same window
- * and scoping rules as useCommissionSummary — backs the release/unrelease order table. */
-export function useCommissionOrders(dateFrom: string, dateTo: string, layoutBy?: string) {
+/** One page of commission-eligible orders (one row per order, not aggregated) for the same window
+ * and scoping rules as useCommissionSummary, filtered by release state server-side — backs the
+ * release/unrelease order table. `pendingReleaseIds` spans every page. */
+export function useCommissionOrders(query: CommissionOrdersQuery) {
   const rows = useAppSelector((state) => state.commission.orderRows)
+  const total = useAppSelector((state) => state.commission.orderTotal)
+  const pendingReleaseIds = useAppSelector((state) => state.commission.orderPendingReleaseIds)
   const status = useAppSelector((state) => state.commission.orderStatus)
   const error = useAppSelector((state) => state.commission.orderError)
   const dispatch = useAppDispatch()
+  const { dateFrom, dateTo, layoutBy, release, page, pageSize } = query
+
+  function refetch() {
+    if (!dateFrom || !dateTo) return
+    dispatch(fetchCommissionOrdersThunk({ dateFrom, dateTo, layoutBy, release, page, pageSize }))
+  }
 
   useEffect(() => {
-    if (!dateFrom || !dateTo) return
-    dispatch(fetchCommissionOrdersThunk({ dateFrom, dateTo, layoutBy }))
-  }, [dispatch, dateFrom, dateTo, layoutBy])
+    refetch()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dispatch, dateFrom, dateTo, layoutBy, release, page, pageSize])
 
   return {
     rows,
+    total,
+    pendingReleaseIds,
     isLoading: status === "idle" || status === "loading",
+    isFetching: status === "loading",
     isError: status === "failed",
     error,
-    refetch: () => {
-      if (!dateFrom || !dateTo) return
-      dispatch(fetchCommissionOrdersThunk({ dateFrom, dateTo, layoutBy }))
-    },
+    refetch,
   }
 }
 

@@ -1,8 +1,5 @@
-import { CircleDollarSignIcon, ClockIcon, HandCoinsIcon, type LucideIcon } from "lucide-react"
-
-import { Badge } from "@/components/ui/badge"
+import { DotBadge } from "@/components/dot-badge"
 import type { PaymentStatus } from "@/lib/orders"
-import { cn } from "@/lib/utils"
 
 export type CommissionReleaseStatus = "released" | "pending_release" | "awaiting_payment"
 
@@ -19,37 +16,21 @@ export function getCommissionReleaseStatus(
 
 const STATUS_LABELS: Record<CommissionReleaseStatus, string> = {
   released: "Released",
-  pending_release: "Pending Release",
-  awaiting_payment: "Awaiting Payment",
+  pending_release: "Pending release",
+  awaiting_payment: "Awaiting payment",
 }
 
-// released reuses HandCoinsIcon -- same glyph as the sidebar's Commissions nav icon, same
-// underlying concept ("money handed to staff"). pending_release is reserved exclusively for
-// "money is with the shop, waiting on admin action" -- never reused for "waiting on the
-// customer" (that's awaiting_payment, which intentionally reuses PaymentStatusBadge's "unpaid"
-// glyph since it's the same concept viewed from the commission side).
-const STATUS_ICONS: Record<CommissionReleaseStatus, LucideIcon> = {
-  released: HandCoinsIcon,
-  pending_release: ClockIcon,
-  awaiting_payment: CircleDollarSignIcon,
-}
-
-const STATUS_COLORS: Record<CommissionReleaseStatus, string> = {
-  released: "bg-status-success/10 text-status-success dark:bg-status-success/20",
-  pending_release: "bg-status-warning/10 text-status-warning dark:bg-status-warning/20",
-  // Deliberately quieter than the actionable "Pending Release" amber -- this state has no
-  // available action, so it shouldn't compete visually with rows that do.
-  awaiting_payment: "bg-secondary text-secondary-foreground",
+// Neutral chip + dot like every other status chip. Released reads teal (done), pending release gold
+// (money is with the shop, waiting on admin action), and awaiting payment a quiet grey — no action
+// is available yet, so it shouldn't compete with rows that have one.
+const STATUS_DOTS: Record<CommissionReleaseStatus, string> = {
+  released: "bg-order-status-teal",
+  pending_release: "bg-order-status-gold",
+  awaiting_payment: "bg-muted-foreground/40",
 }
 
 export function CommissionReleaseBadge({ status }: { status: CommissionReleaseStatus }) {
-  const Icon = STATUS_ICONS[status]
-  return (
-    <Badge variant="plain" className={cn(STATUS_COLORS[status], "border-transparent")}>
-      <Icon data-icon="inline-start" />
-      {STATUS_LABELS[status]}
-    </Badge>
-  )
+  return <DotBadge dotClassName={STATUS_DOTS[status]}>{STATUS_LABELS[status]}</DotBadge>
 }
 
 export { STATUS_LABELS as COMMISSION_RELEASE_STATUS_LABELS }
