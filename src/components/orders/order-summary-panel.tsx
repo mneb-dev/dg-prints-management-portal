@@ -1,7 +1,9 @@
+import type { ReactNode } from "react"
 import { CopyIcon, ReceiptTextIcon } from "lucide-react"
 
+import { OrderFormSectionHeader } from "@/components/orders/order-form-section-header"
 import { Button } from "@/components/ui/button"
-import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardAction, CardContent, CardHeader } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { copyToClipboard } from "@/lib/clipboard"
 import type { OrderItem, OrderItemPricing } from "@/lib/orders"
@@ -14,7 +16,7 @@ import {
   usesCompactStickerCopyFormat,
   type CopyableLineItem,
 } from "@/lib/quote-text"
-import { formatCurrency } from "@/lib/utils"
+import { cn, formatCurrency } from "@/lib/utils"
 
 export type LineItemSummary = {
   product: Product | null
@@ -46,6 +48,83 @@ function itemInfoLines(item: LineItemSummary): string[] {
   return buildLineItemInfoLines(toCopyableLineItem(item))
 }
 
+function SummaryRow({
+  label,
+  value,
+  valueClassName,
+}: {
+  label: string
+  value: string
+  valueClassName?: string
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <dt className="min-w-0 truncate text-muted-foreground" title={label}>
+        {label}
+      </dt>
+      <dd className={cn("shrink-0 tabular-nums", valueClassName)}>{value}</dd>
+    </div>
+  )
+}
+
+/** Subtotal → fees → discount → total, with ₱0 rows hidden, the discount shown as a teal "−₱X"
+ * and the total as the visual anchor. Shared by the order form's live summary (computed values)
+ * and the View Order page (the order's stored values, so it always matches what was saved). */
+export function OrderTotals({
+  subtotal,
+  additionalFees,
+  feeNote,
+  layoutFee,
+  layoutByName,
+  shippingFee,
+  discount,
+  total,
+}: {
+  subtotal: number
+  additionalFees: number
+  feeNote?: string
+  layoutFee: number
+  /** Shown as a small "by Maria" note under the layout fee (View Order only). */
+  layoutByName?: string
+  shippingFee: number
+  discount: number
+  total: number
+}) {
+  const note = feeNote?.trim()
+  return (
+    <>
+      <dl className="flex flex-col gap-1.5 text-sm">
+        <SummaryRow label="Subtotal" value={formatCurrency(subtotal)} />
+        {additionalFees > 0 && (
+          <SummaryRow
+            label={note ? `Additional fees (${note})` : "Additional fees"}
+            value={formatCurrency(additionalFees)}
+          />
+        )}
+        {layoutFee > 0 && (
+          <div className="flex flex-col gap-0.5">
+            <SummaryRow label="Layout fee" value={formatCurrency(layoutFee)} />
+            {layoutByName ? <span className="text-xs text-muted-foreground">by {layoutByName}</span> : null}
+          </div>
+        )}
+        {shippingFee > 0 && <SummaryRow label="Shipping" value={formatCurrency(shippingFee)} />}
+        {discount > 0 && (
+          <SummaryRow
+            label="Discount"
+            value={`−${formatCurrency(discount)}`}
+            valueClassName="text-order-status-teal"
+          />
+        )}
+      </dl>
+      <Separator />
+      <div className="flex items-end justify-between gap-3">
+        <span className="text-sm text-muted-foreground">Total</span>
+        <span className="text-2xl leading-none font-semibold tabular-nums">{formatCurrency(total)}</span>
+      </div>
+    </>
+  )
+}
+
 export function OrderSummaryPanel({
   items,
   discount,
@@ -53,6 +132,7 @@ export function OrderSummaryPanel({
   layoutFee,
   shippingFee,
   notes,
+  footer,
 }: {
   items: LineItemSummary[]
   discount: number
@@ -60,6 +140,9 @@ export function OrderSummaryPanel({
   layoutFee: number
   shippingFee: number
   notes: string
+  /** Rendered under the total — the form passes its submit/cancel actions here so they sit in
+   * the sticky panel on desktop. */
+  footer?: ReactNode
 }) {
   const subtotal = items.reduce((sum, item) => sum + item.lineTotal, 0)
   const total = Math.max(subtotal + additionalFees + layoutFee + shippingFee - discount, 0)
@@ -67,10 +150,6 @@ export function OrderSummaryPanel({
   const copyableItems = items.filter((item) => item.product && item.pricing)
 
   function handleCopy() {
-    console.log(
-      "Order item notes:",
-      items.map((item) => ({ name: item.product?.name, notes: item.notes }))
-    )
     if (copyableItems.length === 0) return
 
     const infoLines = buildCopyableOrderText(
@@ -97,12 +176,9 @@ export function OrderSummaryPanel({
   }
 
   return (
-    <Card className="shadow-xs">
+    <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <ReceiptTextIcon className="size-4 text-muted-foreground" />
-          Order Summary
-        </CardTitle>
+        <OrderFormSectionHeader icon={ReceiptTextIcon} title="Order summary" description="Updates as you fill in the form" />
         {copyableItems.length > 0 && (
           <CardAction>
             <Button type="button" variant="ghost" size="icon-sm" onClick={handleCopy} aria-label="Copy order summary">
@@ -143,40 +219,19 @@ export function OrderSummaryPanel({
         {hasAnyProduct && (items.length > 1 || !!items[0]?.pricing) && (
           <>
             <Separator />
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Subtotal</span>
-              <span>{formatCurrency(subtotal)}</span>
-            </div>
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Additional Fees</span>
-              <span>
-                {formatCurrency(additionalFees)}
-                {notes.trim() && ` (${notes.trim()})`}
-              </span>
-            </div>
-            {layoutFee >= 1 && (
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Layout Fee</span>
-                <span>{formatCurrency(layoutFee)}</span>
-              </div>
-            )}
-            {shippingFee > 0 && (
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Shipping Fee</span>
-                <span>{formatCurrency(shippingFee)}</span>
-              </div>
-            )}
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Discount</span>
-              <span>{formatCurrency(discount)}</span>
-            </div>
-            <Separator />
-            <div className="flex items-center justify-between font-medium">
-              <span>Total</span>
-              <span>{formatCurrency(total)}</span>
-            </div>
+            <OrderTotals
+              subtotal={subtotal}
+              additionalFees={additionalFees}
+              feeNote={notes}
+              layoutFee={layoutFee}
+              shippingFee={shippingFee}
+              discount={discount}
+              total={total}
+            />
           </>
         )}
+
+        {footer ? <div className="mt-1">{footer}</div> : null}
       </CardContent>
     </Card>
   )

@@ -1,17 +1,6 @@
 import { Trash2Icon } from "lucide-react"
 
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogMedia,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
-import { Spinner } from "@/components/ui/spinner"
+import { ConfirmDialog, Name } from "@/components/confirm-dialog"
 import type { User } from "@/lib/users"
 
 export function DeleteUserDialog({
@@ -26,33 +15,17 @@ export function DeleteUserDialog({
   onConfirm: (user: User) => void
 }) {
   return (
-    <AlertDialog open={!!user} onOpenChange={onOpenChange}>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogMedia className="bg-destructive/10 text-destructive">
-            <Trash2Icon />
-          </AlertDialogMedia>
-          <AlertDialogTitle>Delete user</AlertDialogTitle>
-          <AlertDialogDescription>
-            Are you sure you want to delete{" "}
-            <span className="font-medium text-foreground">
-              {user ? `${user.firstName} ${user.lastName}` : ""}
-            </span>
-            ? This action cannot be undone.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
-          <AlertDialogAction
-            variant="destructive-solid"
-            disabled={isDeleting}
-            onClick={() => user && onConfirm(user)}
-          >
-            {isDeleting && <Spinner data-icon="inline-start" />}
-            {isDeleting ? "Deleting..." : "Delete"}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+    <ConfirmDialog
+      open={!!user}
+      onOpenChange={onOpenChange}
+      tone="danger"
+      icon={Trash2Icon}
+      title={<>Delete user <Name>{user ? `${user.firstName} ${user.lastName}` : ""}</Name>?</>}
+      description={"This can't be undone."}
+      confirmLabel="Yes, delete it"
+      pendingLabel="Deleting…"
+      isPending={isDeleting}
+      onConfirm={() => user && onConfirm(user)}
+    />
   )
 }

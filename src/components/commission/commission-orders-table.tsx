@@ -1,22 +1,11 @@
 import { useState } from "react"
 import { HandCoinsIcon } from "lucide-react"
 
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogMedia,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
+import { ConfirmDialog } from "@/components/confirm-dialog"
 import { Button } from "@/components/ui/button"
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Empty, EmptyDescription, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Spinner } from "@/components/ui/spinner"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import {
   CommissionReleaseBadge,
@@ -155,33 +144,22 @@ export function CommissionOrdersTable({
         )}
       </CardContent>
 
-      <AlertDialog open={confirmingBulkRelease} onOpenChange={setConfirmingBulkRelease}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogMedia className="bg-status-success/10 text-status-success">
-              <HandCoinsIcon />
-            </AlertDialogMedia>
-            <AlertDialogTitle>Release {pendingReleaseIds.length} pending commissions?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This marks {pendingReleaseIds.length} order{pendingReleaseIds.length === 1 ? "" : "s"} as paid out
-              to staff and locks in the commission amount at today's rate.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isMutating}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={isMutating}
-              onClick={() => {
-                onRelease(pendingReleaseIds)
-                setConfirmingBulkRelease(false)
-              }}
-            >
-              {isMutating && <Spinner data-icon="inline-start" />}
-              Release
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={confirmingBulkRelease}
+        onOpenChange={setConfirmingBulkRelease}
+        tone="primary"
+        icon={HandCoinsIcon}
+        title={`Release ${pendingReleaseIds.length} pending ${pendingReleaseIds.length === 1 ? "commission" : "commissions"}?`}
+        description={`Marks ${pendingReleaseIds.length === 1 ? "the order" : `these ${pendingReleaseIds.length} orders`} as paid out to staff and locks in today's commission rate.`}
+        confirmLabel="Yes, release"
+        pendingLabel="Releasing…"
+        cancelLabel="No, not yet"
+        isPending={isMutating}
+        onConfirm={() => {
+          onRelease(pendingReleaseIds)
+          setConfirmingBulkRelease(false)
+        }}
+      />
     </Card>
   )
 }

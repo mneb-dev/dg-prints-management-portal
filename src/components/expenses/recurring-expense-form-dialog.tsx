@@ -1,17 +1,14 @@
+import { RepeatIcon } from "lucide-react"
 import { useEffect, useState } from "react"
 import { format, parseISO } from "date-fns"
 import { toast } from "sonner"
 
+import { CharCount } from "@/components/char-count"
+import { ChoiceTile } from "@/components/choice-tile"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+import { FormDialogHeader } from "@/components/form-dialog-header"
+import { Dialog, DialogBody, DialogContent, DialogFooter } from "@/components/ui/dialog"
 import { CurrencyInput } from "@/components/ui/currency-input"
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -23,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Spinner } from "@/components/ui/spinner"
+import { SEGMENT_CLASS, SEGMENT_TRACK_CLASS } from "@/components/segmented"
 import { Textarea } from "@/components/ui/textarea"
 import { Toggle } from "@/components/ui/toggle"
 import { ToggleGroup } from "@/components/ui/toggle-group"
@@ -36,7 +34,7 @@ import {
   type RecurringExpenseInput,
 } from "@/lib/expenses"
 import { useEnabledPaymentMethods } from "@/lib/payment-methods"
-import { cn } from "@/lib/utils"
+import { cn, formatCurrency } from "@/lib/utils"
 import { maxLengthMessage, parsePositiveAmount, positiveAmountMessage, requiredMessage } from "@/lib/validation"
 
 const NOTES_MAX_LENGTH = 300
@@ -97,6 +95,13 @@ export function RecurringExpenseFormDialog({
     setNotesError(null)
   }, [open, recurringExpense])
 
+  // "Repeats monthly from Sep 23, 2026 · ₱5,000.00 each time" — only once the amount is valid.
+  const previewAmount = parsePositiveAmount(amountInput)
+  const scheduleSummary =
+    previewAmount !== null && draft.startDate
+      ? `Repeats ${RECURRENCE_FREQUENCY_LABELS[draft.frequency].toLowerCase()} from ${format(parseISO(draft.startDate), "MMM d, yyyy")} · ${formatCurrency(previewAmount)} each time`
+      : null
+
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
@@ -145,15 +150,13 @@ export function RecurringExpenseFormDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>{recurringExpense ? "Edit Recurring Expense" : "Add Recurring Expense"}</DialogTitle>
-          <DialogDescription>
-            {recurringExpense
-              ? "Update this recurring expense's schedule and details."
-              : "Set up an expense that repeats automatically on a schedule."}
-          </DialogDescription>
-        </DialogHeader>
+        <FormDialogHeader
+          icon={RepeatIcon}
+          title={<>{recurringExpense ? "Edit recurring expense" : "New recurring expense"}</>}
+          description={<>{recurringExpense ? "Update this recurring expense's schedule and details." : "Set up an expense that repeats automatically on a schedule."}</>}
+        />
 
+        <DialogBody>
         <form id="recurring-expense-form" onSubmit={handleSubmit} className="flex flex-col gap-4">
           <FieldGroup>
             <Field data-invalid={!!amountError}>
@@ -194,7 +197,7 @@ export function RecurringExpenseFormDialog({
             </Field>
 
             <Field data-invalid={!!paymentMethodError}>
-              <FieldLabel htmlFor="recurring-expense-payment-method">Payment Method</FieldLabel>
+              <FieldLabel htmlFor="recurring-expense-payment-method">Payment method</FieldLabel>
               <ToggleGroup
                 id="recurring-expense-payment-method"
                 value={draft.paymentMethod ? [draft.paymentMethod] : []}
@@ -205,7 +208,10 @@ export function RecurringExpenseFormDialog({
                     setPaymentMethodError(null)
                   }
                 }}
-                className={cn(paymentMethodError && "rounded-lg ring-1 ring-destructive")}
+                className={cn(
+                  "flex-wrap gap-2",
+                  paymentMethodError && "rounded-lg ring-1 ring-destructive ring-offset-2 ring-offset-background"
+                )}
               >
                 {/* Merge in the current value even if it's since been disabled/deleted in
                   Settings, so an existing schedule using a retired method still renders. */}
@@ -213,40 +219,36 @@ export function RecurringExpenseFormDialog({
                   ? [...enabledMethods, draft.paymentMethod]
                   : enabledMethods
                 ).map((method) => (
-                  <Toggle key={method} value={method}>
+                  <ChoiceTile key={method} value={method}>
                     {method}
-                  </Toggle>
+                  </ChoiceTile>
                 ))}
               </ToggleGroup>
               <FieldError>{paymentMethodError}</FieldError>
             </Field>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Field>
-                <FieldLabel htmlFor="recurring-expense-frequency">Frequency</FieldLabel>
-                <Select
-                  value={draft.frequency}
-                  onValueChange={(value) =>
-                    setDraft((prev) => ({ ...prev, frequency: value as RecurrenceFrequency }))
-                  }
+                <FieldLabel id="recurring-expense-frequency-label">Frequency</FieldLabel>
+                <ToggleGroup
+                  aria-labelledby="recurring-expense-frequency-label"
+                  value={[draft.frequency]}
+                  onValueChange={(next) => {
+                    const value = next[0] as RecurrenceFrequency | undefined
+                    if (value) setDraft((prev) => ({ ...prev, frequency: value }))
+                  }}
+                  className={cn(SEGMENT_TRACK_CLASS, "w-full")}
                 >
-                  <SelectTrigger id="recurring-expense-frequency" className="w-full">
-                    <SelectValue>
-                      {(value: string) => RECURRENCE_FREQUENCY_LABELS[value as RecurrenceFrequency]}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {RECURRENCE_FREQUENCIES.map((frequency) => (
-                      <SelectItem key={frequency} value={frequency}>
-                        {RECURRENCE_FREQUENCY_LABELS[frequency]}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  {RECURRENCE_FREQUENCIES.map((frequency) => (
+                    <Toggle key={frequency} value={frequency} className={cn(SEGMENT_CLASS, "flex-1")}>
+                      {RECURRENCE_FREQUENCY_LABELS[frequency]}
+                    </Toggle>
+                  ))}
+                </ToggleGroup>
               </Field>
 
               <Field data-invalid={!!startDateError}>
-                <FieldLabel htmlFor="recurring-expense-start-date">Start Date</FieldLabel>
+                <FieldLabel htmlFor="recurring-expense-start-date">Start date</FieldLabel>
                 <Popover>
                   <PopoverTrigger
                     id="recurring-expense-start-date"
@@ -280,8 +282,15 @@ export function RecurringExpenseFormDialog({
               </Field>
             </div>
 
+            {scheduleSummary && <p className="-mt-2 text-xs text-muted-foreground">{scheduleSummary}</p>}
+
             <Field data-invalid={!!notesError}>
-              <FieldLabel htmlFor="recurring-expense-notes">Notes (optional)</FieldLabel>
+              <div className="flex items-baseline justify-between gap-2">
+                <FieldLabel htmlFor="recurring-expense-notes">
+                  Notes <span className="font-normal text-muted-foreground">(optional)</span>
+                </FieldLabel>
+                <CharCount value={draft.notes} max={NOTES_MAX_LENGTH} />
+              </div>
               <Textarea
                 id="recurring-expense-notes"
                 value={draft.notes}
@@ -297,14 +306,15 @@ export function RecurringExpenseFormDialog({
             </Field>
           </FieldGroup>
         </form>
+        </DialogBody>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="ghost" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
           <Button type="submit" form="recurring-expense-form" disabled={isSubmitting}>
             {isSubmitting && <Spinner data-icon="inline-start" />}
-            {isSubmitting ? "Saving..." : "Save Schedule"}
+            {isSubmitting ? "Saving…" : recurringExpense ? "Save changes" : "Create schedule"}
           </Button>
         </DialogFooter>
       </DialogContent>

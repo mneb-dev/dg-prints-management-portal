@@ -56,15 +56,18 @@ status, Refunded for payment) sit below a `DropdownMenuSeparator`.
 
 Payment status dot colors (`STATUS_DOT_CLASSES` in `payment-status-badge.tsx`):
 
-| Status   | Dot                  |
-| -------- | -------------------- |
-| Unpaid   | `bg-status-warning`  |
-| Partial  | `bg-status-info`     |
-| Paid     | `bg-status-success`  |
-| Refunded | `bg-destructive`     |
+| Status   | Dot                      | Hue |
+| -------- | ------------------------ | --- |
+| Unpaid   | `bg-order-status-gold`   | 62  |
+| Partial  | `bg-order-status-violet` | 295 |
+| Paid     | `bg-order-status-teal`   | 165 |
+| Refunded | `bg-order-status-rose`   | 350 |
 
-Partial is deliberately info blue, not `status-progress`: progress's orange (hue 55) sits too close
-to warning's amber (hue 75) to tell the two dots apart at `size-2`.
+These come from the brand-tuned order-status palette rather than the generic `status-*` tokens, and
+mirror the chart palette that pairs with the indigo primary (teal ≈ chart-4, gold ≈ chart-5, violet
+≈ chart-2). Violet is the brand's secondary hue, so "in progress" reads on-brand; rose marks a
+refund without borrowing the destructive red used for app errors. The four hues are ~60–130° apart,
+so the dots stay distinguishable at `size-2` in both themes.
 
 ### The one alignment gotcha
 
@@ -100,3 +103,46 @@ once it repeats across many rows.
   and shadow feedback stays, otherwise the hover is nearly invisible.
 - Tailwind v4 `translate-*`/`scale-*` utilities set the `translate`/`scale` CSS properties, not
   `transform` — list those in `transition-[...]`, or the movement snaps instead of easing.
+
+## Modals
+
+Every modal in the app follows one pattern. Two shapes share the same surface.
+
+### Surface (`ui/alert-dialog.tsx`, `ui/dialog.tsx`)
+
+- Backdrop `bg-foreground/25` + `backdrop-blur-sm` (`dark:bg-black/50`), fading in over 200ms.
+- Popup `rounded-2xl border bg-popover shadow-[var(--shadow-elevated)]`, entering with
+  `fade-in-0 zoom-in-95 slide-in-from-bottom-2` (200ms ease-out) and leaving in 150ms. There's no
+  motion under `motion-reduce`.
+- Footer: a tinted strip (`bg-muted/40 border-t`). The primary action sits on the right. On mobile
+  the buttons stack full width, with the primary on top.
+- Form dialogs are capped at `85vh`. A `<form>` (or `DialogBody`) between the header and footer is
+  the only part that scrolls, so the title and buttons stay visible.
+
+### Confirmations: `ConfirmDialog` (`components/confirm-dialog.tsx`)
+
+Never hand-build an `AlertDialog`. Every "are you sure?" goes through `ConfirmDialog`.
+
+- **The title is a question** that names the thing: "Cancel order ORD-042?". Wrap the name in
+  `<Name>`.
+- **The buttons answer it**: confirm **"Yes, <verb> it"**, dismiss **"No, keep it"**. Where "keep"
+  doesn't fit, use "No, go back", "No, stay", "No, not yet" or "No, keep editing". Never put two
+  "Cancel"s side by side.
+- **The description** is one or two short sentences stating the consequence ("This can't be
+  undone.").
+- **`tone`** sets the round icon tile and the confirm button:
+  - `danger`: red tile, solid red confirm, **focus starts on "No"** so Enter never destroys.
+  - `warning`: amber tile, primary confirm.
+  - `primary`: indigo tile, primary confirm.
+- A pending state shows a spinner and a `pendingLabel` ("Deleting…"), disables both buttons and
+  blocks closing.
+- Richer confirmations (record payment, OR request, arrange shipment) pass their fields or details
+  as `children`. A third choice ("Save draft") uses `secondaryAction`. A result step ("Password
+  reset") sets `cancelLabel={null}` and a single "Done".
+
+### Form dialogs: `FormDialogHeader` (`components/form-dialog-header.tsx`)
+
+- The header uses the same IconBadge + title + one-line description as the section headers. Titles
+  are sentence case: "New product", "Edit expense".
+- The footer has a ghost **"Cancel"** (a form isn't a question) and a specific primary verb:
+  "Create product" when new, "Save changes" when editing, and "Saving…" while submitting.

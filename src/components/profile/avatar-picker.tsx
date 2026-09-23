@@ -1,14 +1,12 @@
 import { useState } from "react"
-import { UserRoundXIcon } from "lucide-react"
+import { UserRoundXIcon, SmileIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { FormDialogHeader } from "@/components/form-dialog-header"
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
 } from "@/components/ui/dialog"
 import { useAuth } from "@/lib/auth"
 import { AVATAR_KEYS, getAvatarDataUri } from "@/lib/avatars"
@@ -39,10 +37,11 @@ export function AvatarPicker({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Choose an avatar</DialogTitle>
-          <DialogDescription>Pick a picture to use across the app.</DialogDescription>
-        </DialogHeader>
+        <FormDialogHeader
+          icon={SmileIcon}
+          title={<>Choose an avatar</>}
+          description={<>Pick a picture to use across the app.</>}
+        />
         <div className="grid grid-cols-6 gap-2">
           <button
             type="button"

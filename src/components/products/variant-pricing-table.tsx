@@ -1,5 +1,7 @@
-import { useEffect, useMemo } from "react"
+import { useEffect, useMemo, useState } from "react"
+import { LayersIcon } from "lucide-react"
 
+import { Button } from "@/components/ui/button"
 import { CurrencyInput } from "@/components/ui/currency-input"
 import {
   Select,
@@ -19,7 +21,7 @@ import {
 import { isPackageOptionName } from "@/lib/pricing-resolver"
 import type { PricingEntry, PricingType, PricingUnit, ProductOption } from "@/lib/products"
 import { ALL_VARIANTS, PRICING_TYPES, PRICING_UNITS } from "@/lib/products"
-import { generateId } from "@/lib/utils"
+import { cn, generateId } from "@/lib/utils"
 import { cartesianOptionCombinations, combinationsMatch, type VariantCombination } from "@/lib/variant-matrix"
 
 /** Units selectable for a "Per Unit" row — "Package" is reserved for the Package pricing type. */
@@ -68,6 +70,8 @@ export function VariantPricingTable({
     [optionsSignature]
   )
   const columns = options.filter((option) => option.values.length > 0)
+  // "Set all" bulk price — fills every combination at once, handy when most share a price.
+  const [bulkPrice, setBulkPrice] = useState("")
 
   useEffect(() => {
     const reconciled = combinations.map(
@@ -91,11 +95,26 @@ export function VariantPricingTable({
 
   if (combinations.length === 0) {
     return (
-      <p className="text-sm text-muted-foreground">
-        Add at least one variation with values above to generate pricing.
-      </p>
+      <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed px-4 py-6 text-center">
+        <span className="flex size-9 items-center justify-center rounded-full bg-muted text-muted-foreground">
+          <LayersIcon className="size-4" />
+        </span>
+        <p className="text-sm font-medium">No combinations to price yet</p>
+        <p className="max-w-xs text-xs text-muted-foreground">
+          Add an option with values above — each combination shows up here to price.
+        </p>
+      </div>
     )
   }
+
+  function applyBulkPrice() {
+    const value = Number(bulkPrice)
+    if (bulkPrice.trim() === "" || !Number.isFinite(value) || value < 0) return
+    onChange(pricing.map((entry) => ({ ...entry, price: value })))
+    setBulkPrice("")
+  }
+
+  const unpricedCount = pricing.filter((entry) => !(entry.price > 0)).length
 
   function updateEntry(id: string, changes: Partial<PricingEntry>) {
     onChange(pricing.map((entry) => (entry.id === id ? { ...entry, ...changes } : entry)))
@@ -107,17 +126,54 @@ export function VariantPricingTable({
     updateEntry(id, { pricingType, unit })
   }
 
+  const headClass = "px-3 text-xs font-medium text-muted-foreground"
+
   return (
-    <div className="rounded-lg border">
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h4 className="text-sm font-medium">Prices</h4>
+          <p className="text-xs text-muted-foreground">
+            {combinations.length} {combinations.length === 1 ? "combination" : "combinations"}
+            {unpricedCount > 0 && (
+              <span className="text-order-status-gold"> · {unpricedCount} still at ₱0</span>
+            )}
+          </p>
+        </div>
+        {/* Bulk fill: most combinations often share a price — set it once, then adjust the few
+            that differ. */}
+        <div className="flex items-center gap-2">
+          <CurrencyInput
+            wrapperClassName="w-28"
+            value={bulkPrice}
+            onChange={(event) => setBulkPrice(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault()
+                applyBulkPrice()
+              }
+            }}
+            aria-label="Price for all combinations"
+            placeholder="Set all"
+          />
+          <Button type="button" variant="outline" size="sm" onClick={applyBulkPrice} disabled={bulkPrice.trim() === ""}>
+            Apply to all
+          </Button>
+        </div>
+      </div>
+
+    <div className="overflow-hidden rounded-xl border">
       <Table>
-        <TableHeader>
-          <TableRow>
+        <TableHeader className="bg-muted/40">
+          <TableRow className="hover:bg-transparent">
             {columns.map((option) => (
-              <TableHead key={option.id}>{option.name || "Variant"}</TableHead>
+              <TableHead key={option.id} className={headClass}>
+                {option.name || "Variant"}
+              </TableHead>
             ))}
-            <TableHead>Pricing Type</TableHead>
-            <TableHead>Unit</TableHead>
-            <TableHead>Price</TableHead>
+            <TableHead className={headClass}>Pricing type</TableHead>
+            <TableHead className={headClass}>Unit</TableHead>
+            <TableHead className={headClass}>Price</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -125,16 +181,23 @@ export function VariantPricingTable({
             const entry = findEntryForCombination(pricing, combination)
             if (!entry) return null
             return (
-              <TableRow key={combination.map((condition) => condition.value).join("|")}>
-                {combination.map((condition) => (
-                  <TableCell key={condition.optionId}>{condition.value}</TableCell>
+              <TableRow
+                key={combination.map((condition) => condition.value).join("|")}
+                // A still-₱0 combination gets a gold edge so it stands out; a hint only —
+                // saving's validation is unchanged.
+                className={cn(!(entry.price > 0) && "shadow-[inset_2px_0_0_var(--color-order-status-gold)]")}
+              >
+                {combination.map((condition, index) => (
+                  <TableCell key={condition.optionId} className={cn("px-3", index === 0 && "font-medium")}>
+                    {condition.value}
+                  </TableCell>
                 ))}
-                <TableCell>
+                <TableCell className="px-3">
                   <Select
                     value={entry.pricingType}
                     onValueChange={(value) => updatePricingType(entry.id, value as PricingType)}
                   >
-                    <SelectTrigger className="w-32">
+                    <SelectTrigger size="sm" className="w-32">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -146,13 +209,13 @@ export function VariantPricingTable({
                     </SelectContent>
                   </Select>
                 </TableCell>
-                <TableCell>
+                <TableCell className="px-3">
                   {entry.pricingType === "Per Unit" ? (
                     <Select
                       value={entry.unit}
                       onValueChange={(value) => updateEntry(entry.id, { unit: value as PricingUnit })}
                     >
-                      <SelectTrigger className="w-24">
+                      <SelectTrigger size="sm" className="w-24">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -167,7 +230,7 @@ export function VariantPricingTable({
                     <span className="text-sm text-muted-foreground">{entry.unit}</span>
                   )}
                 </TableCell>
-                <TableCell>
+                <TableCell className="px-3">
                   <CurrencyInput
                     wrapperClassName="w-32"
                     value={entry.price}
@@ -179,6 +242,7 @@ export function VariantPricingTable({
           })}
         </TableBody>
       </Table>
+    </div>
     </div>
   )
 }

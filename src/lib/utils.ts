@@ -26,6 +26,18 @@ export function formatDate(iso: string): string {
   })
 }
 
+/** Full date + time ("Sep 23, 2026, 3:45 PM") — for the hover behind a relative time like
+ * "Today" or "3h ago", where the exact moment is the whole point of hovering. */
+export function formatDateTime(iso: string): string {
+  return new Date(iso).toLocaleString("en-PH", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  })
+}
+
 export function formatRelativeDate(iso: string): string {
   const diffDays = Math.floor((Date.now() - new Date(iso).getTime()) / (1000 * 60 * 60 * 24))
   if (diffDays <= 0) return "Today"

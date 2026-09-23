@@ -1,7 +1,11 @@
-import { Trash2Icon } from "lucide-react"
+import { Trash2Icon, FileTextIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { FormDialogHeader } from "@/components/form-dialog-header"
+import {
+  Dialog,
+  DialogContent,
+} from "@/components/ui/dialog"
 import type { OrderDraft } from "@/lib/order-drafts"
 import { formatRelativeDate } from "@/lib/utils"
 
@@ -21,9 +25,10 @@ export function OrderDraftsDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Draft Orders</DialogTitle>
-        </DialogHeader>
+        <FormDialogHeader
+          icon={FileTextIcon}
+          title={<>Draft orders</>}
+        />
         {drafts.length === 0 ? (
           <p className="py-6 text-center text-sm text-muted-foreground">No saved drafts yet.</p>
         ) : (

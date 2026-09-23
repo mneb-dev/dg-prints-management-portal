@@ -1,27 +1,31 @@
-import { useEffect, useState } from "react"
+import { useEffect, useState, type ReactNode } from "react"
 import {
+  CalculatorIcon,
   CopyIcon,
-  FlagIcon,
-  LayersIcon,
-  LayoutPanelLeftIcon,
+  InfoIcon,
+  PackageSearchIcon,
   PlusIcon,
-  StickerIcon,
+  ReceiptTextIcon,
+  RotateCcwIcon,
+  SlidersHorizontalIcon,
   TruckIcon,
-  type LucideIcon,
 } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 
+import { ChoiceCard } from "@/components/choice-card"
 import { LaminatedStickerQuotationFields } from "@/components/orders/laminated-sticker-quotation-fields"
+import { OrderFormSectionHeader } from "@/components/orders/order-form-section-header"
 import { type OrderFormSeed } from "@/components/orders/order-form"
 import { ProductOptionsFields } from "@/components/orders/product-options-fields"
 import { QuickSizeChips } from "@/components/orders/quick-size-chips"
 import { SintraBoardCustomFields } from "@/components/orders/sintra-board-custom-fields"
 import { StickerQuotationFields } from "@/components/orders/sticker-quotation-fields"
 import { PageHeader } from "@/components/page-header"
+import { SEGMENT_CLASS, SEGMENT_TRACK_CLASS } from "@/components/segmented"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty"
-import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
+import { Card, CardContent, CardHeader } from "@/components/ui/card"
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
+import { Field, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import {
   Select,
@@ -30,25 +34,26 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Switch } from "@/components/ui/switch"
+import { Toggle } from "@/components/ui/toggle"
+import { ToggleGroup } from "@/components/ui/toggle-group"
 import { useAuth } from "@/lib/auth"
 import { useCategories, type CommonSize } from "@/lib/categories"
 import { copyToClipboard } from "@/lib/clipboard"
 import { calculateLaminatedStickerQuotation } from "@/lib/laminated-sticker-quotation"
 import { convertToFeet, LENGTH_UNITS, type LengthUnit } from "@/lib/length-units"
 import { isPackageOptionName, previewPackageCandidates, resolvePricingPreview } from "@/lib/pricing-resolver"
-import { useProductCatalog, type ProductCategory } from "@/lib/products"
+import { useProductCatalog, type Product, type ProductCategory } from "@/lib/products"
 import { appendShippingFeeNote } from "@/lib/quote-text"
 import { useSettings } from "@/lib/settings"
 import { calculateSintraCustomPrice, type SintraThickness } from "@/lib/sintra-board-pricing"
 import { calculateStickerPackageResult, parsePackageNumber, type StickerUnit } from "@/lib/sticker-quotation"
-import { formatCurrency } from "@/lib/utils"
+import { cn, formatCurrency } from "@/lib/utils"
 
-const CATEGORIES: { category: ProductCategory; label: string; icon: LucideIcon }[] = [
-  { category: "Sticker", label: "Sticker", icon: StickerIcon },
-  { category: "Tarpaulin", label: "Tarpaulin", icon: FlagIcon },
-  { category: "Sintra", label: "Sintra", icon: LayoutPanelLeftIcon },
-  { category: "Laminated Sticker", label: "Laminated", icon: LayersIcon },
+const CATEGORIES: { category: ProductCategory; label: string; hint: string }[] = [
+  { category: "Sticker", label: "Sticker", hint: "Packages by size" },
+  { category: "Tarpaulin", label: "Tarpaulin", hint: "Priced per sq.ft." },
+  { category: "Sintra", label: "Sintra", hint: "Board sizes or custom" },
+  { category: "Laminated Sticker", label: "Laminated", hint: "Quantity by size" },
 ]
 
 export function CalculatorPage() {
@@ -276,6 +281,33 @@ export function CalculatorPage() {
     if (text !== null) copyToClipboard(appendShippingFeeNote(text, settings.shippingFee))
   }
 
+  const categoryMeta = CATEGORIES.find((entry) => entry.category === category) ?? null
+  const isStickerLike = category === "Sticker" || category === "Laminated Sticker"
+
+  // One-line "how we got this number" under the total, so the price never appears unexplained.
+  const quoteBreakdown: string | null = !selectedProduct
+    ? null
+    : isSintraCustom
+      ? hasValidCustomSize
+        ? `${customWidth} × ${customHeight} in · ${customThickness}${customBackToBack ? " · back-to-back" : ""}`
+        : null
+      : resolution?.kind === "auto" && showsDimensions && hasValidSize
+        ? `${width} × ${height} ${dimensionUnit} · ${formatCurrency(resolution.entry.price)} / sq.ft.`
+        : resolution?.kind === "auto" && !showsDimensions
+          ? selectedProduct.name
+          : null
+
+  const stickerSummary =
+    isStickerLike && Number(stickerWidth) > 0 && Number(stickerHeight) > 0
+      ? {
+          size: `${stickerWidth} × ${stickerHeight} ${stickerUnit}`,
+          count: category === "Sticker" ? stickerCandidates.length : laminatedCandidates.length,
+          noun: category === "Sticker" ? "package" : "price",
+        }
+      : null
+
+  const noProducts = !!category && categoryProducts.length === 0
+
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
@@ -283,319 +315,324 @@ export function CalculatorPage() {
         description="Get a quick price quotation before creating an order."
       />
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Category</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-wrap gap-2">
-          {CATEGORIES.map(({ category: value, label, icon: Icon }) => (
-            <Button
-              key={value}
-              type="button"
-              variant={category === value ? "default" : "outline"}
-              onClick={() => handleCategoryChange(value)}
-            >
-              <Icon data-icon="inline-start" />
-              {label}
-            </Button>
-          ))}
-        </CardContent>
-      </Card>
-
-      {category === "Sticker" && (
-        <Card className="animate-in fade-in-0 duration-150">
-          <CardHeader>
-            <CardTitle>Sticker Quotation</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            {categoryProducts.length === 0 ? (
-              <Empty className="border">
-                <EmptyHeader>
-                  <EmptyTitle>No active {category} products</EmptyTitle>
-                  <EmptyDescription>
-                    Add an active product in this category to get a quotation.
-                  </EmptyDescription>
-                </EmptyHeader>
-              </Empty>
-            ) : (
-              <>
-                <Field>
-                  <FieldLabel htmlFor="calculator-sticker-product">Product</FieldLabel>
-                  <Select value={productId} onValueChange={(value) => handleProductChange(value ?? "")}>
-                    <SelectTrigger id="calculator-sticker-product" className="w-full">
-                      <SelectValue placeholder="Select a product">
-                        {(value: string | null) => {
-                          const product = categoryProducts.find((candidate) => candidate.id === value)
-                          return product ? product.name : "Select a product"
-                        }}
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      {categoryProducts.map((product) => (
-                        <SelectItem key={product.id} value={product.id}>
-                          {product.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </Field>
-
-                <QuickSizeChips
-                  sizes={quickSizes ?? []}
-                  isLoading={categoriesLoading}
-                  onSelect={handleSelectStickerSize}
-                />
-
-                <StickerQuotationFields
-                  width={stickerWidth}
-                  onWidthChange={setStickerWidth}
-                  height={stickerHeight}
-                  onHeightChange={setStickerHeight}
-                  unit={stickerUnit}
-                  onUnitChange={setStickerUnit}
-                  candidates={stickerCandidates}
-                  onClear={handleClearCurrent}
-                />
-              </>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {category === "Laminated Sticker" && (
-        <Card className="animate-in fade-in-0 duration-150">
-          <CardHeader>
-            <CardTitle>Laminated Sticker Quotation</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            {categoryProducts.length === 0 ? (
-              <Empty className="border">
-                <EmptyHeader>
-                  <EmptyTitle>No active {category} products</EmptyTitle>
-                  <EmptyDescription>
-                    Add an active product in this category to get a quotation.
-                  </EmptyDescription>
-                </EmptyHeader>
-              </Empty>
-            ) : (
-              <>
-                <Field>
-                  <FieldLabel htmlFor="calculator-laminated-sticker-product">Product</FieldLabel>
-                  <Select value={productId} onValueChange={(value) => handleProductChange(value ?? "")}>
-                    <SelectTrigger id="calculator-laminated-sticker-product" className="w-full">
-                      <SelectValue placeholder="Select a product">
-                        {(value: string | null) => {
-                          const product = categoryProducts.find((candidate) => candidate.id === value)
-                          return product ? product.name : "Select a product"
-                        }}
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      {categoryProducts.map((product) => (
-                        <SelectItem key={product.id} value={product.id}>
-                          {product.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </Field>
-
-                <QuickSizeChips
-                  sizes={quickSizes ?? []}
-                  isLoading={categoriesLoading}
-                  onSelect={handleSelectStickerSize}
-                />
-
-                <LaminatedStickerQuotationFields
-                  width={stickerWidth}
-                  onWidthChange={setStickerWidth}
-                  height={stickerHeight}
-                  onHeightChange={setStickerHeight}
-                  unit={stickerUnit}
-                  onUnitChange={setStickerUnit}
-                  candidates={laminatedCandidates}
-                  showAmount
-                  onClear={handleClearCurrent}
-                />
-              </>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {(category === "Tarpaulin" || category === "Sintra") && (
-        <Card className="animate-in fade-in-0 duration-150">
-          <CardHeader>
-            <CardTitle>{category} Quotation</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            {categoryProducts.length === 0 ? (
-              <Empty className="border">
-                <EmptyHeader>
-                  <EmptyTitle>No active {category} products</EmptyTitle>
-                  <EmptyDescription>
-                    Add an active product in this category to get a quotation.
-                  </EmptyDescription>
-                </EmptyHeader>
-              </Empty>
-            ) : (
-              <>
-                <Field>
-                  <FieldLabel htmlFor="calculator-product">Product</FieldLabel>
-                  <Select value={productId} onValueChange={(value) => handleProductChange(value ?? "")}>
-                    <SelectTrigger id="calculator-product" className="w-full">
-                      <SelectValue placeholder="Select a product">
-                        {(value: string | null) => {
-                          const product = categoryProducts.find((candidate) => candidate.id === value)
-                          return product ? product.name : "Select a product"
-                        }}
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      {categoryProducts.map((product) => (
-                        <SelectItem key={product.id} value={product.id}>
-                          {product.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </Field>
-
-                {selectedProduct && !isSintraCustom && (
-                  <ProductOptionsFields
-                    product={selectedProduct}
-                    values={optionValues}
-                    onChange={(optionId, value) =>
-                      setOptionValues((prev) => ({ ...prev, [optionId]: value }))
-                    }
+      {/* Same shape as New Order: inputs on the left, a sticky quote panel on the right. */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_340px]">
+        <div className="flex flex-col gap-4">
+          <Card>
+            <CardHeader>
+              <OrderFormSectionHeader icon={CalculatorIcon} title="Pick a category" description="What are you quoting?" />
+            </CardHeader>
+            <CardContent>
+              <ToggleGroup
+                aria-label="Category"
+                value={category ? [category] : []}
+                onValueChange={(next) => {
+                  const value = next[0] as ProductCategory | undefined
+                  if (value) handleCategoryChange(value)
+                }}
+                className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4"
+              >
+                {CATEGORIES.map((entry) => (
+                  <ChoiceCard
+                    key={entry.category}
+                    value={entry.category}
+                    title={entry.label}
+                    description={entry.hint}
                   />
-                )}
+                ))}
+              </ToggleGroup>
+            </CardContent>
+          </Card>
 
-                {selectedProduct && category === "Sintra" && (
-                  <label className="flex items-center gap-2 text-sm font-medium">
-                    <Switch
-                      checked={isCustomSize}
-                      onCheckedChange={(checked) => {
-                        setIsCustomSize(!!checked)
-                        if (checked) setOptionValues({})
-                      }}
-                    />
-                    Custom size
-                  </label>
-                )}
-
-                {selectedProduct && isSintraCustom ? (
-                  <SintraBoardCustomFields
-                    width={customWidth}
-                    onWidthChange={setCustomWidth}
-                    height={customHeight}
-                    onHeightChange={setCustomHeight}
-                    thickness={customThickness}
-                    onThicknessChange={setCustomThickness}
-                    backToBack={customBackToBack}
-                    onBackToBackChange={setCustomBackToBack}
-                    onClear={handleClearCurrent}
-                  />
+          {category && categoryMeta && (
+            <Card key={category} className="animate-in duration-200 fade-in-0 slide-in-from-top-1 motion-reduce:animate-none">
+              <CardHeader>
+                <OrderFormSectionHeader
+                  icon={SlidersHorizontalIcon}
+                  title={`${categoryMeta.label} quote`}
+                  description={
+                    isStickerLike
+                      ? "Choose a product, then a size — every package is quoted."
+                      : category === "Sintra"
+                        ? "Choose a product, then a standard or custom size."
+                        : "Choose a product and options, then a size."
+                  }
+                />
+              </CardHeader>
+              <CardContent className="flex flex-col gap-5">
+                {noProducts ? (
+                  <Empty className="border">
+                    <EmptyHeader>
+                      <EmptyMedia variant="icon">
+                        <PackageSearchIcon />
+                      </EmptyMedia>
+                      <EmptyTitle>No active {category} products</EmptyTitle>
+                      <EmptyDescription>Add an active product in this category to get a quotation.</EmptyDescription>
+                    </EmptyHeader>
+                  </Empty>
                 ) : (
                   <>
-                    {selectedProduct && category === "Tarpaulin" && showsDimensions && (
-                      <QuickSizeChips
-                        sizes={quickSizes ?? []}
-                        isLoading={categoriesLoading}
-                        onSelect={handleSelectTarpaulinSize}
-                      />
+                    <ProductPicker
+                      id="calculator-product"
+                      products={categoryProducts}
+                      value={productId}
+                      onChange={handleProductChange}
+                    />
+
+                    {category === "Sticker" && (
+                      <>
+                        <QuickSizeChips sizes={quickSizes ?? []} isLoading={categoriesLoading} onSelect={handleSelectStickerSize} />
+                        <StickerQuotationFields
+                          width={stickerWidth}
+                          onWidthChange={setStickerWidth}
+                          height={stickerHeight}
+                          onHeightChange={setStickerHeight}
+                          unit={stickerUnit}
+                          onUnitChange={setStickerUnit}
+                          candidates={stickerCandidates}
+                          onClear={handleClearCurrent}
+                        />
+                      </>
                     )}
 
-                    {selectedProduct && showsDimensions && (
-                      <Field>
-                        <FieldLabel>Size</FieldLabel>
-                        <div className="flex items-center gap-2">
-                          <Input
-                            type="number"
-                            min={0}
-                            step="0.01"
-                            value={width}
-                            onChange={(event) => setWidth(event.target.value)}
-                            placeholder="Width"
-                            className="w-20"
+                    {category === "Laminated Sticker" && (
+                      <>
+                        <QuickSizeChips sizes={quickSizes ?? []} isLoading={categoriesLoading} onSelect={handleSelectStickerSize} />
+                        <LaminatedStickerQuotationFields
+                          width={stickerWidth}
+                          onWidthChange={setStickerWidth}
+                          height={stickerHeight}
+                          onHeightChange={setStickerHeight}
+                          unit={stickerUnit}
+                          onUnitChange={setStickerUnit}
+                          candidates={laminatedCandidates}
+                          showAmount
+                          onClear={handleClearCurrent}
+                        />
+                      </>
+                    )}
+
+                    {(category === "Tarpaulin" || category === "Sintra") && selectedProduct && (
+                      <>
+                        {category === "Sintra" && (
+                          <Field>
+                            <FieldLabel htmlFor="calculator-sintra-mode">Size</FieldLabel>
+                            <ToggleGroup
+                              id="calculator-sintra-mode"
+                              aria-label="Sintra size mode"
+                              value={[isCustomSize ? "custom" : "standard"]}
+                              onValueChange={(next) => {
+                                const value = next[0]
+                                if (!value) return
+                                const custom = value === "custom"
+                                setIsCustomSize(custom)
+                                if (custom) setOptionValues({})
+                              }}
+                              className={cn(SEGMENT_TRACK_CLASS, "w-fit")}
+                            >
+                              <Toggle value="standard" className={SEGMENT_CLASS}>
+                                Standard sizes
+                              </Toggle>
+                              <Toggle value="custom" className={SEGMENT_CLASS}>
+                                Custom size
+                              </Toggle>
+                            </ToggleGroup>
+                          </Field>
+                        )}
+
+                        {!isSintraCustom && (
+                          <ProductOptionsFields
+                            product={selectedProduct}
+                            values={optionValues}
+                            onChange={(optionId, value) => setOptionValues((prev) => ({ ...prev, [optionId]: value }))}
                           />
-                          <span className="text-sm text-muted-foreground">×</span>
-                          <Input
-                            type="number"
-                            min={0}
-                            step="0.01"
-                            value={height}
-                            onChange={(event) => setHeight(event.target.value)}
-                            placeholder="Height"
-                            className="w-20"
+                        )}
+
+                        {isSintraCustom ? (
+                          <SintraBoardCustomFields
+                            width={customWidth}
+                            onWidthChange={setCustomWidth}
+                            height={customHeight}
+                            onHeightChange={setCustomHeight}
+                            thickness={customThickness}
+                            onThicknessChange={setCustomThickness}
+                            backToBack={customBackToBack}
+                            onBackToBackChange={setCustomBackToBack}
+                            onClear={handleClearCurrent}
                           />
-                          <Select
-                            value={dimensionUnit}
-                            onValueChange={(value) => setDimensionUnit(value as LengthUnit)}
-                          >
-                            <SelectTrigger className="w-24">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {LENGTH_UNITS.map((unit) => (
-                                <SelectItem key={unit} value={unit}>
-                                  {unit}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <Button type="button" variant="ghost" size="sm" onClick={handleClearCurrent}>
-                            Clear
-                          </Button>
-                        </div>
-                      </Field>
-                    )}
+                        ) : (
+                          <>
+                            {category === "Tarpaulin" && showsDimensions && (
+                              <QuickSizeChips
+                                sizes={quickSizes ?? []}
+                                isLoading={categoriesLoading}
+                                onSelect={handleSelectTarpaulinSize}
+                              />
+                            )}
 
-                    {selectedProduct && resolution?.kind === "none" && (
-                      <FieldDescription>This product has no configured pricing yet.</FieldDescription>
-                    )}
+                            {showsDimensions && (
+                              <Field>
+                                <FieldLabel htmlFor="calculator-width">Size</FieldLabel>
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <Input
+                                    id="calculator-width"
+                                    type="number"
+                                    inputMode="decimal"
+                                    min={0}
+                                    step="0.01"
+                                    value={width}
+                                    onChange={(event) => setWidth(event.target.value)}
+                                    placeholder="Width"
+                                    aria-label="Width"
+                                    className="w-24"
+                                  />
+                                  <span className="text-sm text-muted-foreground">×</span>
+                                  <Input
+                                    type="number"
+                                    inputMode="decimal"
+                                    min={0}
+                                    step="0.01"
+                                    value={height}
+                                    onChange={(event) => setHeight(event.target.value)}
+                                    placeholder="Height"
+                                    aria-label="Height"
+                                    className="w-24"
+                                  />
+                                  <Select value={dimensionUnit} onValueChange={(value) => setDimensionUnit(value as LengthUnit)}>
+                                    <SelectTrigger className="w-24" aria-label="Unit">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {LENGTH_UNITS.map((unit) => (
+                                        <SelectItem key={unit} value={unit}>
+                                          {unit}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                  <Button type="button" variant="ghost" size="sm" onClick={handleClearCurrent}>
+                                    <RotateCcwIcon data-icon="inline-start" />
+                                    Start over
+                                  </Button>
+                                </div>
+                              </Field>
+                            )}
 
-                    {selectedProduct && resolution?.kind === "package" && (
-                      <FieldDescription>
-                        This product uses package pricing — pick a package on the order form.
-                      </FieldDescription>
-                    )}
-
-                    {selectedProduct && showsDimensions && !hasValidSize && (
-                      <FieldDescription>Enter width and height to see a quote.</FieldDescription>
-                    )}
-
-                    {quote !== null && (
-                      <p className="text-2xl font-semibold">{formatCurrency(quote)}</p>
+                            {resolution?.kind === "none" && <Hint>This product has no configured pricing yet.</Hint>}
+                            {resolution?.kind === "package" && (
+                              <Hint>This product uses package pricing — pick a package on the order form.</Hint>
+                            )}
+                            {showsDimensions && !hasValidSize && <Hint>Enter a width and height to see the price.</Hint>}
+                          </>
+                        )}
+                      </>
                     )}
                   </>
                 )}
-              </>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+
+        {/* Quote panel: the answer and what to do with it, always in view on desktop. */}
+        <Card className="lg:sticky lg:top-20 lg:self-start">
+          <CardHeader>
+            <OrderFormSectionHeader icon={ReceiptTextIcon} title="Quote" />
+          </CardHeader>
+          <CardContent className="flex flex-col gap-4">
+            {!category ? (
+              <p className="text-sm text-muted-foreground">Pick a category to start a quote.</p>
+            ) : isStickerLike ? (
+              stickerSummary ? (
+                <div className="flex flex-col gap-1">
+                  <span className="text-2xl leading-tight font-semibold tabular-nums">{stickerSummary.size}</span>
+                  <span className="text-sm text-muted-foreground">
+                    {stickerSummary.count} {stickerSummary.count === 1 ? stickerSummary.noun : `${stickerSummary.noun}s`} quoted —
+                    see the list on the left.
+                  </span>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">Enter a size to quote every package.</p>
+              )
+            ) : quote !== null ? (
+              <div key={quote} className="flex animate-in flex-col gap-1 duration-200 fade-in-0 motion-reduce:animate-none">
+                <span className="text-3xl leading-none font-semibold tabular-nums">{formatCurrency(quote)}</span>
+                {quoteBreakdown && <span className="text-sm text-muted-foreground tabular-nums">{quoteBreakdown}</span>}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                {selectedProduct ? "Finish the details to see the price." : "Choose a product to see the price."}
+              </p>
+            )}
+
+            {category && (
+              <div className="flex flex-col gap-2 border-t pt-4">
+                {canCreateOrder && (
+                  <Button className="w-full" disabled={!canCreate} onClick={handleCreateOrder}>
+                    <PlusIcon data-icon="inline-start" />
+                    New order
+                  </Button>
+                )}
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+                  <Button type="button" variant="outline" disabled={!hasQuote} onClick={handleCopyQuote}>
+                    <CopyIcon data-icon="inline-start" />
+                    Copy quote
+                  </Button>
+                  {isStickerLike && (
+                    <Button type="button" variant="outline" disabled={!hasQuote} onClick={handleCopyQuoteWithShipping}>
+                      <TruckIcon data-icon="inline-start" />
+                      Copy + shipping
+                    </Button>
+                  )}
+                </div>
+              </div>
             )}
           </CardContent>
         </Card>
-      )}
-
-      {category && (
-        <div className="flex gap-2">
-          <Button type="button" variant="outline" disabled={!hasQuote} onClick={handleCopyQuote}>
-            <CopyIcon data-icon="inline-start" />
-            Copy quote
-          </Button>
-          {(category === "Sticker" || category === "Laminated Sticker") && (
-            <Button type="button" variant="outline" disabled={!hasQuote} onClick={handleCopyQuoteWithShipping}>
-              <TruckIcon data-icon="inline-start" />
-              Copy quote + SF
-            </Button>
-          )}
-          {canCreateOrder && (
-            <Button disabled={!canCreate} onClick={handleCreateOrder}>
-              <PlusIcon data-icon="inline-start" />
-              New Order
-            </Button>
-          )}
-        </div>
-      )}
+      </div>
     </div>
+  )
+}
+
+/** One product Select for every category (was copy-pasted per category). */
+function ProductPicker({
+  id,
+  products,
+  value,
+  onChange,
+}: {
+  id: string
+  products: Product[]
+  value: string
+  onChange: (id: string) => void
+}) {
+  return (
+    <Field>
+      <FieldLabel htmlFor={id}>Product</FieldLabel>
+      <Select value={value} onValueChange={(next) => onChange(next ?? "")}>
+        <SelectTrigger id={id} className="w-full">
+          <SelectValue placeholder="Select a product">
+            {(selected: string | null) => products.find((product) => product.id === selected)?.name ?? "Select a product"}
+          </SelectValue>
+        </SelectTrigger>
+        <SelectContent>
+          {products.map((product) => (
+            <SelectItem key={product.id} value={product.id}>
+              {product.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </Field>
+  )
+}
+
+/** Small muted callout for "what to do next" hints — same style as the order form's notes. */
+function Hint({ children }: { children: ReactNode }) {
+  return (
+    <p className="flex items-start gap-2 rounded-md bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
+      <InfoIcon aria-hidden className="mt-0.5 size-4 shrink-0" />
+      {children}
+    </p>
   )
 }

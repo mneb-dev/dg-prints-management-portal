@@ -1,17 +1,6 @@
-import { TriangleAlertIcon } from "lucide-react"
+import { XCircleIcon } from "lucide-react"
 
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogMedia,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
-import { Spinner } from "@/components/ui/spinner"
+import { ConfirmDialog, Name } from "@/components/confirm-dialog"
 import type { Order } from "@/lib/orders"
 
 export function CancelOrderDialog({
@@ -26,31 +15,18 @@ export function CancelOrderDialog({
   onConfirm: (order: Order) => void
 }) {
   return (
-    <AlertDialog open={!!order} onOpenChange={onOpenChange}>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogMedia className="bg-status-warning/10 text-status-warning">
-            <TriangleAlertIcon />
-          </AlertDialogMedia>
-          <AlertDialogTitle>Cancel order</AlertDialogTitle>
-          <AlertDialogDescription>
-            Are you sure you want to cancel order{" "}
-            <span className="font-medium text-foreground">{order?.orderNumber}</span>? The order
-            will be marked as cancelled but kept in your records.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
-          <AlertDialogAction
-            variant="destructive"
-            disabled={isPending}
-            onClick={() => order && onConfirm(order)}
-          >
-            {isPending && <Spinner data-icon="inline-start" />}
-            {isPending ? "Cancelling..." : "Cancel Order"}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+    <ConfirmDialog
+      open={!!order}
+      onOpenChange={onOpenChange}
+      tone="danger"
+      icon={XCircleIcon}
+      title={<>Cancel order <Name>{order?.orderNumber}</Name>?</>}
+      description="It stays in your records, marked as cancelled."
+      confirmLabel="Yes, cancel it"
+      pendingLabel="Cancelling…"
+      cancelLabel="No, keep it"
+      isPending={isPending}
+      onConfirm={() => order && onConfirm(order)}
+    />
   )
 }

@@ -1,16 +1,6 @@
 import { FileTextIcon } from "lucide-react"
 
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogMedia,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
+import { ConfirmDialog } from "@/components/confirm-dialog"
 
 export function SaveOrderDraftDialog({
   open,
@@ -24,26 +14,17 @@ export function SaveOrderDraftDialog({
   onSaveDraft: () => void
 }) {
   return (
-    <AlertDialog open={open} onOpenChange={onOpenChange}>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogMedia className="bg-primary/10 text-primary">
-            <FileTextIcon />
-          </AlertDialogMedia>
-          <AlertDialogTitle>Leave without saving?</AlertDialogTitle>
-          <AlertDialogDescription>
-            This order hasn't been created yet. You can save it as a draft to pick up later, or
-            discard it for good.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>Keep editing</AlertDialogCancel>
-          <AlertDialogAction variant="destructive-solid" onClick={onDiscard}>
-            Discard
-          </AlertDialogAction>
-          <AlertDialogAction onClick={onSaveDraft}>Save as Draft</AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+    <ConfirmDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      tone="danger"
+      icon={FileTextIcon}
+      title="Leave without saving?"
+      description="This order isn't created yet. Save it as a draft to pick up later, or discard it."
+      confirmLabel="Yes, discard"
+      cancelLabel="No, stay"
+      secondaryAction={{ label: "Save draft", onClick: onSaveDraft }}
+      onConfirm={onDiscard}
+    />
   )
 }

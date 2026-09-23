@@ -2,6 +2,7 @@
 
 import { useMemo } from "react"
 import { cva, type VariantProps } from "class-variance-authority"
+import { CircleAlertIcon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Label } from "@/components/ui/label"
@@ -195,7 +196,7 @@ function FieldError({
     ]
 
     if (uniqueErrors?.length == 1) {
-      return uniqueErrors[0]?.message
+      return uniqueErrors[0]?.message ?? null
     }
 
     return (
@@ -212,14 +213,27 @@ function FieldError({
     return null
   }
 
+  // A single message gets a leading alert icon; the whole error eases in instead of popping, so a
+  // newly-invalid field draws the eye without a jarring layout jump.
+  const isList = !children && (errors?.length ?? 0) > 1
   return (
     <div
       role="alert"
       data-slot="field-error"
-      className={cn("text-sm font-normal text-destructive", className)}
+      className={cn(
+        "animate-in text-sm font-normal text-destructive duration-200 fade-in-0 slide-in-from-top-1 motion-reduce:animate-none",
+        className
+      )}
       {...props}
     >
-      {content}
+      {isList ? (
+        content
+      ) : (
+        <span className="flex items-start gap-1.5">
+          <CircleAlertIcon aria-hidden className="mt-0.5 size-3.5 shrink-0" />
+          <span>{content}</span>
+        </span>
+      )}
     </div>
   )
 }

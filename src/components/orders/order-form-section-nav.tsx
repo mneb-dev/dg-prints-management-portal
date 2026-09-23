@@ -1,10 +1,40 @@
 import { useEffect, useState } from "react"
+import { CheckIcon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+
+export type OrderFormSectionState = "complete" | "error" | "optional"
 
 export type OrderFormSection = {
   id: string
   label: string
+  /** Progress marker: ✓ when filled in, a red dot when it has a validation error, "optional" for
+   * a section that's off (e.g. Shipping), or an empty ring when still to do (undefined). */
+  state?: OrderFormSectionState
+}
+
+function SectionMarker({ state }: { state?: OrderFormSectionState }) {
+  if (state === "complete") {
+    return <CheckIcon aria-hidden className="size-3.5 shrink-0 stroke-3 text-status-success" />
+  }
+  if (state === "error") {
+    return (
+      <span aria-hidden className="flex size-3.5 shrink-0 items-center justify-center">
+        <span className="size-2 rounded-full bg-destructive" />
+      </span>
+    )
+  }
+  return (
+    <span aria-hidden className="flex size-3.5 shrink-0 items-center justify-center">
+      <span className="size-2 rounded-full border border-muted-foreground/40" />
+    </span>
+  )
+}
+
+const STATE_LABELS: Record<OrderFormSectionState, string> = {
+  complete: "complete",
+  error: "has errors",
+  optional: "optional",
 }
 
 // Mirrors the active-state treatment of the app's own sidebar nav (see app-sidebar.tsx):
@@ -13,9 +43,14 @@ export type OrderFormSection = {
 export function OrderFormSectionNav({ sections }: { sections: OrderFormSection[] }) {
   const [activeId, setActiveId] = useState(sections[0]?.id)
 
+  // Only the ids matter for scroll tracking — keyed on them so a state change (✓, error dot)
+  // on every keystroke doesn't tear down and re-attach the scroll listeners.
+  const sectionIdsKey = sections.map((section) => section.id).join("|")
+
   useEffect(() => {
-    const elements = sections
-      .map((section) => document.getElementById(section.id))
+    const elements = sectionIdsKey
+      .split("|")
+      .map((id) => document.getElementById(id))
       .filter((element): element is HTMLElement => !!element)
 
     if (elements.length === 0) return
@@ -50,7 +85,7 @@ export function OrderFormSectionNav({ sections }: { sections: OrderFormSection[]
       window.removeEventListener("scroll", onScroll)
       window.removeEventListener("resize", onScroll)
     }
-  }, [sections])
+  }, [sectionIdsKey])
 
   return (
     <nav aria-label="Order form sections" className="hidden lg:block">
@@ -67,13 +102,19 @@ export function OrderFormSectionNav({ sections }: { sections: OrderFormSection[]
                   document.getElementById(section.id)?.scrollIntoView({ behavior: "smooth", block: "start" })
                 }}
                 className={cn(
-                  "relative block rounded-md py-1.5 pr-2 pl-3 text-sm transition-colors",
+                  "relative flex items-center gap-2 rounded-md py-1.5 pr-2 pl-3 text-sm transition-colors",
                   isActive
                     ? "bg-accent font-medium text-accent-foreground after:absolute after:inset-y-1.5 after:left-0 after:w-0.5 after:rounded-full after:bg-primary"
-                    : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+                    : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
+                  section.state === "error" && !isActive && "text-destructive"
                 )}
               >
-                {section.label}
+                <SectionMarker state={section.state} />
+                <span className="leading-none">{section.label}</span>
+                {section.state === "optional" ? (
+                  <span className="ml-auto text-xs font-normal text-muted-foreground">optional</span>
+                ) : null}
+                {section.state ? <span className="sr-only">({STATE_LABELS[section.state]})</span> : null}
               </a>
             </li>
           )

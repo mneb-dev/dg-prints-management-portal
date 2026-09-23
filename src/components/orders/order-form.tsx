@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { format, parseISO } from "date-fns"
 import {
+  CircleAlertIcon,
   CopyIcon,
   ExternalLinkIcon,
   PlusIcon,
@@ -13,10 +14,12 @@ import {
 import { useNavigate } from "react-router-dom"
 import { toast } from "sonner"
 
+import { OrderFormSectionHeader } from "@/components/orders/order-form-section-header"
+
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
-import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardAction, CardContent, CardHeader } from "@/components/ui/card"
 import {
   Autocomplete,
   AutocompleteEmpty,
@@ -28,7 +31,8 @@ import {
   AutocompletePrimitive,
 } from "@/components/ui/autocomplete"
 import { CurrencyInput } from "@/components/ui/currency-input"
-import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
+import { CharCount } from "@/components/char-count"
+import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import {
@@ -78,6 +82,7 @@ import { useSettings } from "@/lib/settings"
 import type { SintraThickness } from "@/lib/sintra-board-pricing"
 import type { StickerUnit } from "@/lib/sticker-quotation"
 import { useUserOptions } from "@/lib/users"
+import { cn, formatCurrency } from "@/lib/utils"
 import {
   isValidPhMobileNumber,
   LAYOUT_BY_REQUIRED_MESSAGE,
@@ -190,7 +195,7 @@ function fieldsFromOrder(order: Order): OrderDraftFields {
     layoutFee: String(order.layoutFee),
     layoutBy: order.layoutBy ?? "",
     shippingEnabled: !!shipping,
-    sameName: shipping ? shipping.name === order.customerName : true,
+    sameName: shipping ? shipping.name === order.customerName : false,
     samePhone: false,
     shippingName: shipping?.name ?? "",
     shippingPhone: shipping?.phone ?? "",
@@ -225,6 +230,46 @@ export type OrderFormSeed = {
   customBackToBack?: boolean
 }
 
+/** Line item enter/exit animation length — kept in step with the wrapper's `duration-300`. */
+const ITEM_EXIT_MS = 300
+
+/** Muted "*" for a field whose requirement currently applies (e.g. Layout by once there's a
+ * layout fee) — shown conditionally, so nothing looks required when it isn't. */
+function RequiredMark() {
+  return (
+    <>
+      <span aria-hidden className="-ml-1 text-destructive/70">
+        *
+      </span>
+      <span className="sr-only">(required)</span>
+    </>
+  )
+}
+
+const SECTION_ORDER = [
+  "order-section-customer",
+  "order-section-products",
+  "order-section-shipping",
+  "order-section-pricing",
+  "order-section-payment",
+] as const
+
+/** Error keys in on-page order: by section, then as validation produced them within it. */
+function orderErrorKeys(keys: string[]): string[] {
+  return [...keys].sort(
+    (a, b) => SECTION_ORDER.indexOf(sectionForErrorKey(a)) - SECTION_ORDER.indexOf(sectionForErrorKey(b))
+  )
+}
+
+/** Which form section a validation error key belongs to (see handleSubmit's nextErrors keys). */
+function sectionForErrorKey(key: string): (typeof SECTION_ORDER)[number] {
+  if (key.startsWith("item-")) return "order-section-products"
+  if (key.startsWith("shipping")) return "order-section-shipping"
+  if (key === "customerName" || key === "customerPhone") return "order-section-customer"
+  if (key === "layoutBy" || key === "notes") return "order-section-pricing"
+  return "order-section-payment"
+}
+
 export function OrderForm({
   order,
   initialValues,
@@ -238,7 +283,12 @@ export function OrderForm({
   const { products } = useProductCatalog()
   const { hotProductIds: hotProductIdList } = useHotProductIds()
   const hotProductIds = useMemo(() => new Set(hotProductIdList), [hotProductIdList])
-  const { customerNames, topCustomerNames, customerDetailsByName } = useCustomerRankings()
+  const {
+    customerNames,
+    topCustomerNames,
+    customerDetailsByName,
+    windowDays: customerWindowDays,
+  } = useCustomerRankings()
   const { addOrder, updateOrder } = useOrderActions()
   const { categories } = useCategories()
   const { settings } = useSettings()
@@ -259,13 +309,19 @@ export function OrderForm({
   const [openItemIds, setOpenItemIds] = useState<Set<string>>(
     () => new Set(items.length === 1 ? items.map((item) => item.id) : [])
   )
+  // Items mid exit-animation (still rendered, fading out) and items added via "Add another item"
+  // (the only ones that play the enter animation — not items present on load or from a draft).
+  const [removingItemIds, setRemovingItemIds] = useState<Set<string>>(() => new Set())
+  const addedItemIdsRef = useRef<Set<string>>(new Set())
   const [discount, setDiscount] = useState("0")
   const [additionalFees, setAdditionalFees] = useState("0")
   const [notes, setNotes] = useState("")
   const [layoutFee, setLayoutFee] = useState("0")
   const [layoutBy, setLayoutBy] = useState("")
   const [shippingEnabled, setShippingEnabled] = useState(false)
-  const [sameName, setSameName] = useState(true)
+  // Off by default: the recipient is often someone other than the customer, so the name is typed
+  // in unless the user opts in (or the data shows it matches — see the cases below).
+  const [sameName, setSameName] = useState(false)
   const [samePhone, setSamePhone] = useState(false)
   const [shippingName, setShippingName] = useState("")
   const [shippingPhone, setShippingPhone] = useState("")
@@ -372,15 +428,41 @@ export function OrderForm({
 
   function addItem() {
     const next = createEmptyLineItemDraft()
+    addedItemIdsRef.current.add(next.id)
     setItems((prev) => [...prev, next])
     // A freshly-added item is empty, so it always starts expanded regardless of how many
     // other items are already collapsed.
     setOpenItemIds((prev) => new Set(prev).add(next.id))
+    // Bring the new card into view once its enter animation has settled, so the user lands on it
+    // instead of having to scroll down to find it.
+    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    window.setTimeout(
+      () =>
+        document
+          .querySelector(`[data-item-id="${next.id}"]`)
+          ?.scrollIntoView({ behavior: prefersReducedMotion ? "auto" : "smooth", block: "nearest" }),
+      prefersReducedMotion ? 0 : ITEM_EXIT_MS
+    )
   }
 
-  function removeItemAt(index: number) {
-    setItems((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== index) : prev))
-    clearAllItemErrors()
+  // Removal plays an exit animation first (card fades/scales out while its height and the gap
+  // below it collapse), then drops the item once it's finished. Reduced motion removes at once.
+  function removeItemById(id: string) {
+    if (removingItemIds.has(id)) return
+    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    setRemovingItemIds((prev) => new Set(prev).add(id))
+    window.setTimeout(
+      () => {
+        setItems((prev) => (prev.length > 1 ? prev.filter((draft) => draft.id !== id) : prev))
+        clearAllItemErrors()
+        setRemovingItemIds((prev) => {
+          const next = new Set(prev)
+          next.delete(id)
+          return next
+        })
+      },
+      prefersReducedMotion ? 0 : ITEM_EXIT_MS
+    )
   }
 
   useEffect(() => {
@@ -508,6 +590,9 @@ export function OrderForm({
   })
 
   const subtotal = resolvedItems.reduce((sum, resolved) => sum + resolved.lineTotal, 0)
+  // A typed name that matches a known customer (case-sensitive, same lookup the suggestion pick
+  // uses) — drives the "Returning customer · N orders" hint under the name field.
+  const returningCustomer = customerDetailsByName.get(customerName.trim()) ?? null
   const stickerLabelSubtotal = resolvedItems.reduce((sum, resolved) => {
     const category = resolved.product?.category ?? resolved.frozenOriginal?.productCategory
     return isStickerLabelCategory(category) ? sum + resolved.lineTotal : sum
@@ -587,6 +672,38 @@ export function OrderForm({
     }
     const dp = Number(downPayment) || 0
     return { status: "partially_paid", method, downPayment: dp, balance: Math.max(total - dp, 0) }
+  }
+
+  /** Scrolls to and focuses the field behind an error key (opening its item card first if it's
+   * collapsed). Falls back to the first focusable control in the section when the field has no
+   * aria-invalid control of its own (e.g. the channel toggle group). */
+  function focusErrorField(key: string) {
+    const itemMatch = /^item-(\d+)-/.exec(key)
+    const itemId = itemMatch ? items[Number(itemMatch[1])]?.id : undefined
+    if (itemId) setOpenItemIds((prev) => (prev.has(itemId) ? prev : new Set(prev).add(itemId)))
+
+    requestAnimationFrame(() => {
+      const container = itemMatch
+        ? document.querySelector<HTMLElement>(`[data-line-item="${itemMatch[1]}"]`)
+        : document.getElementById(sectionForErrorKey(key))
+      if (!container) return
+      const target =
+        container.querySelector<HTMLElement>('[aria-invalid="true"]') ??
+        container.querySelector<HTMLElement>("input:not([disabled]), button:not([disabled]), [tabindex='0']")
+      container.scrollIntoView({ behavior: "smooth", block: "start" })
+      target?.focus({ preventScroll: true })
+    })
+  }
+
+  // Phone format is checked as soon as the field is left, so a typo shows up while the user is
+  // still there — not only after pressing save. An empty or now-valid value clears it.
+  function validatePhoneOnBlur(key: "customerPhone" | "shippingPhone", value: string) {
+    const trimmed = value.trim()
+    if (trimmed && !isValidPhMobileNumber(trimmed)) {
+      setErrors((prev) => ({ ...prev, [key]: PHONE_FORMAT_MESSAGE }))
+    } else if (errors[key] === PHONE_FORMAT_MESSAGE) {
+      clearError(key)
+    }
   }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -691,6 +808,10 @@ export function OrderForm({
       if (erroredItemIds.size > 0) {
         setOpenItemIds((prev) => new Set([...prev, ...erroredItemIds]))
       }
+      // Take the user straight to the first problem (scroll + focus), after the frame that
+      // expands any collapsed items so the field is actually there.
+      const [firstErrorKey] = orderErrorKeys(Object.keys(nextErrors))
+      if (firstErrorKey) focusErrorField(firstErrorKey)
       return
     }
     setErrors({})
@@ -779,24 +900,68 @@ export function OrderForm({
     confirmNavigation()
   }
 
+  const submitLabel = isSubmitting ? "Saving…" : order ? "Save changes" : "Create order"
+
+  function handleCancel() {
+    if (isDirty) setPendingNav(-1)
+    else navigate(-1)
+  }
+
+  // Progress markers for the section nav — derived from the values already in state and the
+  // current validation errors; no extra validation.
+  const errorKeys = Object.keys(errors)
+  const orderedErrorKeys = orderErrorKeys(errorKeys)
+  const hasErrorIn = (section: string) => errorKeys.some((key) => sectionForErrorKey(key) === section)
+  const shippingComplete =
+    shippingEnabled &&
+    !!(effectiveSameName ? customerName : shippingName).trim() &&
+    !!shippingPhone.trim() &&
+    !!shippingAddress.trim()
+  const productsComplete = resolvedItems.every(
+    (resolved) => resolved.isMissingProduct || (!!resolved.product && resolved.lineTotal > 0)
+  )
+
   const sections: OrderFormSection[] = [
-    { id: "order-section-customer", label: "Customer" },
-    { id: "order-section-products", label: "Products" },
-    { id: "order-section-shipping", label: "Shipping" },
-    { id: "order-section-pricing", label: "Pricing" },
-    { id: "order-section-payment", label: "Payment" },
+    {
+      id: "order-section-customer",
+      label: "Customer",
+      state: hasErrorIn("order-section-customer") ? "error" : customerName.trim() ? "complete" : undefined,
+    },
+    {
+      id: "order-section-products",
+      label: "Products",
+      state: hasErrorIn("order-section-products") ? "error" : productsComplete ? "complete" : undefined,
+    },
+    {
+      id: "order-section-shipping",
+      label: "Shipping",
+      state: hasErrorIn("order-section-shipping")
+        ? "error"
+        : !shippingEnabled
+          ? "optional"
+          : shippingComplete
+            ? "complete"
+            : undefined,
+    },
+    {
+      id: "order-section-pricing",
+      label: "Fees & discount",
+      state: hasErrorIn("order-section-pricing") ? "error" : "complete",
+    },
+    {
+      id: "order-section-payment",
+      label: "Payment",
+      state: hasErrorIn("order-section-payment") ? "error" : channel ? "complete" : undefined,
+    },
     ...(canEditMetadata ? [{ id: "order-section-metadata", label: "Metadata" }] : []),
   ]
 
   return (
-    <form onSubmit={handleSubmit} className="grid gap-6 lg:grid-cols-[1fr_360px]">
+    <form onSubmit={handleSubmit} noValidate className="grid gap-6 lg:grid-cols-[1fr_360px]">
       <div className="flex flex-col gap-4">
-        <Card id="order-section-customer" className="scroll-mt-24 shadow-xs">
+        <Card id="order-section-customer" className="scroll-mt-24">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <UserIcon className="size-4 text-muted-foreground" />
-              Customer
-            </CardTitle>
+            <OrderFormSectionHeader icon={UserIcon} title="Customer" description="Who the order is for" />
           </CardHeader>
           <CardContent>
             <FieldGroup>
@@ -831,7 +996,8 @@ export function OrderForm({
                             <span className="flex flex-1 items-center gap-1.5">
                               {name}
                               {topCustomerNames.has(name) && (
-                                <Badge variant="warning" className="h-4 px-1.5 text-[10px]">
+                                <Badge variant="secondary" className="h-4 gap-1 px-1.5 text-[10px]">
+                                  <span aria-hidden className="size-1.5 rounded-full bg-order-status-gold" />
                                   Top
                                 </Badge>
                               )}
@@ -841,7 +1007,31 @@ export function OrderForm({
                       </AutocompletePrimitive.List>
                     </AutocompletePopup>
                   </Autocomplete>
-                  <FieldError>{errors.customerName}</FieldError>
+                  {errors.customerName ? (
+                    <FieldError>{errors.customerName}</FieldError>
+                  ) : customerName.trim() ? (
+                    <FieldDescription
+                      key={returningCustomer ? "returning" : "new"}
+                      className="flex animate-in items-center gap-1.5 text-xs duration-200 fade-in-0 motion-reduce:animate-none"
+                    >
+                      {returningCustomer ? (
+                        <>
+                          <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-order-status-teal" />
+                          <span>
+                            Returning customer · {returningCustomer.orderCount}{" "}
+                            {returningCustomer.orderCount === 1 ? "order" : "orders"} ·{" "}
+                            {formatCurrency(returningCustomer.totalSpent)}
+                            {customerWindowDays ? ` in the last ${customerWindowDays} days` : ""}
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-muted-foreground/40" />
+                          <span>New customer</span>
+                        </>
+                      )}
+                    </FieldDescription>
+                  ) : null}
                 </Field>
                 <Field
                   className={effectiveSamePhone ? "opacity-70" : undefined}
@@ -866,6 +1056,8 @@ export function OrderForm({
                       setCustomerPhone(event.target.value)
                       clearError("customerPhone")
                     }}
+                    onBlur={() => validatePhoneOnBlur("customerPhone", customerPhone)}
+                    inputMode="tel"
                     disabled={effectiveSamePhone}
                     placeholder="09XX XXX XXXX"
                     aria-invalid={!!errors.customerPhone}
@@ -877,9 +1069,27 @@ export function OrderForm({
           </CardContent>
         </Card>
 
-        {resolvedItems.map((resolved, index) => (
+        {resolvedItems.map((resolved, index) => {
+          const itemId = resolved.draft.id
+          const isRemoving = removingItemIds.has(itemId)
+          return (
+          // Exit: grid-rows 1fr→0fr collapses the height, -mb-4 closes the parent's gap-4, while
+          // the card fades and scales down. Enter (added items only): fade + slide down into place.
+          <div
+            key={itemId}
+            data-line-item={index}
+            data-item-id={itemId}
+            inert={isRemoving}
+            aria-hidden={isRemoving || undefined}
+            className={cn(
+              "grid transition-[grid-template-rows,opacity,scale,margin] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
+              isRemoving ? "pointer-events-none -mb-4 grid-rows-[0fr] scale-[0.98] opacity-0" : "grid-rows-[1fr]",
+              addedItemIdsRef.current.has(itemId) &&
+                "animate-in fade-in-0 slide-in-from-top-2 zoom-in-[0.98] duration-300 motion-reduce:animate-none"
+            )}
+          >
+          <div className={cn("min-h-0", isRemoving && "overflow-hidden")}>
           <OrderLineItemCard
-            key={resolved.draft.id}
             id={index === 0 ? "order-section-products" : undefined}
             index={index}
             products={products}
@@ -889,7 +1099,7 @@ export function OrderForm({
             draft={resolved.draft}
             computed={resolved.computed}
             onChange={(next) => updateItemAt(index, next)}
-            onRemove={items.length > 1 ? () => removeItemAt(index) : undefined}
+            onRemove={items.length - removingItemIds.size > 1 ? () => removeItemById(itemId) : undefined}
             isMissingProduct={resolved.isMissingProduct}
             errors={{
               product: errors[`item-${index}-product`],
@@ -909,19 +1119,28 @@ export function OrderForm({
             }
             canCollapse={!!resolved.product}
           />
-        ))}
+          </div>
+          </div>
+          )
+        })}
 
-        <Button type="button" variant="outline" size="sm" className="self-start" onClick={addItem}>
+        <Button
+          type="button"
+          variant="outline"
+          className="h-10 w-full border-dashed text-muted-foreground hover:border-primary/40 hover:text-foreground"
+          onClick={addItem}
+        >
           <PlusIcon data-icon="inline-start" />
-          Add another order
+          Add another item
         </Button>
 
-        <Card id="order-section-shipping" className="scroll-mt-24 shadow-xs">
+        <Card id="order-section-shipping" className="scroll-mt-24">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <TruckIcon className="size-4 text-muted-foreground" />
-              Shipping
-            </CardTitle>
+            <OrderFormSectionHeader
+              icon={TruckIcon}
+              title="Shipping"
+              description="Optional — only for delivered orders"
+            />
             {shippingEnabled && (
               <CardAction className="flex gap-1">
             
@@ -973,6 +1192,7 @@ export function OrderForm({
                 setShippingPhone(value)
                 clearError("shippingPhone")
               }}
+              onPhoneBlur={() => validatePhoneOnBlur("shippingPhone", shippingPhone)}
               address={shippingAddress}
               onAddressChange={(value) => {
                 setShippingAddress(value)
@@ -991,27 +1211,61 @@ export function OrderForm({
           </CardContent>
         </Card>
 
-        <Card id="order-section-pricing" className="scroll-mt-24 shadow-xs">
+        <Card id="order-section-pricing" className="scroll-mt-24">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <TagIcon className="size-4 text-muted-foreground" />
-              Pricing
-            </CardTitle>
+            <OrderFormSectionHeader
+              icon={TagIcon}
+              title="Fees & discount"
+              description="Layout fee, extra fees and discount"
+            />
           </CardHeader>
           <CardContent>
-            <FieldGroup>
+            {/* Three clear pairs: extra fees + why, layout fee + who, then discount. A field's "*"
+                appears only once its rule actually applies (fee > ₱0), so nothing looks required
+                that isn't. */}
+            <div className="flex flex-col gap-4">
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <Field className="sm:col-span-2">
-                  <FieldLabel htmlFor="order-discount">Discount</FieldLabel>
+                <Field>
+                  <FieldLabel htmlFor="order-additional-fees">Additional fees</FieldLabel>
                   <CurrencyInput
-                    id="order-discount"
-                    value={discount}
-                    onChange={(event) => setDiscount(event.target.value)}
+                    id="order-additional-fees"
+                    value={additionalFees}
+                    onChange={(event) => setAdditionalFees(event.target.value)}
                   />
                 </Field>
 
+                <Field data-invalid={!!errors.notes}>
+                  <div className="flex items-baseline justify-between gap-2">
+                    <FieldLabel htmlFor="order-notes">
+                      Fee note
+                      {additionalFeesNum > 0 && <RequiredMark />}
+                    </FieldLabel>
+                    <CharCount value={notes} max={20} />
+                  </div>
+                  <Input
+                    id="order-notes"
+                    value={notes}
+                    onChange={(event) => {
+                      setNotes(event.target.value)
+                      clearError("notes")
+                    }}
+                    placeholder="e.g. Rush fee"
+                    maxLength={20}
+                    aria-invalid={!!errors.notes}
+                  />
+                  {errors.notes ? (
+                    <FieldError>{errors.notes}</FieldError>
+                  ) : (
+                    <FieldDescription className="text-xs">
+                      Why the extra fee — required when fees are above ₱0.
+                    </FieldDescription>
+                  )}
+                </Field>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 border-t pt-4 sm:grid-cols-2">
                 <Field>
-                  <FieldLabel htmlFor="order-layout-fee">Layout Fee</FieldLabel>
+                  <FieldLabel htmlFor="order-layout-fee">Layout fee</FieldLabel>
                   <CurrencyInput
                     id="order-layout-fee"
                     value={layoutFee}
@@ -1023,7 +1277,10 @@ export function OrderForm({
                 </Field>
 
                 <Field data-invalid={!!errors.layoutBy}>
-                  <FieldLabel htmlFor="order-layout-by">Layout By</FieldLabel>
+                  <FieldLabel htmlFor="order-layout-by">
+                    Layout by
+                    {layoutFeeNum > 0 && <RequiredMark />}
+                  </FieldLabel>
                   <Select
                     value={layoutBy}
                     onValueChange={(value) => {
@@ -1053,41 +1310,37 @@ export function OrderForm({
                   </Select>
                   <FieldError>{errors.layoutBy}</FieldError>
                 </Field>
+              </div>
 
+              <div className="grid grid-cols-1 gap-4 border-t pt-4 sm:grid-cols-2">
                 <Field>
-                  <FieldLabel htmlFor="order-additional-fees">Additional Fees</FieldLabel>
+                  <FieldLabel htmlFor="order-discount">Discount</FieldLabel>
                   <CurrencyInput
-                    id="order-additional-fees"
-                    value={additionalFees}
-                    onChange={(event) => setAdditionalFees(event.target.value)}
+                    id="order-discount"
+                    value={discount}
+                    onChange={(event) => setDiscount(event.target.value)}
                   />
-                </Field>
-
-                <Field data-invalid={!!errors.notes}>
-                  <FieldLabel htmlFor="order-notes">Notes</FieldLabel>
-                  <Input
-                    id="order-notes"
-                    value={notes}
-                    onChange={(event) => {
-                      setNotes(event.target.value)
-                      clearError("notes")
-                    }}
-                    maxLength={20}
-                    aria-invalid={!!errors.notes}
-                  />
-                  <FieldError>{errors.notes}</FieldError>
+                  {discountNum > 0 && subtotal > 0 && (
+                    <FieldDescription
+                      className={cn(
+                        "animate-in text-xs duration-200 fade-in-0 motion-reduce:animate-none",
+                        discountNum > subtotal && "text-order-status-gold"
+                      )}
+                    >
+                      {discountNum > subtotal
+                        ? "More than the items' subtotal."
+                        : `≈ ${Math.round((discountNum / subtotal) * 100)}% of the items' subtotal.`}
+                    </FieldDescription>
+                  )}
                 </Field>
               </div>
-            </FieldGroup>
+            </div>
           </CardContent>
         </Card>
 
-        <Card id="order-section-payment" className="scroll-mt-24 shadow-xs">
+        <Card id="order-section-payment" className="scroll-mt-24">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <WalletIcon className="size-4 text-muted-foreground" />
-              Payment
-            </CardTitle>
+            <OrderFormSectionHeader icon={WalletIcon} title="Payment" description="Channel and how much is paid" />
           </CardHeader>
           <CardContent>
             <PaymentFields
@@ -1111,6 +1364,7 @@ export function OrderForm({
                 clearError("downPayment")
               }}
               total={previewTotal}
+              allowRefunded={!!order}
               errors={{
                 channel: errors.channel,
                 paymentMethod: errors.paymentMethod,
@@ -1121,12 +1375,13 @@ export function OrderForm({
         </Card>
 
         {canEditMetadata && (
-          <Card id="order-section-metadata" className="scroll-mt-24 shadow-xs">
+          <Card id="order-section-metadata" className="scroll-mt-24">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <SettingsIcon className="size-4 text-muted-foreground" />
-                Order Metadata
-              </CardTitle>
+              <OrderFormSectionHeader
+                icon={SettingsIcon}
+                title="Order metadata"
+                description="Admin-only record details"
+              />
             </CardHeader>
             <CardContent>
               <FieldGroup>
@@ -1201,17 +1456,14 @@ export function OrderForm({
           </Card>
         )}
 
-        <div className="flex justify-end gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => (isDirty ? setPendingNav(-1) : navigate(-1))}
-          >
+        {/* Desktop keeps these in the sticky summary panel; below lg the summary isn't sticky. */}
+        <div className="flex justify-end gap-2 lg:hidden">
+          <Button type="button" variant="outline" onClick={handleCancel}>
             Cancel
           </Button>
           <Button type="submit" disabled={isSubmitting}>
             {isSubmitting && <Spinner data-icon="inline-start" />}
-            {isSubmitting ? "Saving..." : order ? "Update Order" : "New Order"}
+            {submitLabel}
           </Button>
         </div>
       </div>
@@ -1233,6 +1485,28 @@ export function OrderForm({
           layoutFee={layoutFeeNum}
           shippingFee={shippingFeeNum}
           notes={notes}
+          footer={
+            <div className="hidden flex-col gap-2 lg:flex">
+              <Button type="submit" size="lg" className="w-full" disabled={isSubmitting}>
+                {isSubmitting && <Spinner data-icon="inline-start" />}
+                {submitLabel}
+              </Button>
+              {orderedErrorKeys.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => focusErrorField(orderedErrorKeys[0])}
+                  className="flex items-center justify-center gap-1.5 rounded-md py-1 text-xs font-medium text-destructive outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
+                >
+                  <CircleAlertIcon aria-hidden className="size-3.5" />
+                  {orderedErrorKeys.length === 1 ? "1 issue to fix" : `${orderedErrorKeys.length} issues to fix`} — show
+                  first
+                </button>
+              )}
+              <Button type="button" variant="ghost" className="w-full" onClick={handleCancel}>
+                Cancel
+              </Button>
+            </div>
+          }
         />
       </div>
 

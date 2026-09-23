@@ -5,7 +5,6 @@ import { useLocation } from "react-router-dom"
 import { OrderDraftsDialog } from "@/components/orders/order-drafts-dialog"
 import { OrderForm, type OrderFormSeed } from "@/components/orders/order-form"
 import { PageHeader } from "@/components/page-header"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { type OrderDraft, useOrderDrafts } from "@/lib/order-drafts"
 
@@ -19,11 +18,16 @@ export function CreateOrderPage() {
     <div className="flex flex-col gap-4">
       <PageHeader
         title="New Order"
+        description="Fill in the customer, items and payment — the summary updates as you go."
         actions={
           <Button type="button" variant="outline" onClick={() => setDraftsDialogOpen(true)}>
             <FileTextIcon data-icon="inline-start" />
             Drafts
-            {drafts.length > 0 && <Badge variant="secondary">{drafts.length}</Badge>}
+            {drafts.length > 0 && (
+              <span className="flex h-4.5 min-w-4.5 items-center justify-center rounded-full bg-primary px-1 text-[0.65rem] font-semibold text-primary-foreground tabular-nums">
+                {drafts.length}
+              </span>
+            )}
           </Button>
         }
       />

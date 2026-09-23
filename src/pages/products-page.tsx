@@ -1,12 +1,20 @@
 import { useEffect, useState } from "react"
-import { PlusIcon, TagIcon } from "lucide-react"
+import { ArrowUpDownIcon, PlusIcon, TagIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { ManageCategoriesDialog } from "@/components/categories/manage-categories-dialog"
 import { DeleteProductDialog } from "@/components/products/delete-product-dialog"
+import { ProductDetailsDialog } from "@/components/products/product-details-dialog"
 import { ProductFormDialog } from "@/components/products/product-form-dialog"
 import { ProductTable } from "@/components/products/product-table"
-import { ActiveFilterChips, FilterSearchInput, FilterToolbar, type ActiveFilter } from "@/components/filter-toolbar"
+import {
+  ACTIVE_FILTER_TRIGGER_CLASS,
+  ActiveFilterChips,
+  FilterSearchInput,
+  FilterToolbar,
+  type ActiveFilter,
+} from "@/components/filter-toolbar"
+import { SEGMENT_CLASS, SEGMENT_TRACK_CLASS } from "@/components/segmented"
 import { PageHeader } from "@/components/page-header"
 import { PaginationBar } from "@/components/pagination-bar"
 import { SortControl } from "@/components/sort-control"
@@ -18,9 +26,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Toggle } from "@/components/ui/toggle"
+import { ToggleGroup } from "@/components/ui/toggle-group"
 import { useAuth } from "@/lib/auth"
 import { useCategories } from "@/lib/categories"
 import { useDebouncedValue } from "@/lib/use-debounced-value"
+import { cn } from "@/lib/utils"
 import {
   PRICING_TYPES,
   PRODUCT_STATUSES,
@@ -30,7 +41,7 @@ import {
 } from "@/lib/products"
 
 const ANY_CATEGORY = "All Categories"
-const ANY_STATUS = "All Statuses"
+const ALL_STATUS = "all"
 const ANY_PRICING = "All Pricing"
 
 const SORT_OPTIONS = [
@@ -53,6 +64,8 @@ export function ProductsPage() {
   const [manageCategoriesOpen, setManageCategoriesOpen] = useState(false)
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
   const [deletingProduct, setDeletingProduct] = useState<Product | null>(null)
+  // Staff/viewers get a simple read-only product card instead of the editor.
+  const [viewingProduct, setViewingProduct] = useState<Product | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
 
   useEffect(() => {
@@ -94,17 +107,17 @@ export function ProductsPage() {
     },
     params.category && {
       key: "category",
-      label: params.category,
+      label: `Category: ${params.category}`,
       onRemove: () => setParams({ category: "", page: 1 }),
     },
     params.status && {
       key: "status",
-      label: params.status,
+      label: `Status: ${params.status}`,
       onRemove: () => setParams({ status: "", page: 1 }),
     },
     params.pricingType && {
       key: "pricingType",
-      label: params.pricingType,
+      label: `Pricing: ${params.pricingType}`,
       onRemove: () => setParams({ pricingType: "", page: 1 }),
     },
   ].filter((filter): filter is ActiveFilter => Boolean(filter))
@@ -137,29 +150,60 @@ export function ProductsPage() {
     <div className="flex flex-col gap-4">
       <PageHeader
         title="Products"
+        description={isLoading ? "Your catalog and pricing" : `${total.toLocaleString()} ${total === 1 ? "product" : "products"}`}
         actions={
           canManage ? (
             <>
               <Button variant="outline" onClick={() => setManageCategoriesOpen(true)}>
                 <TagIcon data-icon="inline-start" />
-                Manage Categories
+                Manage categories
               </Button>
               <Button onClick={handleAdd}>
                 <PlusIcon data-icon="inline-start" />
-                Add Product
+                Add product
               </Button>
             </>
           ) : undefined
         }
       />
 
-      <FilterToolbar>
+      <FilterToolbar className="gap-2">
         <FilterSearchInput
           value={searchInput}
           onChange={setSearchInput}
           placeholder="Search products..."
           disabled={isLoading || isError}
+          className="min-w-56"
         />
+
+        {/* Only three values, so one click beats a dropdown — same joined track as the order
+            form's payment status, with the status dots. */}
+        <ToggleGroup
+          aria-label="Filter by status"
+          value={[params.status || ALL_STATUS]}
+          onValueChange={(next) => {
+            const value = next[0]
+            if (value) setParams({ status: value === ALL_STATUS ? "" : value, page: 1 })
+          }}
+          disabled={isLoading || isError}
+          className={SEGMENT_TRACK_CLASS}
+        >
+          <Toggle value={ALL_STATUS} className={SEGMENT_CLASS}>
+            All
+          </Toggle>
+          {PRODUCT_STATUSES.map((status) => (
+            <Toggle key={status} value={status} className={SEGMENT_CLASS}>
+              <span
+                aria-hidden
+                className={cn(
+                  "size-2 shrink-0 translate-y-px rounded-full",
+                  status === "Active" ? "bg-order-status-teal" : "bg-muted-foreground/40"
+                )}
+              />
+              <span className="leading-none">{status}</span>
+            </Toggle>
+          ))}
+        </ToggleGroup>
 
         <Select
           value={params.category || ANY_CATEGORY}
@@ -168,34 +212,25 @@ export function ProductsPage() {
           }
           disabled={isLoading || isError}
         >
-          <SelectTrigger>
-            <SelectValue />
+          <SelectTrigger
+            aria-label="Filter by category"
+            className={cn("min-w-40", params.category && ACTIVE_FILTER_TRIGGER_CLASS)}
+          >
+            <SelectValue>
+              {(value: string | null) =>
+                value && value !== ANY_CATEGORY ? (
+                  <span className="truncate">{value}</span>
+                ) : (
+                  "All categories"
+                )
+              }
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={ANY_CATEGORY}>{ANY_CATEGORY}</SelectItem>
+            <SelectItem value={ANY_CATEGORY}>All categories</SelectItem>
             {categories.map((category) => (
               <SelectItem key={category.id} value={category.name}>
                 {category.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select
-          value={params.status || ANY_STATUS}
-          onValueChange={(value) =>
-            setParams({ status: value === ANY_STATUS ? "" : (value ?? ""), page: 1 })
-          }
-          disabled={isLoading || isError}
-        >
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ANY_STATUS}>{ANY_STATUS}</SelectItem>
-            {PRODUCT_STATUSES.map((status) => (
-              <SelectItem key={status} value={status}>
-                {status}
               </SelectItem>
             ))}
           </SelectContent>
@@ -208,11 +243,16 @@ export function ProductsPage() {
           }
           disabled={isLoading || isError}
         >
-          <SelectTrigger>
-            <SelectValue />
+          <SelectTrigger
+            aria-label="Filter by pricing type"
+            className={cn("min-w-36", params.pricingType && ACTIVE_FILTER_TRIGGER_CLASS)}
+          >
+            <SelectValue>
+              {(value: string | null) => (value && value !== ANY_PRICING ? value : "All pricing")}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={ANY_PRICING}>{ANY_PRICING}</SelectItem>
+            <SelectItem value={ANY_PRICING}>All pricing</SelectItem>
             {PRICING_TYPES.map((pricingType) => (
               <SelectItem key={pricingType} value={pricingType}>
                 {pricingType}
@@ -221,18 +261,23 @@ export function ProductsPage() {
           </SelectContent>
         </Select>
 
-        <SortControl
-          value={params.sortBy}
-          direction={params.sortDir}
-          options={SORT_OPTIONS}
-          onChange={(sortBy, sortDir) => setParams({ sortBy, sortDir, page: 1 })}
-          disabled={isLoading || isError}
-        />
+        <div className="flex items-center gap-1.5" title="Sort">
+          <ArrowUpDownIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+          <SortControl
+            value={params.sortBy}
+            direction={params.sortDir}
+            options={SORT_OPTIONS}
+            onChange={(sortBy, sortDir) => setParams({ sortBy, sortDir, page: 1 })}
+            disabled={isLoading || isError}
+            className="min-w-44"
+          />
+        </div>
 
         <ActiveFilterChips
           filters={activeFilters}
           onClearAll={hasActiveFilters ? clearFilters : undefined}
           disabled={isLoading || isError}
+          label="Active filters:"
         />
       </FilterToolbar>
 
@@ -249,6 +294,7 @@ export function ProductsPage() {
         onClearFilters={clearFilters}
         onCreate={handleAdd}
         onEdit={handleEdit}
+        onView={setViewingProduct}
         onDelete={setDeletingProduct}
       />
 
@@ -269,6 +315,11 @@ export function ProductsPage() {
         onOpenChange={setFormOpen}
         product={editingProduct}
         onSaved={refetch}
+      />
+
+      <ProductDetailsDialog
+        product={viewingProduct}
+        onOpenChange={(open) => !open && setViewingProduct(null)}
       />
 
       <ManageCategoriesDialog open={manageCategoriesOpen} onOpenChange={setManageCategoriesOpen} />

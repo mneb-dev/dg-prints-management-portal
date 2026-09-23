@@ -1,16 +1,6 @@
 import { CopyIcon, TruckIcon } from "lucide-react"
 
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogMedia,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
+import { ConfirmDialog, Name } from "@/components/confirm-dialog"
 import { Button } from "@/components/ui/button"
 import { copyToClipboard } from "@/lib/clipboard"
 import type { Order } from "@/lib/orders"
@@ -28,18 +18,22 @@ export function ArrangeOrderDialog({
   const shipping = order?.shippingAddress ?? null
 
   return (
-    <AlertDialog open={!!order} onOpenChange={onOpenChange}>
-      <AlertDialogContent size="sm">
-        <AlertDialogHeader>
-          <AlertDialogMedia>
-            <TruckIcon />
-          </AlertDialogMedia>
-          <AlertDialogTitle>Arrange shipment</AlertDialogTitle>
-          <AlertDialogDescription>
-            Order <span className="font-medium text-foreground">{order?.orderNumber}</span> — SPX
-            opens in a new tab.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
+    <ConfirmDialog
+      open={!!order}
+      onOpenChange={onOpenChange}
+      tone="primary"
+      icon={TruckIcon}
+      title={
+        <>
+          Arrange shipment for <Name>{order?.orderNumber}</Name>?
+        </>
+      }
+      description="SPX opens in a new tab — copy the details below into it."
+      confirmLabel="Yes, open SPX"
+      cancelLabel="No, not now"
+      confirmDisabled={!shipping}
+      onConfirm={() => order && onConfirm(order)}
+    >
 
         {shipping && (
           <div className="flex flex-col gap-3 text-sm">
@@ -111,14 +105,6 @@ export function ArrangeOrderDialog({
             </Button>
           </div>
         )}
-
-        <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction disabled={!shipping} onClick={() => order && onConfirm(order)}>
-            Arrange
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+    </ConfirmDialog>
   )
 }

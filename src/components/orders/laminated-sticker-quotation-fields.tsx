@@ -1,4 +1,4 @@
-import { CheckIcon } from "lucide-react"
+import { CheckIcon, RotateCcwIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
@@ -92,7 +92,8 @@ export function LaminatedStickerQuotationFields({
         </Select>
         {onClear && (
           <Button type="button" variant="ghost" size="sm" onClick={onClear}>
-            Clear
+            <RotateCcwIcon data-icon="inline-start" />
+            Start over
           </Button>
         )}
         {onQuantityChange && (

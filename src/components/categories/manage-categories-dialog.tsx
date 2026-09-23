@@ -1,23 +1,29 @@
 import { useState } from "react"
-import { PlusIcon } from "lucide-react"
+import { PlusIcon, TagsIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { CategoryFormDialog } from "@/components/categories/category-form-dialog"
 import { CategoryTable } from "@/components/categories/category-table"
 import { DeleteCategoryDialog } from "@/components/categories/delete-category-dialog"
 import { OrderStatusList } from "@/components/categories/order-status-list"
+import { FormDialogHeader } from "@/components/form-dialog-header"
 import { Button } from "@/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+import { Dialog, DialogBody, DialogContent } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsIndicator, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useAuth } from "@/lib/auth"
 import { useCategories, useCategoryActions, type Category } from "@/lib/categories"
 import { useOrderStatuses, useOrderStatusActions } from "@/lib/order-statuses"
+
+const TAB_CLASS =
+  "h-7 gap-1.5 rounded-md px-3 hover:text-foreground data-[active]:font-semibold data-[active]:text-accent-foreground"
+
+function TabCount({ value }: { value: number }) {
+  return (
+    <span className="rounded-full bg-background/70 px-1.5 text-[0.65rem] leading-4 font-semibold text-muted-foreground tabular-nums">
+      {value}
+    </span>
+  )
+}
 
 export function ManageCategoriesDialog({
   open,
@@ -63,30 +69,43 @@ export function ManageCategoriesDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-5xl">
-        <DialogHeader>
-          <DialogTitle>Manage Categories</DialogTitle>
-          <DialogDescription>
-            Add, edit, or deactivate product categories and the order statuses they use.
-          </DialogDescription>
-        </DialogHeader>
+      <DialogContent className="sm:max-w-3xl">
+        <FormDialogHeader
+          icon={TagsIcon}
+          title={<>Manage categories</>}
+          description={<>Add, edit, or deactivate product categories and the order statuses they use.</>}
+        />
 
+        {/* Only the tab content scrolls; the header stays in view. */}
+        <DialogBody>
         <Tabs defaultValue="categories">
-          <TabsList>
-            <TabsTrigger value="categories">Categories</TabsTrigger>
-            <TabsTrigger value="order-statuses">Order Statuses</TabsTrigger>
-            <TabsIndicator />
+          {/* Segmented tabs (same track as the app's other one-click switchers); the indicator is
+              the raised pill that slides between them. */}
+          <TabsList className="w-fit gap-0.5 rounded-lg border border-input bg-muted/60 p-0.5">
+            <TabsTrigger value="categories" className={TAB_CLASS}>
+              Categories
+              <TabCount value={categories.length} />
+            </TabsTrigger>
+            <TabsTrigger value="order-statuses" className={TAB_CLASS}>
+              Order statuses
+              <TabCount value={statuses.length} />
+            </TabsTrigger>
+            <TabsIndicator className="top-0.5 bottom-0.5 z-0 h-auto rounded-md bg-accent shadow-sm ring-1 ring-primary/40" />
           </TabsList>
 
-          <TabsContent value="categories" className="flex flex-col gap-4">
-            {canManage && (
-              <div className="flex justify-end">
-                <Button onClick={handleAdd}>
+          <TabsContent
+            value="categories"
+            className="flex animate-in flex-col gap-3 duration-200 fade-in-0 motion-reduce:animate-none"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-sm text-muted-foreground">Group products and set each group's order flow.</p>
+              {canManage && (
+                <Button size="sm" onClick={handleAdd}>
                   <PlusIcon data-icon="inline-start" />
-                  Add Category
+                  Add category
                 </Button>
-              </div>
-            )}
+              )}
+            </div>
 
             <CategoryTable
               categories={categories}
@@ -100,11 +119,13 @@ export function ManageCategoriesDialog({
             />
           </TabsContent>
 
-          <TabsContent value="order-statuses" className="flex flex-col gap-4">
+          <TabsContent
+            value="order-statuses"
+            className="flex animate-in flex-col gap-3 duration-200 fade-in-0 motion-reduce:animate-none"
+          >
             <p className="text-sm text-muted-foreground">
-              Add, rename, re-icon, reorder, or delete order statuses. Built-in statuses can't be
-              renamed or deleted. Changes reflect everywhere statuses are shown — the dashboard,
-              orders list, and status menus.
+              Drag to reorder. Built-in statuses can be renamed but not deleted. Changes show everywhere
+              statuses appear.
             </p>
             <OrderStatusList
               statuses={statuses}
@@ -116,6 +137,7 @@ export function ManageCategoriesDialog({
             />
           </TabsContent>
         </Tabs>
+        </DialogBody>
       </DialogContent>
 
       <CategoryFormDialog open={formOpen} onOpenChange={setFormOpen} category={editingCategory} />

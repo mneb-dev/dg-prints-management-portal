@@ -1,3 +1,4 @@
+import { RotateCcwIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Field, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
@@ -70,7 +71,8 @@ export function SintraBoardCustomFields({
             <FieldLabel htmlFor={`${idPrefix}sintra-custom-height`}>Height (in)</FieldLabel>
             {onClear && (
               <Button type="button" variant="ghost" size="sm" onClick={onClear}>
-                Clear
+                <RotateCcwIcon data-icon="inline-start" />
+                Start over
               </Button>
             )}
           </div>

@@ -1,18 +1,9 @@
+import { ReceiptTextIcon } from "lucide-react"
 import { useEffect, useState } from "react"
 
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
+import { ConfirmDialog, Name } from "@/components/confirm-dialog"
 import { Field, FieldError, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { Spinner } from "@/components/ui/spinner"
 import { Textarea } from "@/components/ui/textarea"
 import type { Order, OrRequestInput } from "@/lib/orders"
 import { requiredMessage } from "@/lib/validation"
@@ -63,15 +54,23 @@ export function RequestOrDialog({
   }
 
   return (
-    <AlertDialog open={!!order} onOpenChange={onOpenChange}>
-      <AlertDialogContent size="sm">
-        <AlertDialogHeader>
-          <AlertDialogTitle>{order?.orRequest ? "Update OR Request" : "Request OR"}</AlertDialogTitle>
-          <AlertDialogDescription>
-            Official Receipt details for order{" "}
-            <span className="font-medium text-foreground">{order?.orderNumber}</span>.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
+    <ConfirmDialog
+      open={!!order}
+      onOpenChange={onOpenChange}
+      tone="primary"
+      icon={ReceiptTextIcon}
+      title={
+        <>
+          {order?.orRequest ? "Update the OR request for" : "Request an OR for"} <Name>{order?.orderNumber}</Name>?
+        </>
+      }
+      description="Official Receipt details — TIN and invoice number can be added later."
+      confirmLabel="Yes, save request"
+      pendingLabel="Saving…"
+      cancelLabel="No, go back"
+      isPending={isPending}
+      onConfirm={() => order && handleConfirm(order)}
+    >
 
         <div className="flex flex-col gap-3">
           <Field data-invalid={!!fieldErrors.name}>
@@ -127,14 +126,6 @@ export function RequestOrDialog({
           </Field>
         </div>
 
-        <AlertDialogFooter>
-          <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
-          <AlertDialogAction disabled={isPending} onClick={() => order && handleConfirm(order)}>
-            {isPending && <Spinner data-icon="inline-start" />}
-            {isPending ? "Saving..." : "Save"}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+    </ConfirmDialog>
   )
 }

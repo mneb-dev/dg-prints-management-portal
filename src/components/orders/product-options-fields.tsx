@@ -1,3 +1,4 @@
+import { ChoiceTile } from "@/components/choice-tile"
 import { Field, FieldLabel } from "@/components/ui/field"
 import {
   Select,
@@ -6,7 +7,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Toggle } from "@/components/ui/toggle"
 import { ToggleGroup } from "@/components/ui/toggle-group"
 import type { Product } from "@/lib/products"
 
@@ -44,7 +44,12 @@ export function ProductOptionsFields({
           <Field key={option.id}>
             <FieldLabel htmlFor={fieldId}>
               {option.name}
-              {option.required && " *"}
+              {option.required && (
+                <span aria-hidden className="-ml-1 text-destructive/70">
+                  *
+                </span>
+              )}
+              {option.required && <span className="sr-only">(required)</span>}
             </FieldLabel>
             {useToggleGroup ? (
               <ToggleGroup
@@ -53,9 +58,9 @@ export function ProductOptionsFields({
                 onValueChange={(next) => onChange(option.id, next[0] ?? "")}
               >
                 {option.values.map((value) => (
-                  <Toggle key={value} value={value}>
+                  <ChoiceTile key={value} value={value}>
                     {value}
-                  </Toggle>
+                  </ChoiceTile>
                 ))}
               </ToggleGroup>
             ) : (

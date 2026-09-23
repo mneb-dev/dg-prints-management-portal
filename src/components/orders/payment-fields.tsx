@@ -1,36 +1,37 @@
-import { Fragment, useEffect, useState } from "react"
-import { ChevronDownIcon } from "lucide-react"
+import { useRef } from "react"
 
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
-import { badgeVariants } from "@/components/ui/badge"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+import { ChoiceTile } from "@/components/choice-tile"
+import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible"
 import { CurrencyInput } from "@/components/ui/currency-input"
-import { Field, FieldError, FieldLabel } from "@/components/ui/field"
+import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field"
 import { Toggle } from "@/components/ui/toggle"
 import { ToggleGroup } from "@/components/ui/toggle-group"
 import { useEnabledOrderChannels } from "@/lib/order-channels"
-import { PAYMENT_STATUSES } from "@/lib/orders"
 import type { OrderChannel, PaymentMethod, PaymentStatus } from "@/lib/orders"
 import { useEnabledPaymentMethods } from "@/lib/payment-methods"
+import { useScrollIntoViewOnOpen } from "@/lib/use-scroll-into-view-on-open"
 import { cn, formatCurrency } from "@/lib/utils"
-import { validatePaymentAmount } from "@/lib/validation"
 
+import { PaymentRecap } from "./payment-recap"
 import { PAYMENT_STATUS_LABELS, PaymentStatusDot } from "./payment-status-badge"
+
+const SHOPEE_METHOD = "Bank Transfer"
+
+/** Joined segmented track (same shape as the dashboard's period buttons). The selected segment
+ * takes the soft indigo accent (like the picked channel/method tiles), an indigo hairline ring,
+ * a lift and semibold text; unselected segments mute their dots, so the one colored dot left
+ * standing is the selected status. Segments grow to share the width but never shrink below their
+ * label (`basis-auto`, no truncation) — if the card gets too narrow the track wraps onto a second
+ * row instead of clipping. */
+const SEGMENT_TRACK_CLASS = "flex-wrap gap-0.5 rounded-lg border border-input bg-muted/60 p-0.5"
+const SEGMENT_CLASS = cn(
+  "group/seg h-8 flex-1 basis-auto gap-2 rounded-md border-0 px-3 text-muted-foreground transition-[background-color,color,box-shadow] duration-200 hover:bg-background/60 hover:text-foreground",
+  "data-[pressed]:bg-accent data-[pressed]:font-semibold data-[pressed]:text-accent-foreground data-[pressed]:shadow-sm data-[pressed]:ring-1 data-[pressed]:ring-primary/40 data-[pressed]:hover:bg-accent",
+  "dark:bg-transparent dark:data-[pressed]:bg-accent"
+)
+/** Unselected: faded dot. Selected: full color with a soft halo in the ring color. */
+const SEGMENT_DOT_CLASS =
+  "opacity-40 transition-[opacity,box-shadow] duration-200 group-hover/seg:opacity-70 group-data-[pressed]/seg:opacity-100 group-data-[pressed]/seg:ring-3 group-data-[pressed]/seg:ring-primary/15"
 
 export function PaymentFields({
   channel,
@@ -44,6 +45,7 @@ export function PaymentFields({
   downPayment,
   onDownPaymentChange,
   total,
+  allowRefunded = false,
   errors,
 }: {
   channel: OrderChannel | ""
@@ -57,6 +59,8 @@ export function PaymentFields({
   downPayment: string
   onDownPaymentChange: (value: string) => void
   total: number
+  /** Offer "Refunded" — only when editing an existing order (a new order can't be refunded). */
+  allowRefunded?: boolean
   errors?: { channel?: string; paymentMethod?: string; downPayment?: string }
 }) {
   const { orderChannels: enabledChannels } = useEnabledOrderChannels()
@@ -71,20 +75,30 @@ export function PaymentFields({
 
   const isShopee = channel === "Shopee"
   const currentStatus: PaymentStatus = markPaid ? paymentStatus : "unpaid"
-  const [targetStatus, setTargetStatus] = useState<"paid" | "partially_paid" | null>(null)
-  const paymentError = errors?.paymentMethod || errors?.downPayment
-  // What's already been paid/still owed right now, before this update — passed to the dialog so
-  // marking "paid" after a prior partial payment shows the real outstanding amount instead of the
-  // post-save 0.
-  const existingDownPayment = markPaid && paymentStatus === "partially_paid" ? Number(downPayment) || 0 : 0
-  const existingBalance = Math.max(total - existingDownPayment, 0)
+  // Always offer Refunded when the loaded order already is refunded, so its state stays visible.
+  const statusOptions: PaymentStatus[] = [
+    "unpaid",
+    "partially_paid",
+    "paid",
+    ...(allowRefunded || currentStatus === "refunded" ? (["refunded"] as const) : []),
+  ]
+  const effectiveMethod = isShopee ? SHOPEE_METHOD : paymentMethod
+  const showDetails = currentStatus === "paid" || currentStatus === "partially_paid"
+  // Once the details panel opens (or grows: Paid → Partial adds the down-payment field), scroll so
+  // it and the recap under it are fully visible.
+  const detailsRef = useRef<HTMLDivElement>(null)
+  useScrollIntoViewOnOpen(detailsRef, showDetails ? currentStatus : null)
+
+  const downPaymentNum = Number(downPayment) || 0
+  const paidAmount =
+    currentStatus === "paid" ? total : currentStatus === "partially_paid" ? Math.min(downPaymentNum, total) : 0
+  const balance = currentStatus === "refunded" ? 0 : Math.max(total - paidAmount, 0)
 
   function handleSelect(status: PaymentStatus) {
     if (status === currentStatus) return
 
-    // Leaving "paid" for a status that doesn't carry the same instant-commit method
-    // resolution — clear it so re-marking as paid later asks again instead of silently
-    // reusing the old method.
+    // Leaving "paid" clears the method so re-marking as paid later asks again instead of
+    // silently reusing the old one.
     if (currentStatus === "paid" && status !== "paid") {
       onPaymentMethodChange("")
     }
@@ -101,13 +115,19 @@ export function PaymentFields({
       return
     }
 
-    setTargetStatus(status)
+    // Paid / Partial now commit directly — method and amount are filled in inline below, and
+    // the form's save validates them (validatePaymentAmount) exactly as the old dialog did.
+    if (status === "partially_paid" && currentStatus !== "partially_paid") {
+      onDownPaymentChange("")
+    }
+    onMarkPaidChange(true)
+    onPaymentStatusChange(status)
   }
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-5">
       <Field data-invalid={!!errors?.channel}>
-        <FieldLabel htmlFor="order-channel">Order Channel</FieldLabel>
+        <FieldLabel htmlFor="order-channel">Order channel</FieldLabel>
         <ToggleGroup
           id="order-channel"
           value={channel ? [channel] : []}
@@ -115,253 +135,109 @@ export function PaymentFields({
             const value = next[0] as OrderChannel | undefined
             if (value) onChannelChange(value)
           }}
-          className={cn(errors?.channel && "rounded-lg ring-1 ring-destructive")}
+          className={cn(errors?.channel && "rounded-lg ring-1 ring-destructive ring-offset-2 ring-offset-card")}
         >
           {channelOptions.map((option) => (
-            <Toggle key={option} value={option}>
+            <ChoiceTile key={option} value={option}>
               {option}
-            </Toggle>
+            </ChoiceTile>
           ))}
         </ToggleGroup>
         <FieldError>{errors?.channel}</FieldError>
       </Field>
 
-      <Field data-invalid={!!paymentError}>
-        <FieldLabel>Payment Status</FieldLabel>
-        <div>
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              render={
-                <button
-                  type="button"
-                  className={cn(
-                    badgeVariants({ variant: "secondary" }),
-                    "justify-start border-transparent h-8 cursor-pointer gap-1.5 px-3 text-sm transition-opacity hover:opacity-80 [&>svg]:size-4!"
-                  )}
-                />
-              }
-            >
-              <PaymentStatusDot status={currentStatus} />
-              <span className="leading-none">{PAYMENT_STATUS_LABELS[currentStatus]}</span>
-              <ChevronDownIcon className="ml-auto size-4 opacity-70" />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start">
-              {PAYMENT_STATUSES.map((status) => (
-                <Fragment key={status}>
-                  {status === "refunded" && <DropdownMenuSeparator />}
-                  <DropdownMenuItem
-                    disabled={status === currentStatus}
-                    onClick={() => handleSelect(status)}
+      <Field>
+        <FieldLabel htmlFor="order-payment-status">Payment status</FieldLabel>
+        <ToggleGroup
+          id="order-payment-status"
+          aria-label="Payment status"
+          value={[currentStatus]}
+          onValueChange={(next) => {
+            const value = next[0] as PaymentStatus | undefined
+            if (value) handleSelect(value)
+          }}
+          className={SEGMENT_TRACK_CLASS}
+        >
+          {statusOptions.map((status) => (
+            <span key={status} className="contents">
+              {status === "refunded" && <span aria-hidden className="mx-0.5 my-1.5 w-px shrink-0 bg-border" />}
+              <Toggle value={status} className={SEGMENT_CLASS}>
+                <PaymentStatusDot status={status} className={SEGMENT_DOT_CLASS} />
+                <span className="leading-none whitespace-nowrap">{PAYMENT_STATUS_LABELS[status]}</span>
+              </Toggle>
+            </span>
+          ))}
+        </ToggleGroup>
+
+        {/* Scroll target for the reveal: the details panel plus the recap under it. scroll-mb
+            leaves a little breathing room below instead of parking it on the viewport edge. */}
+        <div ref={detailsRef} className="flex scroll-mb-6 flex-col gap-2">
+        {/* Method + amount slide open for Partial / Paid — same height/fade treatment as the
+            line items' collapse, so the form moves with one motion language. */}
+        <Collapsible open={showDetails}>
+          <CollapsibleContent className="group/panel h-(--collapsible-panel-height) overflow-hidden transition-[height] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] data-[ending-style]:h-0 data-[starting-style]:h-0 motion-reduce:transition-none">
+            <div className="pt-3 transition-[opacity,translate] duration-300 ease-out group-data-[ending-style]/panel:-translate-y-1 group-data-[ending-style]/panel:opacity-0 group-data-[starting-style]/panel:-translate-y-1 group-data-[starting-style]/panel:opacity-0 motion-reduce:transition-none">
+              <div className="flex flex-col gap-4 rounded-lg border bg-muted/30 p-3">
+                <Field data-invalid={!!errors?.paymentMethod}>
+                  <FieldLabel htmlFor="order-payment-method">Method</FieldLabel>
+                  <ToggleGroup
+                    id="order-payment-method"
+                    value={effectiveMethod ? [effectiveMethod] : []}
+                    onValueChange={(next) => {
+                      const value = next[0] as PaymentMethod | undefined
+                      if (value) onPaymentMethodChange(value)
+                    }}
+                    disabled={isShopee}
+                    className={cn(errors?.paymentMethod && "rounded-lg ring-1 ring-destructive ring-offset-2 ring-offset-card")}
                   >
-                    <PaymentStatusDot status={status} />
-                    <span className="leading-none">{PAYMENT_STATUS_LABELS[status]}</span>
-                  </DropdownMenuItem>
-                </Fragment>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-        <FieldError>{paymentError}</FieldError>
-      </Field>
+                    {paymentMethodOptions.map((option) => (
+                      <ChoiceTile
+                        key={option}
+                        value={option}
+                        disabled={isShopee}
+                        aria-invalid={!!errors?.paymentMethod || undefined}
+                        className="bg-card"
+                      >
+                        {option}
+                      </ChoiceTile>
+                    ))}
+                  </ToggleGroup>
+                  {isShopee && (
+                    <FieldDescription className="text-xs">
+                      Shopee orders are always settled as a bank transfer.
+                    </FieldDescription>
+                  )}
+                  <FieldError>{errors?.paymentMethod}</FieldError>
+                </Field>
 
-      {markPaid && paymentStatus !== "refunded" && (
-        <div className="flex flex-col gap-2 text-sm">
-          <div className="flex items-center justify-between">
-            <span className="text-muted-foreground">Method</span>
-            <span>{isShopee ? "Bank Transfer" : paymentMethod}</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-muted-foreground">
-              {paymentStatus === "partially_paid" ? "Down Payment" : "Amount Paid"}
-            </span>
-            <span>
-              {formatCurrency(
-                paymentStatus === "partially_paid" ? Number(downPayment) || 0 : total
-              )}
-            </span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-muted-foreground">Balance</span>
-            <span>
-              {formatCurrency(
-                paymentStatus === "partially_paid"
-                  ? Math.max(total - (Number(downPayment) || 0), 0)
-                  : 0
-              )}
-            </span>
-          </div>
-        </div>
-      )}
-
-      <PaymentAmountDialog
-        targetStatus={targetStatus}
-        isShopee={isShopee}
-        paymentMethodOptions={paymentMethodOptions}
-        paymentMethod={paymentMethod}
-        downPayment={downPayment}
-        currentPaymentStatus={paymentStatus}
-        total={total}
-        existingDownPayment={existingDownPayment}
-        existingBalance={existingBalance}
-        onOpenChange={(open) => !open && setTargetStatus(null)}
-        onConfirm={(method, downPaymentInput) => {
-          if (!targetStatus) return
-          onMarkPaidChange(true)
-          onPaymentStatusChange(targetStatus)
-          onPaymentMethodChange(method)
-          if (targetStatus === "partially_paid") {
-            onDownPaymentChange(downPaymentInput)
-          }
-          setTargetStatus(null)
-        }}
-      />
-    </div>
-  )
-}
-
-/** Collects the method (and, for `partially_paid`, the down payment) once the form's Payment
- * Status dropdown above picks a status that can't commit on its own — mirrors
- * `record-payment-dialog.tsx` (used the same way from the Orders Table/View Order page's
- * `PaymentStatusMenu`), just reporting back to the order form's local state instead of calling
- * the update API directly, since the order may not exist yet. */
-function PaymentAmountDialog({
-  targetStatus,
-  isShopee,
-  paymentMethodOptions,
-  paymentMethod,
-  downPayment,
-  currentPaymentStatus,
-  total,
-  existingDownPayment,
-  existingBalance,
-  onOpenChange,
-  onConfirm,
-}: {
-  targetStatus: "paid" | "partially_paid" | null
-  isShopee: boolean
-  paymentMethodOptions: readonly PaymentMethod[]
-  paymentMethod: PaymentMethod | ""
-  downPayment: string
-  currentPaymentStatus: "paid" | "partially_paid" | "refunded"
-  total: number
-  existingDownPayment: number
-  existingBalance: number
-  onOpenChange: (open: boolean) => void
-  onConfirm: (method: PaymentMethod, downPaymentInput: string) => void
-}) {
-  const [method, setMethod] = useState<PaymentMethod | "">("")
-  const [downPaymentInput, setDownPaymentInput] = useState("")
-  const [errors, setErrors] = useState<{ method?: string; downPayment?: string }>({})
-
-  useEffect(() => {
-    if (!targetStatus) return
-    setMethod(isShopee ? "Bank Transfer" : paymentMethod)
-    setDownPaymentInput(
-      targetStatus === "partially_paid" && currentPaymentStatus === "partially_paid"
-        ? downPayment
-        : ""
-    )
-    setErrors({})
-  }, [targetStatus, isShopee, paymentMethod, downPayment, currentPaymentStatus])
-
-  const effectiveMethod = isShopee ? "Bank Transfer" : method
-  const previewBalance = Math.max(total - (Number(downPaymentInput) || 0), 0)
-
-  function handleSave() {
-    const nextErrors = validatePaymentAmount({
-      effectiveMethod,
-      downPaymentInput,
-      targetStatus: targetStatus === "partially_paid" ? "partially_paid" : "paid",
-      total,
-    })
-    if (Object.keys(nextErrors).length > 0) {
-      setErrors(nextErrors)
-      return
-    }
-    onConfirm(effectiveMethod as PaymentMethod, downPaymentInput)
-  }
-
-  return (
-    <AlertDialog open={!!targetStatus} onOpenChange={onOpenChange}>
-      <AlertDialogContent size="sm">
-        <AlertDialogHeader>
-          <AlertDialogTitle>
-            Mark as {targetStatus === "paid" ? "Paid" : "Partially Paid"}
-          </AlertDialogTitle>
-          <AlertDialogDescription>
-            {targetStatus === "partially_paid"
-              ? "Needs a down payment amount and method."
-              : "Needs a payment method."}
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-
-        <div className="flex flex-col gap-3">
-          <Field data-invalid={!!errors.method}>
-            <FieldLabel htmlFor="order-payment-method">Payment Method</FieldLabel>
-            <ToggleGroup
-              id="order-payment-method"
-              value={effectiveMethod ? [effectiveMethod] : []}
-              onValueChange={(next) => {
-                const value = next[0] as PaymentMethod | undefined
-                if (value) setMethod(value)
-              }}
-              disabled={isShopee}
-              className={cn("gap-1", errors.method && "rounded-lg ring-1 ring-destructive")}
-            >
-              {paymentMethodOptions.map((option) => (
-                <Toggle
-                  key={option}
-                  value={option}
-                  disabled={isShopee}
-                  className="h-7 px-1.5 text-xs"
-                >
-                  {option}
-                </Toggle>
-              ))}
-            </ToggleGroup>
-            {isShopee && (
-              <p className="text-xs text-muted-foreground">
-                Shopee orders are always settled as a bank transfer.
-              </p>
-            )}
-            <FieldError>{errors.method}</FieldError>
-          </Field>
-
-          {targetStatus === "partially_paid" && (
-            <Field data-invalid={!!errors.downPayment}>
-              <FieldLabel htmlFor="order-payment-down-payment">Down Payment</FieldLabel>
-              <CurrencyInput
-                id="order-payment-down-payment"
-                value={downPaymentInput}
-                onChange={(event) => setDownPaymentInput(event.target.value)}
-                aria-invalid={!!errors.downPayment}
-              />
-              <FieldError>{errors.downPayment}</FieldError>
-            </Field>
-          )}
-
-          {targetStatus === "paid" && existingDownPayment > 0 && (
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Down Payment</span>
-              <span>{formatCurrency(existingDownPayment)}</span>
+                {currentStatus === "partially_paid" && (
+                  <Field data-invalid={!!errors?.downPayment}>
+                    <FieldLabel htmlFor="order-payment-down-payment">Down payment</FieldLabel>
+                    <CurrencyInput
+                      id="order-payment-down-payment"
+                      value={downPayment}
+                      onChange={(event) => onDownPaymentChange(event.target.value)}
+                      aria-invalid={!!errors?.downPayment}
+                      className="bg-card"
+                    />
+                    {errors?.downPayment ? (
+                      <FieldError>{errors.downPayment}</FieldError>
+                    ) : (
+                      <FieldDescription className="text-xs">
+                        Less than the total ({formatCurrency(total)}).
+                      </FieldDescription>
+                    )}
+                  </Field>
+                )}
+              </div>
             </div>
-          )}
+          </CollapsibleContent>
+        </Collapsible>
 
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">
-              {targetStatus === "paid" ? "Amount Due" : "Remaining Balance"}
-            </span>
-            <span>
-              {formatCurrency(targetStatus === "paid" ? existingBalance : previewBalance)}
-            </span>
-          </div>
+        {/* Live recap — what's settled and what's still to collect. */}
+        <PaymentRecap total={total} paid={paidAmount} balance={balance} isRefunded={currentStatus === "refunded"} />
         </div>
-
-        <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction onClick={handleSave}>Save</AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+      </Field>
+    </div>
   )
 }

@@ -1,38 +1,21 @@
 import { useEffect, useState } from "react"
 import { addDays, eachDayOfInterval, format, isSameDay, min, startOfWeek } from "date-fns"
-import { CalendarDaysIcon, HandCoinsIcon, UsersIcon } from "lucide-react"
+import { CalendarDaysIcon, CheckIcon, HandCoinsIcon, ReceiptTextIcon, UsersIcon } from "lucide-react"
 import { toast } from "sonner"
 
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogMedia,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
+import { ChoiceTile } from "@/components/choice-tile"
+import { ConfirmDialog, Name } from "@/components/confirm-dialog"
+import { FormDialogHeader } from "@/components/form-dialog-header"
+import { OrderFormSectionHeader } from "@/components/orders/order-form-section-header"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
-import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+import { Card, CardAction, CardContent, CardHeader } from "@/components/ui/card"
+import { Dialog, DialogBody, DialogContent, DialogFooter } from "@/components/ui/dialog"
 import { Empty, EmptyDescription, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Spinner } from "@/components/ui/spinner"
-import { Switch } from "@/components/ui/switch"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Toggle } from "@/components/ui/toggle"
 import { useExpenseActions } from "@/lib/expenses"
 import { useStaffWithDailyRate } from "@/lib/users"
 import { cn, formatCurrency } from "@/lib/utils"
@@ -128,6 +111,18 @@ export function RunPayrollDialog({
     })
   }
 
+  const allSelected = staff.length > 0 && staff.every((person) => selectedStaffIds.has(person.id))
+
+  function toggleAllStaff() {
+    if (allSelected) {
+      setSelectedStaffIds(new Set())
+      // Same as toggleStaff: half-day marks go with the people removed from the run.
+      setHalfDayOverrides({})
+    } else {
+      setSelectedStaffIds(new Set(staff.map((person) => person.id)))
+    }
+  }
+
   function handleDatesChange(dates: Date[] | undefined) {
     const next = dates ?? []
     setSelectedDates(next)
@@ -208,25 +203,29 @@ export function RunPayrollDialog({
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="sm:max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>Run Payroll</DialogTitle>
-            <DialogDescription>
-              Select staff and the days they reported to work — pay is calculated automatically as
-              daily rate × days. Click a staff member's day count in the summary to mark half days.
-            </DialogDescription>
-          </DialogHeader>
+          <FormDialogHeader
+            icon={HandCoinsIcon}
+            title={<>Run payroll</>}
+            description={<>Select staff and the days they reported to work — pay is calculated automatically as daily rate × days. Click a staff member's day count in the summary to mark half days.</>}
+          />
 
-          <div className="flex flex-col gap-4">
+          <DialogBody className="flex flex-col gap-4">
+
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Card size="sm" className="flex flex-col">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-1.5 text-sm">
-                    <UsersIcon className="size-4 text-muted-foreground" />
-                    Staff
-                  </CardTitle>
-                  <CardAction>
-                    <Badge variant="secondary">{selectedStaffIds.size} selected</Badge>
-                  </CardAction>
+                  <OrderFormSectionHeader
+                    icon={UsersIcon}
+                    title="Staff"
+                    description={`${selectedStaffIds.size} selected`}
+                  />
+                  {staff.length > 0 && (
+                    <CardAction>
+                      <Button type="button" variant="ghost" size="sm" onClick={toggleAllStaff}>
+                        {allSelected ? "Clear" : "Select all"}
+                      </Button>
+                    </CardAction>
+                  )}
                 </CardHeader>
                 <CardContent className="flex-1">
                   {isStaffLoading ? (
@@ -248,25 +247,37 @@ export function RunPayrollDialog({
                       {staff.map((person) => {
                         const isSelected = selectedStaffIds.has(person.id)
                         return (
-                          <label
+                          <button
                             key={person.id}
+                            type="button"
+                            role="checkbox"
+                            aria-checked={isSelected}
+                            onClick={() => toggleStaff(person.id)}
                             className={cn(
-                              "flex cursor-pointer items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm transition-colors",
+                              "flex cursor-pointer items-center justify-between gap-2 rounded-lg border px-3 py-2 text-left text-sm transition-colors duration-150 outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
                               isSelected
-                                ? "border-primary/30 bg-primary/5"
-                                : "border-transparent hover:bg-muted/60"
+                                ? "border-primary bg-accent/50"
+                                : "border-border hover:bg-accent/30"
                             )}
                           >
                             <span className="min-w-0">
                               <span className="block truncate font-medium">
                                 {person.firstName} {person.lastName}
                               </span>
-                              <span className="text-xs text-muted-foreground">
-                                {formatCurrency(person.dailyRate ?? 0)}/day
+                              <span className="text-xs text-muted-foreground tabular-nums">
+                                {person.dailyRate ? `${formatCurrency(person.dailyRate)}/day` : "—"}
                               </span>
                             </span>
-                            <Switch checked={isSelected} onCheckedChange={() => toggleStaff(person.id)} />
-                          </label>
+                            <span
+                              aria-hidden
+                              className={cn(
+                                "flex size-5 shrink-0 items-center justify-center rounded-full border transition-colors",
+                                isSelected ? "border-primary bg-primary text-primary-foreground" : "border-input"
+                              )}
+                            >
+                              {isSelected && <CheckIcon className="size-3 stroke-3" />}
+                            </span>
+                          </button>
                         )
                       })}
                     </div>
@@ -276,15 +287,11 @@ export function RunPayrollDialog({
 
               <Card size="sm" className="flex flex-col">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-1.5 text-sm">
-                    <CalendarDaysIcon className="size-4 text-muted-foreground" />
-                    Days Worked
-                  </CardTitle>
-                  <CardAction>
-                    <Badge variant="secondary">
-                      {dayCount} day{dayCount === 1 ? "" : "s"}
-                    </Badge>
-                  </CardAction>
+                  <OrderFormSectionHeader
+                    icon={CalendarDaysIcon}
+                    title="Days worked"
+                    description={`${dayCount} ${dayCount === 1 ? "day" : "days"} selected`}
+                  />
                 </CardHeader>
                 <CardContent className="flex flex-1 items-center justify-center">
                   <Calendar
@@ -300,15 +307,19 @@ export function RunPayrollDialog({
             {canSubmit ? (
               <Card size="sm">
                 <CardHeader>
-                  <CardTitle className="text-sm">Summary</CardTitle>
+                  <OrderFormSectionHeader
+                    icon={ReceiptTextIcon}
+                    title="Summary"
+                    description="Click a day count to mark half days."
+                  />
                 </CardHeader>
                 <CardContent className="flex flex-col gap-3">
                   <Table>
                     <TableHeader>
-                      <TableRow>
-                        <TableHead>Staff</TableHead>
-                        <TableHead className="text-right">Days</TableHead>
-                        <TableHead className="text-right">Amount</TableHead>
+                      <TableRow className="hover:bg-transparent">
+                        <TableHead className="text-xs font-medium text-muted-foreground">Staff</TableHead>
+                        <TableHead className="text-right text-xs font-medium text-muted-foreground">Days</TableHead>
+                        <TableHead className="text-right text-xs font-medium text-muted-foreground">Amount</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -344,13 +355,13 @@ export function RunPayrollDialog({
                                         return (
                                           <div key={iso} className="flex items-center justify-between gap-2 text-sm">
                                             <span className="text-foreground">{format(date, "EEE, MMM d")}</span>
-                                            <Toggle
+                                            <ChoiceTile
                                               className="h-7 px-2 text-xs"
                                               pressed={isHalf}
                                               onPressedChange={(pressed) => toggleHalfDay(person.id, iso, pressed)}
                                             >
-                                              Half
-                                            </Toggle>
+                                              Half day
+                                            </ChoiceTile>
                                           </div>
                                         )
                                       })}
@@ -366,14 +377,11 @@ export function RunPayrollDialog({
                       })}
                     </TableBody>
                   </Table>
-                  <div className="flex items-center justify-between rounded-lg bg-status-success/10 px-3 py-2.5">
-                    <span className="flex items-center gap-1.5 text-sm font-medium text-status-success">
-                      <HandCoinsIcon className="size-4" />
-                      Total payout
+                  <div className="flex items-baseline justify-between border-t pt-3">
+                    <span className="text-sm text-muted-foreground">
+                      Total payout · {includedStaff.length} {includedStaff.length === 1 ? "person" : "people"}
                     </span>
-                    <span className="text-lg font-semibold tabular-nums text-status-success">
-                      {formatCurrency(totalAmount)}
-                    </span>
+                    <span className="text-xl font-semibold tabular-nums">{formatCurrency(totalAmount)}</span>
                   </div>
                 </CardContent>
               </Card>
@@ -382,46 +390,39 @@ export function RunPayrollDialog({
                 Select at least one staff member and one day to see the payout summary.
               </p>
             )}
-          </div>
+          </DialogBody>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
+            <Button variant="ghost" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
             <Button disabled={!canSubmit} onClick={() => setConfirmOpen(true)}>
               <HandCoinsIcon data-icon="inline-start" />
-              Run Payroll
+              Run payroll
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogMedia className="bg-status-success/10 text-status-success">
-              <HandCoinsIcon />
-            </AlertDialogMedia>
-            <AlertDialogTitle>
-              Run payroll for {includedStaff.length} staff member{includedStaff.length === 1 ? "" : "s"}?
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              This creates {formatCurrency(totalAmount)} in "Payroll and Employee Costs" expenses,
-              based on each staff member's days worked out of {dayCount} selected day
-              {dayCount === 1 ? "" : "s"} (with any half-day marks applied). This can't be undone
-              automatically; each expense would need to be edited or deleted individually
-              afterward.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isSubmitting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction disabled={isSubmitting} onClick={handleConfirm}>
-              {isSubmitting && <Spinner data-icon="inline-start" />}
-              Run Payroll
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        tone="primary"
+        icon={HandCoinsIcon}
+        title={`Run payroll for ${includedStaff.length} staff ${includedStaff.length === 1 ? "member" : "members"}?`}
+        description={
+          <>
+            Creates <Name>{formatCurrency(totalAmount)}</Name> in payroll expenses, based on days worked out of{" "}
+            {dayCount} selected {dayCount === 1 ? "day" : "days"} (half-days applied). To undo, each expense
+            must be edited or deleted one by one.
+          </>
+        }
+        confirmLabel="Yes, run payroll"
+        pendingLabel="Running…"
+        cancelLabel="No, go back"
+        isPending={isSubmitting}
+        onConfirm={handleConfirm}
+      />
     </>
   )
 }

@@ -1,20 +1,20 @@
 import { useEffect, useState } from "react"
-import { LockIcon } from "lucide-react"
+import { LockIcon, TagIcon } from "lucide-react"
 import { toast } from "sonner"
 
+import { StatusFlowPath } from "@/components/categories/status-flow-path"
+import { ChoiceTile } from "@/components/choice-tile"
+import { SEGMENT_CLASS, SEGMENT_TRACK_CLASS } from "@/components/segmented"
 import { Button } from "@/components/ui/button"
+import { FormDialogHeader } from "@/components/form-dialog-header"
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
-  DialogHeader,
-  DialogTitle,
 } from "@/components/ui/dialog"
-import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
+import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Spinner } from "@/components/ui/spinner"
-import { Switch } from "@/components/ui/switch"
 import { Toggle } from "@/components/ui/toggle"
 import { ToggleGroup } from "@/components/ui/toggle-group"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -64,7 +64,7 @@ export function CategoryFormDialog({
 }) {
   const { addCategory, updateCategory } = useCategoryActions()
   const { statuses } = useActiveOrderStatuses()
-  const { getLabel, getIcon } = useOrderStatusLookup()
+  const { getLabel, getColors } = useOrderStatusLookup()
   const statusFlowOptions = getCategoryStatusFlowOptions(statuses)
   const [draft, setDraft] = useState<CategoryInput>(emptyDraft)
   const [nameError, setNameError] = useState<string | null>(null)
@@ -109,15 +109,12 @@ export function CategoryFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-4xl">
-        <DialogHeader>
-          <DialogTitle>{category ? "Edit Category" : "Add Category"}</DialogTitle>
-          <DialogDescription>
-            {category
-              ? "Update this product category's name or status."
-              : "Add a new product category admins can assign to products."}
-          </DialogDescription>
-        </DialogHeader>
+      <DialogContent className="sm:max-w-xl">
+        <FormDialogHeader
+          icon={TagIcon}
+          title={<>{category ? "Edit category" : "New category"}</>}
+          description={<>{category ? "Update this product category's name or status." : "Add a new product category admins can assign to products."}</>}
+        />
 
         <form id="category-form" onSubmit={handleSubmit} className="flex flex-col gap-6">
           <FieldGroup>
@@ -137,22 +134,41 @@ export function CategoryFormDialog({
             </Field>
 
             <Field>
-              <FieldLabel>Status</FieldLabel>
-              <div className="flex items-center justify-between rounded-lg border p-3">
-                <span className="text-sm">{draft.active ? "Active" : "Inactive"}</span>
-                <Switch
-                  checked={draft.active}
-                  onCheckedChange={(checked) => setDraft((prev) => ({ ...prev, active: checked }))}
-                />
-              </div>
+              <FieldLabel htmlFor="category-status">Status</FieldLabel>
+              <ToggleGroup
+                id="category-status"
+                aria-label="Category status"
+                value={[draft.active ? "active" : "inactive"]}
+                onValueChange={(next) => {
+                  const value = next[0]
+                  if (value) setDraft((prev) => ({ ...prev, active: value === "active" }))
+                }}
+                className={cn(SEGMENT_TRACK_CLASS, "w-fit")}
+              >
+                {(["active", "inactive"] as const).map((value) => (
+                  <Toggle key={value} value={value} className={SEGMENT_CLASS}>
+                    <span
+                      aria-hidden
+                      className={cn(
+                        "size-2 shrink-0 translate-y-px rounded-full",
+                        value === "active" ? "bg-order-status-teal" : "bg-muted-foreground/40"
+                      )}
+                    />
+                    <span className="leading-none">{value === "active" ? "Active" : "Inactive"}</span>
+                  </Toggle>
+                ))}
+              </ToggleGroup>
+              <FieldDescription className="text-xs">
+                Inactive categories can't be picked for new products.
+              </FieldDescription>
             </Field>
 
             <Field>
-              <FieldLabel>Order statuses</FieldLabel>
-              <p className="text-sm text-muted-foreground">
-                Every order starts at Pending and ends at Released — choose which production
-                steps happen in between.
-              </p>
+              <FieldLabel>Order flow</FieldLabel>
+              <FieldDescription className="text-xs">
+                Every order starts at Pending and ends at Released — pick the production steps in
+                between.
+              </FieldDescription>
               <ToggleGroup
                 multiple
                 value={draft.statusFlow}
@@ -163,25 +179,26 @@ export function CategoryFormDialog({
                     statusFlow: statusFlowOptions.filter((status) => withMandatory.has(status)),
                   }))
                 }}
-                className="flex-nowrap items-center gap-1"
+                className="flex-wrap gap-2"
               >
                 {statusFlowOptions.map((status) => {
                   const locked = MANDATORY_STATUSES.includes(status)
-                  const Icon = getIcon(status)
+                  // Wrapping ✓ tiles (same as the order form's choices); each carries its status
+                  // dot. Pending/Released stay selected and locked, with the reason on hover.
                   const chip = (
-                    <Toggle
+                    <ChoiceTile
                       key={status}
                       value={status}
                       disabled={locked}
-                      className={cn(
-                        "h-6 shrink-0 gap-1 px-1.5 text-[11px]",
-                        locked && "disabled:pointer-events-auto disabled:opacity-100"
-                      )}
+                      className={cn(locked && "disabled:pointer-events-auto disabled:opacity-100")}
                     >
-                      <Icon className="size-3" />
-                      {getLabel(status)}
-                      {locked && <LockIcon className="size-2.5 opacity-70" />}
-                    </Toggle>
+                      <span
+                        aria-hidden
+                        className={cn("size-2 shrink-0 translate-y-px rounded-full", getColors(status).solid)}
+                      />
+                      <span className="leading-none">{getLabel(status)}</span>
+                      {locked && <LockIcon aria-hidden className="size-3 opacity-60" />}
+                    </ChoiceTile>
                   )
                   return locked ? (
                     <Tooltip key={status}>
@@ -193,17 +210,22 @@ export function CategoryFormDialog({
                   )
                 })}
               </ToggleGroup>
+              {/* Live preview of the exact flow being built — the same path the categories table shows. */}
+              <div className="mt-1 flex flex-col gap-2 rounded-lg bg-muted/40 p-3">
+                <span className="text-xs text-muted-foreground">Orders in this category go</span>
+                <StatusFlowPath statuses={draft.statusFlow} showLabels />
+              </div>
             </Field>
           </FieldGroup>
         </form>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="ghost" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
           <Button type="submit" form="category-form" disabled={isSubmitting}>
             {isSubmitting && <Spinner data-icon="inline-start" />}
-            {isSubmitting ? "Saving..." : "Save Category"}
+            {isSubmitting ? "Saving…" : category ? "Save changes" : "Create category"}
           </Button>
         </DialogFooter>
       </DialogContent>

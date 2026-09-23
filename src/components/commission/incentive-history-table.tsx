@@ -3,24 +3,13 @@ import { endOfMonth, format, parseISO } from "date-fns"
 import { HandCoinsIcon, HistoryIcon } from "lucide-react"
 import { toast } from "sonner"
 
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogMedia,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
+import { ConfirmDialog } from "@/components/confirm-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Empty, EmptyDescription, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Spinner } from "@/components/ui/spinner"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useMonthlyIncentiveHistory, useMonthlyIncentiveReleaseActions } from "@/lib/commission"
 import { formatCurrency } from "@/lib/utils"
@@ -194,36 +183,27 @@ export function IncentiveHistoryTable() {
         )}
       </CardContent>
 
-      <AlertDialog open={confirmTarget !== null} onOpenChange={(open) => !open && setConfirmTarget(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogMedia
-              className={
-                confirmTarget?.action === "release" ? "bg-status-success/10 text-status-success" : undefined
-              }
-            >
-              <HandCoinsIcon />
-            </AlertDialogMedia>
-            <AlertDialogTitle>
-              {confirmTarget?.action === "release"
-                ? `Release ${confirmTarget ? format(parseISO(confirmTarget.periodMonth), "MMMM yyyy") : ""}'s incentive?`
-                : "Undo this release?"}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {confirmTarget?.action === "release"
-                ? "This locks in the pool and creates one payroll expense per staff member for their share."
-                : "This deletes the payroll expenses this release created and lets the incentive be recomputed live."}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isMutating}>Cancel</AlertDialogCancel>
-            <AlertDialogAction disabled={isMutating} onClick={handleConfirm}>
-              {isMutating && <Spinner data-icon="inline-start" />}
-              {confirmTarget?.action === "release" ? "Release" : "Undo Release"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={confirmTarget !== null}
+        onOpenChange={(open) => !open && setConfirmTarget(null)}
+        tone={confirmTarget?.action === "release" ? "primary" : "danger"}
+        icon={HandCoinsIcon}
+        title={
+          confirmTarget?.action === "release"
+            ? `Release ${confirmTarget ? format(parseISO(confirmTarget.periodMonth), "MMMM yyyy") : ""}'s incentive?`
+            : "Undo this release?"
+        }
+        description={
+          confirmTarget?.action === "release"
+            ? "Locks in the pool and creates one payroll expense per staff member for their share."
+            : "Deletes the payroll expenses this release created, so the incentive is computed live again."
+        }
+        confirmLabel={confirmTarget?.action === "release" ? "Yes, release" : "Yes, undo it"}
+        pendingLabel={confirmTarget?.action === "release" ? "Releasing…" : "Undoing…"}
+        cancelLabel={confirmTarget?.action === "release" ? "No, not yet" : "No, keep it"}
+        isPending={isMutating}
+        onConfirm={handleConfirm}
+      />
     </Card>
   )
 }

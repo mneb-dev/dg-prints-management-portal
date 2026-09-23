@@ -23,16 +23,18 @@ import {
 import { useAuth } from "@/lib/auth"
 import { EXPENSE_CATEGORIES, useExpenseActions, useExpenses, type Expense } from "@/lib/expenses"
 import { usePaymentMethods } from "@/lib/payment-methods"
+import { useUserOptions } from "@/lib/users"
 import { useDebouncedValue } from "@/lib/use-debounced-value"
 
-const ANY_CATEGORY = "All Categories"
-const ANY_METHOD = "All Payment Methods"
+const ANY_CATEGORY = "All categories"
+const ANY_METHOD = "All payment methods"
+const ANY_CREATOR = "All creators"
 
 const SORT_OPTIONS = [
   { value: "date", label: "Date" },
   { value: "amount", label: "Amount" },
   { value: "category", label: "Category" },
-  { value: "created_at", label: "Date Logged" },
+  { value: "created_at", label: "Date logged" },
 ]
 
 export function ExpensesPage() {
@@ -42,6 +44,12 @@ export function ExpensesPage() {
   const { expenses, total, params, setParams, refetch, isLoading, isFetching, isError, error } = useExpenses()
   const { deleteExpense } = useExpenseActions()
   const { paymentMethods } = usePaymentMethods()
+  // Includes inactive users so a former staff member's past expenses can still be isolated.
+  const { users: creatorOptions } = useUserOptions(canManage, true)
+  const creatorName = (id: string) => {
+    const user = creatorOptions.find((option) => option.id === id)
+    return user ? `${user.firstName} ${user.lastName}` : "Selected user"
+  }
   const [searchInput, setSearchInput] = useState(params.search)
   const debouncedSearch = useDebouncedValue(searchInput, 400)
 
@@ -64,6 +72,7 @@ export function ExpensesPage() {
     params.paymentMethod !== "" ||
     params.dateFrom !== "" ||
     params.dateTo !== "" ||
+    params.createdBy !== "" ||
     params.sortBy !== "date" ||
     params.sortDir !== "desc"
 
@@ -75,6 +84,7 @@ export function ExpensesPage() {
       paymentMethod: "",
       dateFrom: "",
       dateTo: "",
+      createdBy: "",
       sortBy: "date",
       sortDir: "desc",
       page: 1,
@@ -100,6 +110,12 @@ export function ExpensesPage() {
       label: params.paymentMethod,
       onRemove: () => setParams({ paymentMethod: "", page: 1 }),
     },
+    canManage &&
+      params.createdBy && {
+        key: "createdBy",
+        label: `Created by: ${creatorName(params.createdBy)}`,
+        onRemove: () => setParams({ createdBy: "", page: 1 }),
+      },
     params.dateFrom && {
       key: "dateFrom",
       label: `From: ${params.dateFrom}`,
@@ -140,23 +156,28 @@ export function ExpensesPage() {
     <div className="flex flex-col gap-4">
       <PageHeader
         title="Expenses"
+        description={
+          isLoading || isError
+            ? "Business spending and payroll"
+            : `${total.toLocaleString()} ${total === 1 ? "expense" : "expenses"}`
+        }
         actions={
           <>
             {canManage && (
               <Button variant="outline" onClick={() => navigate("/expenses/recurring")}>
                 <CalendarCogIcon data-icon="inline-start" />
-                Manage Recurring
+                Recurring
               </Button>
             )}
             {canManage && (
               <Button variant="outline" onClick={() => setRunPayrollOpen(true)}>
                 <HandCoinsIcon data-icon="inline-start" />
-                Run Payroll
+                Run payroll
               </Button>
             )}
             <Button onClick={handleAdd}>
               <PlusIcon data-icon="inline-start" />
-              Add Expense
+              Add expense
             </Button>
           </>
         }
@@ -209,6 +230,31 @@ export function ExpensesPage() {
             ))}
           </SelectContent>
         </Select>
+
+        {canManage && (
+          <Select
+            value={params.createdBy || ANY_CREATOR}
+            onValueChange={(value) =>
+              setParams({ createdBy: value === ANY_CREATOR ? "" : (value ?? ""), page: 1 })
+            }
+            disabled={isLoading || isError}
+          >
+            <SelectTrigger aria-label="Filter by creator">
+              <SelectValue>
+                {(value: string | null) => (value && value !== ANY_CREATOR ? creatorName(value) : ANY_CREATOR)}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ANY_CREATOR}>{ANY_CREATOR}</SelectItem>
+              {creatorOptions.map((user) => (
+                <SelectItem key={user.id} value={user.id}>
+                  {user.firstName} {user.lastName}
+                  {user.status !== "active" && <span className="text-muted-foreground">(inactive)</span>}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
 
         <DateRangeFilter
           id="expenses-date-range"

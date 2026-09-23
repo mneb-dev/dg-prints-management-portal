@@ -1,30 +1,49 @@
-import { useState } from "react"
+import { useState, type ReactNode } from "react"
 import {
   ArrowLeftIcon,
   CheckCircle2Icon,
   CopyIcon,
   ExternalLinkIcon,
   FileWarningIcon,
+  HistoryIcon,
+  MoreHorizontalIcon,
+  PackageIcon,
   PencilIcon,
+  PlusIcon,
+  ReceiptTextIcon,
   RotateCcwIcon,
   TriangleAlertIcon,
+  TruckIcon,
+  Undo2Icon,
+  UserIcon,
+  WalletIcon,
   XCircleIcon,
 } from "lucide-react"
 import { Link, useParams } from "react-router-dom"
 import { toast } from "sonner"
 
 import { CancelOrderDialog } from "@/components/orders/cancel-order-dialog"
+import { OrderFormSectionHeader } from "@/components/orders/order-form-section-header"
 import { OrderItemSummary } from "@/components/orders/order-item-summary"
 import { OrderStatusBadge } from "@/components/orders/order-status-badge"
 import { OrderStatusMenu } from "@/components/orders/order-status-menu"
 import { OrderStatusStepper } from "@/components/orders/order-status-stepper"
+import { OrderTotals } from "@/components/orders/order-summary-panel"
+import { PaymentRecap } from "@/components/orders/payment-recap"
 import { PaymentStatusBadge } from "@/components/orders/payment-status-badge"
 import { PaymentStatusMenu } from "@/components/orders/payment-status-menu"
 import { RecordPaymentDialog } from "@/components/orders/record-payment-dialog"
 import { RefundOrderDialog } from "@/components/orders/refund-order-dialog"
 import { ReturnOrderDialog } from "@/components/orders/return-order-dialog"
 import { Button } from "@/components/ui/button"
-import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardAction, CardContent, CardHeader } from "@/components/ui/card"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import {
   Empty,
   EmptyDescription,
@@ -32,7 +51,6 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty"
-import { Separator } from "@/components/ui/separator"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useAuth } from "@/lib/auth"
@@ -48,15 +66,17 @@ import {
   type CopyableLineItem,
 } from "@/lib/quote-text"
 import {
+  getAmountDue,
   getOrderStatusOptions,
   isReleaseLockedForRole,
   isTerminalStatus,
+  useCustomerRankings,
   useOrder,
   useOrderActions,
   useOrderStatusUpdate,
 } from "@/lib/orders"
 import type { Order, OrderStatus, Payment } from "@/lib/orders"
-import { formatCurrency, formatDate, formatRelativeDate } from "@/lib/utils"
+import { cn, formatCurrency, formatDateTime, formatRelativeDate } from "@/lib/utils"
 
 export function OrderDetailsPage() {
   const { id } = useParams<{ id: string }>()
@@ -67,6 +87,7 @@ export function OrderDetailsPage() {
   const canManage = hasPermission("manage_orders")
   const { categories } = useCategories()
   const { statuses } = useActiveOrderStatuses()
+  const { customerDetailsByName, windowDays: customerWindowDays } = useCustomerRankings()
   const [cancelling, setCancelling] = useState(false)
   const [refunding, setRefunding] = useState(false)
   const [returning, setReturning] = useState(false)
@@ -335,43 +356,115 @@ export function OrderDetailsPage() {
     }
   }
 
+  const returnOption = statusOptions.find((option) => option.value === "returned")
+  const canReturn = Boolean(returnOption && !returnOption.disabled)
+  // Same stored-value maths as the Orders table's "₱X due" (getAmountDue), so both always agree.
+  const amountDue = getAmountDue(order)
+  const amountPaid =
+    order.payment.status === "unpaid" || order.payment.status === "refunded"
+      ? 0
+      : Math.max(order.total - amountDue, 0)
+  const returningCustomer = customerDetailsByName.get(order.customerName.trim()) ?? null
+  const unavailableReason = isReleaseLocked ? "Locked once released" : "Not available at this stage"
+
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon-sm" render={<Link to="/orders" />}>
+      {/* Header: identity + primary actions; anything destructive or rarely used lives in ⋯. */}
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex min-w-0 items-start gap-3">
+          <Button variant="ghost" size="icon-sm" className="mt-0.5" render={<Link to="/orders" />} nativeButton={false}>
             <ArrowLeftIcon />
             <span className="sr-only">Back to Orders</span>
           </Button>
-          <h1 className="text-2xl font-semibold">Order {order.orderNumber}</h1>
-          <OrderStatusBadge
-            key={displayStatus}
-            status={displayStatus}
-            statusUpdatedAt={order.statusUpdatedAt}
-          />
+          <div className="flex min-w-0 flex-col gap-1">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <h1 className="text-2xl font-semibold tabular-nums">Order {order.orderNumber}</h1>
+              <OrderStatusBadge
+                key={displayStatus}
+                status={displayStatus}
+                statusUpdatedAt={order.statusUpdatedAt}
+              />
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Created{" "}
+              <Tooltip>
+                <TooltipTrigger className="cursor-default font-medium text-foreground">
+                  {formatRelativeDate(order.createdAt)}
+                </TooltipTrigger>
+                <TooltipContent>{formatDateTime(order.createdAt)}</TooltipContent>
+              </Tooltip>{" "}
+              by {order.createdByName || "Unknown user"}
+              {order.channel ? ` · ${order.channel}` : null}
+            </p>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="destructive" disabled={!canCancel} onClick={() => setCancelling(true)}>
-            <XCircleIcon data-icon="inline-start" />
-            Cancel
-          </Button>
-          <Button
-            variant="outline"
-            disabled={!canRelease || isUpdatingStatus}
-            onClick={() => handleStatusChange("released")}
-          >
-            <CheckCircle2Icon data-icon="inline-start" />
-            Release
-          </Button>
-          <Separator orientation="vertical" className="h-6" />
-          <Button variant="outline" disabled={!canRefund} onClick={() => setRefunding(true)}>
-            <RotateCcwIcon data-icon="inline-start" />
-            Refund
-          </Button>
-          <Button disabled={!canEditOrder} render={<Link to={`/orders/${order.id}/edit`} />}>
-            <PencilIcon data-icon="inline-start" />
-            Edit Order
-          </Button>
+
+        <div className="flex flex-wrap items-center gap-2">
+          {/* After creating an order the user lands here — keep the next one a click away. */}
+          {canManage && (
+            <Button variant="outline" render={<Link to="/orders/new" />} nativeButton={false}>
+              <PlusIcon data-icon="inline-start" />
+              New order
+            </Button>
+          )}
+          {canRelease && (
+            <Button variant="outline" disabled={isUpdatingStatus} onClick={() => handleStatusChange("released")}>
+              <CheckCircle2Icon data-icon="inline-start" />
+              Release
+            </Button>
+          )}
+          {canEditOrder ? (
+            <Button render={<Link to={`/orders/${order.id}/edit`} />} nativeButton={false}>
+              <PencilIcon data-icon="inline-start" />
+              Edit order
+            </Button>
+          ) : (
+            <Tooltip>
+              <TooltipTrigger render={<span tabIndex={0} className="inline-flex" />}>
+                <Button disabled>
+                  <PencilIcon data-icon="inline-start" />
+                  Edit order
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Released orders are locked for your role.</TooltipContent>
+            </Tooltip>
+          )}
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  variant="outline"
+                  size="icon"
+                  aria-label="More order actions"
+                  className="data-popup-open:bg-accent data-popup-open:text-accent-foreground"
+                />
+              }
+            >
+              <MoreHorizontalIcon />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-56">
+              <ActionMenuItem
+                icon={<RotateCcwIcon />}
+                label="Refund order"
+                disabledReason={canRefund ? null : unavailableReason}
+                onClick={() => setRefunding(true)}
+              />
+              <ActionMenuItem
+                icon={<Undo2Icon />}
+                label="Return order"
+                disabledReason={canReturn ? null : unavailableReason}
+                onClick={() => setReturning(true)}
+              />
+              <DropdownMenuSeparator />
+              <ActionMenuItem
+                icon={<XCircleIcon />}
+                label="Cancel order"
+                variant="destructive"
+                disabledReason={canCancel ? null : isReleaseLocked ? "Locked once released" : "Order is already closed"}
+                onClick={() => setCancelling(true)}
+              />
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
@@ -406,18 +499,27 @@ export function OrderDetailsPage() {
 
       <Card>
         <CardContent>
-          <OrderStatusStepper order={order} />
+          {/* Fed the optimistic status so the progress track animates the moment a new status is
+              picked, not after the save round-trip. */}
+          <OrderStatusStepper
+            order={displayStatus !== order.status ? { ...order, status: displayStatus } : order}
+          />
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <div className="flex flex-col gap-4 lg:col-span-2">
+      {/* Same shape as the order form: content on the left, a sticky summary column on the right. */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_360px]">
+        <div className="flex flex-col gap-4">
           {items.length > 0 && (
             <Card>
               <CardHeader>
-                <CardTitle>Product</CardTitle>
+                <OrderFormSectionHeader
+                  icon={PackageIcon}
+                  title="Items"
+                  description={items.length === 1 ? "1 item" : `${items.length} items`}
+                />
               </CardHeader>
-              <CardContent className="flex flex-col gap-3">
+              <CardContent className="flex flex-col divide-y">
                 {items.map((orderItem, index) => (
                   <OrderItemSummary
                     key={orderItem.id}
@@ -433,164 +535,179 @@ export function OrderDetailsPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Pricing</CardTitle>
-              {items.length > 0 && (
-                <CardAction>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    onClick={handleCopySummary}
-                    aria-label="Copy order summary"
-                  >
-                    <CopyIcon />
-                  </Button>
-                </CardAction>
-              )}
+              <OrderFormSectionHeader icon={WalletIcon} title="Payment" description="Channel and how much is paid" />
             </CardHeader>
-            <CardContent className="grid grid-cols-[max-content_1fr] items-baseline gap-x-6 gap-y-2 text-sm">
-              <span className="text-muted-foreground">Subtotal</span>
-              <span className="justify-self-end">{formatCurrency(order.subtotal)}</span>
-
-              <span className="text-muted-foreground">Additional Fees</span>
-              <span className="justify-self-end">
-                {formatCurrency(order.additionalFees)}
-                {order.notes.trim() && ` (${order.notes.trim()})`}
-              </span>
-
-              {order.layoutFee >= 1 && (
-                <>
-                  <span className="text-muted-foreground">Layout Fee</span>
-                  <span className="justify-self-end">{formatCurrency(order.layoutFee)}</span>
-
-                  <span className="text-muted-foreground">Layout By</span>
-                  <span className="justify-self-end">{order.layoutByName || "—"}</span>
-                </>
-              )}
-
-              {!!order.shippingAddress?.fee && (
-                <>
-                  <span className="text-muted-foreground">Shipping Fee</span>
-                  <span className="justify-self-end">{formatCurrency(order.shippingAddress.fee)}</span>
-                </>
-              )}
-
-              <span className="text-muted-foreground">Discount</span>
-              <span className="justify-self-end">{formatCurrency(order.discount)}</span>
-
-              <Separator className="col-span-2" />
-
-              <span className="font-medium">Total</span>
-              <span className="justify-self-end font-medium">{formatCurrency(order.total)}</span>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Payment</CardTitle>
-            </CardHeader>
-            <CardContent className="grid grid-cols-[max-content_1fr] items-baseline gap-x-6 gap-y-2 text-sm">
-              <span className="text-muted-foreground">Channel</span>
-              <span className="justify-self-end">{order.channel}</span>
-
-              <span className="text-muted-foreground">Status</span>
-              <span className="justify-self-end">
-                {canManage && !isReleaseLocked ? (
-                  <PaymentStatusMenu
-                    order={order}
-                    onRequestPayment={(_order, targetStatus) => setPayingTargetStatus(targetStatus)}
-                    size="lg"
-                  />
-                ) : (
-                  <PaymentStatusBadge status={order.payment.status} />
+            <CardContent className="flex flex-col gap-4">
+              <dl className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-3">
+                <div className="flex flex-col gap-1.5">
+                  <dt className="text-xs text-muted-foreground">Channel</dt>
+                  <dd className="font-medium">{order.channel || "—"}</dd>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <dt className="text-xs text-muted-foreground">Status</dt>
+                  <dd>
+                    {canManage && !isReleaseLocked ? (
+                      <PaymentStatusMenu
+                        order={order}
+                        onRequestPayment={(_order, targetStatus) => setPayingTargetStatus(targetStatus)}
+                      />
+                    ) : (
+                      <PaymentStatusBadge status={order.payment.status} />
+                    )}
+                  </dd>
+                </div>
+                {order.payment.status !== "unpaid" && order.payment.status !== "refunded" && (
+                  <div className="flex flex-col gap-1.5">
+                    <dt className="text-xs text-muted-foreground">Method</dt>
+                    <dd className="font-medium">{order.payment.method || "—"}</dd>
+                  </div>
                 )}
-              </span>
-
-              {order.payment.status !== "unpaid" && order.payment.status !== "refunded" && (
-                <>
-                  <span className="text-muted-foreground">Method</span>
-                  <span className="justify-self-end">{order.payment.method}</span>
-
-                  <span className="text-muted-foreground">
-                    {order.payment.status === "partially_paid" ? "Down Payment" : "Amount Paid"}
-                  </span>
-                  <span className="justify-self-end">{formatCurrency(order.payment.downPayment)}</span>
-
-                  <span className="text-muted-foreground">Balance</span>
-                  <span className="justify-self-end">{formatCurrency(order.payment.balance)}</span>
-                </>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-
-        <div className="flex flex-col gap-4 lg:sticky lg:top-4 lg:col-span-1 lg:self-start">
-          <Card>
-            <CardHeader>
-              <CardTitle>Customer</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-1">
-              <p>{order.customerName}</p>
-              {order.customerPhone && (
-                <p className="text-sm text-muted-foreground">{order.customerPhone}</p>
-              )}
+              </dl>
+              <PaymentRecap
+                total={order.total}
+                paid={amountPaid}
+                balance={amountDue}
+                isRefunded={order.payment.status === "refunded"}
+              />
             </CardContent>
           </Card>
 
           {order.shippingAddress && (
             <Card>
               <CardHeader>
-                <CardTitle>Shipping Address</CardTitle>
+                <OrderFormSectionHeader icon={TruckIcon} title="Shipping" description="Delivery details" />
                 <CardAction className="flex gap-1">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label="Copy shipping address"
-                    onClick={handleCopyShippingAddress}
-                  >
-                    <CopyIcon />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label="Open SPX order form"
-                    onClick={handleOpenSpx}
-                  >
-                    <ExternalLinkIcon />
-                  </Button>
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          aria-label="Copy shipping address"
+                          onClick={handleCopyShippingAddress}
+                        />
+                      }
+                    >
+                      <CopyIcon />
+                    </TooltipTrigger>
+                    <TooltipContent>Copy address</TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          aria-label="Open SPX order form"
+                          onClick={handleOpenSpx}
+                        />
+                      }
+                    >
+                      <ExternalLinkIcon />
+                    </TooltipTrigger>
+                    <TooltipContent>Open SPX order form</TooltipContent>
+                  </Tooltip>
                 </CardAction>
               </CardHeader>
-              <CardContent className="flex flex-col gap-2">
-                <div className="flex items-baseline gap-1.5 text-sm">
-                  <span className="text-muted-foreground">Name:</span>
-                  <span>{order.shippingAddress.name}</span>
-                </div>
-                <div className="flex items-baseline gap-1.5 text-sm">
-                  <span className="text-muted-foreground">Phone:</span>
-                  <span>{order.shippingAddress.phone}</span>
-                </div>
-                <div className="flex items-baseline gap-1.5 text-sm">
-                  <span className="shrink-0 text-muted-foreground">Address:</span>
-                  <span>{order.shippingAddress.address}</span>
-                </div>
-                {order.shippingAddress.fee > 0 && (
-                  <div className="flex items-baseline gap-1.5 text-sm">
-                    <span className="text-muted-foreground">Shipping Fee:</span>
-                    <span>{formatCurrency(order.shippingAddress.fee)}</span>
+              <CardContent>
+                <dl className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
+                  <div className="flex flex-col gap-1">
+                    <dt className="text-xs text-muted-foreground">Recipient</dt>
+                    <dd className="font-medium">{order.shippingAddress.name}</dd>
                   </div>
-                )}
+                  <div className="flex flex-col gap-1">
+                    <dt className="text-xs text-muted-foreground">Phone</dt>
+                    <dd>
+                      <a href={`tel:${order.shippingAddress.phone}`} className="tabular-nums hover:underline">
+                        {order.shippingAddress.phone}
+                      </a>
+                    </dd>
+                  </div>
+                  <div className="flex flex-col gap-1 sm:col-span-2">
+                    <dt className="text-xs text-muted-foreground">Address</dt>
+                    <dd className="whitespace-pre-line">{order.shippingAddress.address}</dd>
+                  </div>
+                  {order.shippingAddress.fee > 0 && (
+                    <div className="flex flex-col gap-1">
+                      <dt className="text-xs text-muted-foreground">Shipping fee</dt>
+                      <dd className="tabular-nums">{formatCurrency(order.shippingAddress.fee)}</dd>
+                    </div>
+                  )}
+                </dl>
               </CardContent>
             </Card>
           )}
+        </div>
+
+        <div className="flex flex-col gap-4 lg:sticky lg:top-20 lg:self-start">
+          <Card>
+            <CardHeader>
+              <OrderFormSectionHeader icon={ReceiptTextIcon} title="Order summary" />
+              {items.length > 0 && (
+                <CardAction>
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={handleCopySummary}
+                          aria-label="Copy order summary"
+                        />
+                      }
+                    >
+                      <CopyIcon />
+                    </TooltipTrigger>
+                    <TooltipContent>Copy summary</TooltipContent>
+                  </Tooltip>
+                </CardAction>
+              )}
+            </CardHeader>
+            <CardContent className="flex flex-col gap-3">
+              <OrderTotals
+                subtotal={order.subtotal}
+                additionalFees={order.additionalFees}
+                feeNote={order.notes}
+                layoutFee={order.layoutFee}
+                layoutByName={order.layoutByName || undefined}
+                shippingFee={order.shippingAddress?.fee ?? 0}
+                discount={order.discount}
+                total={order.total}
+              />
+            </CardContent>
+          </Card>
 
           <Card>
             <CardHeader>
-              <CardTitle>Status</CardTitle>
+              <OrderFormSectionHeader icon={UserIcon} title="Customer" />
             </CardHeader>
-            <CardContent className="flex flex-col gap-3">
-              <div className="flex items-center gap-2">
+            <CardContent className="flex flex-col gap-1.5 text-sm">
+              <p className="font-medium">{order.customerName}</p>
+              {order.customerPhone && (
+                <a href={`tel:${order.customerPhone}`} className="w-fit text-muted-foreground tabular-nums hover:underline">
+                  {order.customerPhone}
+                </a>
+              )}
+              {returningCustomer && (
+                <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-order-status-teal" />
+                  Returning customer · {returningCustomer.orderCount}{" "}
+                  {returningCustomer.orderCount === 1 ? "order" : "orders"}
+                  {customerWindowDays ? ` in the last ${customerWindowDays} days` : ""}
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <OrderFormSectionHeader icon={HistoryIcon} title="Activity" />
+            </CardHeader>
+            <CardContent className="flex flex-col gap-4">
+              <div>
                 {isReleaseLocked ? (
                   <OrderStatusBadge status={order.status} statusUpdatedAt={order.statusUpdatedAt} />
                 ) : (
@@ -605,30 +722,97 @@ export function OrderDetailsPage() {
                   />
                 )}
               </div>
-              <p className="text-sm text-muted-foreground">
-                Created by <span>{order.createdByName || "Unknown user"}</span>{" "}
-                <Tooltip>
-                  <TooltipTrigger className="font-medium text-foreground">
-                    {formatRelativeDate(order.createdAt)}
-                  </TooltipTrigger>
-                  <TooltipContent>{formatDate(order.createdAt)}</TooltipContent>
-                </Tooltip>
-              </p>
-              {order.statusUpdatedAt && (
-                <p className="text-sm text-muted-foreground">
-                  Status updated by <span>{order.statusUpdatedByName || "Unknown user"}</span>{" "}
-                  <Tooltip>
-                    <TooltipTrigger className="font-medium text-foreground">
-                      {formatRelativeDate(order.statusUpdatedAt)}
-                    </TooltipTrigger>
-                    <TooltipContent>{formatDate(order.statusUpdatedAt)}</TooltipContent>
-                  </Tooltip>
-                </p>
-              )}
+              {/* Mini timeline: newest first, dot + connector like the status stepper. */}
+              <ol className="flex flex-col text-sm">
+                {order.statusUpdatedAt && (
+                  <ActivityEntry
+                    label="Status updated"
+                    by={order.statusUpdatedByName || "Unknown user"}
+                    at={order.statusUpdatedAt}
+                    isLatest
+                  />
+                )}
+                <ActivityEntry
+                  label="Created"
+                  by={order.createdByName || "Unknown user"}
+                  at={order.createdAt}
+                  isLatest={!order.statusUpdatedAt}
+                  isLast
+                />
+              </ol>
             </CardContent>
           </Card>
         </div>
       </div>
     </div>
+  )
+}
+
+/** ⋯ menu item that stays visible when unavailable, with the reason underneath — so users see
+ * *why* they can't refund/cancel rather than the option silently missing. */
+function ActionMenuItem({
+  icon,
+  label,
+  disabledReason,
+  onClick,
+  variant = "default",
+}: {
+  icon: ReactNode
+  label: string
+  disabledReason: string | null
+  onClick: () => void
+  variant?: "default" | "destructive"
+}) {
+  return (
+    <DropdownMenuItem variant={variant} disabled={disabledReason !== null} onClick={onClick}>
+      {icon}
+      <span className="flex flex-col gap-0.5">
+        <span className="leading-none">{label}</span>
+        {disabledReason ? (
+          <span className="text-xs leading-none text-muted-foreground">{disabledReason}</span>
+        ) : null}
+      </span>
+    </DropdownMenuItem>
+  )
+}
+
+function ActivityEntry({
+  label,
+  by,
+  at,
+  isLatest = false,
+  isLast = false,
+}: {
+  label: string
+  by: string
+  at: string
+  isLatest?: boolean
+  isLast?: boolean
+}) {
+  return (
+    <li className="flex gap-3">
+      <div className="flex flex-col items-center">
+        <span
+          aria-hidden
+          className={cn(
+            "mt-1.5 size-2 shrink-0 rounded-full",
+            isLatest ? "bg-primary ring-3 ring-primary/15" : "bg-muted-foreground/40"
+          )}
+        />
+        {!isLast && <span aria-hidden className="w-px flex-1 bg-border" />}
+      </div>
+      <div className={cn("flex flex-col gap-0.5", !isLast && "pb-4")}>
+        <span className="font-medium">{label}</span>
+        <span className="text-xs text-muted-foreground">
+          by {by} ·{" "}
+          <Tooltip>
+            <TooltipTrigger className="cursor-default font-medium text-foreground">
+              {formatRelativeDate(at)}
+            </TooltipTrigger>
+            <TooltipContent>{formatDateTime(at)}</TooltipContent>
+          </Tooltip>
+        </span>
+      </div>
+    </li>
   )
 }

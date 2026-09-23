@@ -9,8 +9,7 @@ import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle }
 import { Empty, EmptyDescription, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
 import { Skeleton } from "@/components/ui/skeleton"
 import { formatCurrency, formatTimeAgo } from "@/lib/utils"
-import { useOrderActions, useRecentOrders } from "@/lib/orders"
-import type { Order } from "@/lib/orders"
+import { getAmountDue, useOrderActions, useRecentOrders } from "@/lib/orders"
 
 const VISIBLE_COUNT = 6
 
@@ -18,12 +17,6 @@ const VISIBLE_COUNT = 6
 // under the total still carries what's owed there.
 const GRID_COLUMNS =
   "grid-cols-[minmax(0,1fr)_auto_auto] sm:grid-cols-[minmax(0,1fr)_auto_auto_auto]"
-
-/** Still owed on an order — only for statuses that can carry a balance (not paid/refunded). */
-function amountDue(order: Order): number {
-  const { status, balance } = order.payment
-  return status === "paid" || status === "refunded" ? 0 : Math.max(0, balance)
-}
 
 export function RecentOrdersCard() {
   const { recentOrders, isLoading, isError } = useRecentOrders()
@@ -96,7 +89,7 @@ export function RecentOrdersCard() {
               <span className="text-right">Total</span>
             </div>
             {orders.map((order) => {
-              const due = amountDue(order)
+              const due = getAmountDue(order)
               return (
                 <Link
                   key={order.id}

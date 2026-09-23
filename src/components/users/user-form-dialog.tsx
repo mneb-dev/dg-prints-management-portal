@@ -1,15 +1,13 @@
 import { useEffect, useState } from "react"
-import { KeyRoundIcon } from "lucide-react"
+import { KeyRoundIcon, UserIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
+import { FormDialogHeader } from "@/components/form-dialog-header"
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
-  DialogHeader,
-  DialogTitle,
 } from "@/components/ui/dialog"
 import { Field, FieldError, FieldGroup, FieldLabel, FieldDescription } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
@@ -134,14 +132,11 @@ export function UserFormDialog({
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>{user ? "Edit User" : "Create User"}</DialogTitle>
-            <DialogDescription>
-              {user
-                ? "Update this user's account details."
-                : "Add a new staff, admin, or super admin account. Use Reset Password afterward to set a password for them."}
-            </DialogDescription>
-          </DialogHeader>
+          <FormDialogHeader
+            icon={UserIcon}
+            title={<>{user ? "Edit user" : "New user"}</>}
+            description={<>{user ? "Update this user's account details." : "Add a new staff, admin, or super admin account. Use Reset Password afterward to set a password for them."}</>}
+          />
 
           <form id="user-form" onSubmit={handleSubmit} className="flex flex-col gap-6">
             <FieldGroup>
@@ -291,7 +286,7 @@ export function UserFormDialog({
             {canResetPassword && (
               <Button
                 type="button"
-                variant="outline"
+                variant="ghost"
                 className="sm:mr-auto"
                 onClick={() => setResettingUser(user)}
               >
@@ -304,7 +299,7 @@ export function UserFormDialog({
             </Button>
             <Button type="submit" form="user-form" disabled={isSubmitting}>
               {isSubmitting && <Spinner data-icon="inline-start" />}
-              {isSubmitting ? "Saving..." : "Save User"}
+              {isSubmitting ? "Saving…" : user ? "Save changes" : "Create user"}
             </Button>
           </DialogFooter>
         </DialogContent>

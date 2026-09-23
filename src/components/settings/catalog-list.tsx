@@ -2,16 +2,7 @@ import { useEffect, useState } from "react"
 import { GripVerticalIcon, PlusIcon, Trash2Icon } from "lucide-react"
 import { toast } from "sonner"
 
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
+import { ConfirmDialog, Name } from "@/components/confirm-dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -112,23 +103,18 @@ export function CatalogList({
         <AddRow onAdd={onAdd} />
       </div>
 
-      <AlertDialog open={!!pendingDelete} onOpenChange={(open) => !open && setPendingDelete(null)}>
-        <AlertDialogContent size="sm">
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete "{pendingDelete?.name}"?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This won't affect orders that already used it — they'll keep showing it as recorded.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleConfirmDelete} disabled={isDeleting}>
-              {isDeleting && <Spinner data-icon="inline-start" />}
-              {isDeleting ? "Deleting..." : "Delete"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={!!pendingDelete}
+        onOpenChange={(open) => !open && setPendingDelete(null)}
+        tone="danger"
+        icon={Trash2Icon}
+        title={<>Delete <Name>{pendingDelete?.name}</Name>?</>}
+        description="Orders that already used it keep showing it as recorded."
+        confirmLabel="Yes, delete it"
+        pendingLabel="Deleting…"
+        isPending={isDeleting}
+        onConfirm={handleConfirmDelete}
+      />
     </div>
   )
 }

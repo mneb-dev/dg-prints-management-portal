@@ -20,6 +20,7 @@ export function RecurringExpensesPage() {
   const [deletingRecurring, setDeletingRecurring] = useState<RecurringExpense | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
   const [togglingId, setTogglingId] = useState<string | null>(null)
+  const activeCount = recurring.filter((item) => item.active).length
 
   function handleAdd() {
     setEditingRecurring(null)
@@ -59,17 +60,21 @@ export function RecurringExpensesPage() {
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
-        title="Recurring Expenses"
-        description="Expenses that repeat automatically on a schedule."
+        title="Recurring expenses"
+        description={
+          isLoading || isError || recurring.length === 0
+            ? "Expenses that repeat automatically on a schedule."
+            : `${recurring.length} ${recurring.length === 1 ? "schedule" : "schedules"} · ${activeCount} active`
+        }
         actions={
           <>
             <Button variant="outline" onClick={() => navigate("/expenses")}>
               <ArrowLeftIcon data-icon="inline-start" />
-              Back to Expenses
+              Expenses
             </Button>
             <Button onClick={handleAdd}>
               <PlusIcon data-icon="inline-start" />
-              Add Recurring Expense
+              Add recurring expense
             </Button>
           </>
         }

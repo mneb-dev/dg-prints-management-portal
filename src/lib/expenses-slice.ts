@@ -96,6 +96,9 @@ export type ExpensesQueryParams = {
   paymentMethod: string
   dateFrom: string
   dateTo: string
+  /** User id of whoever logged the expense; admin/superadmin only (the server always scopes
+   * staff to their own expenses, whatever is passed). */
+  createdBy: string
   sortBy: string
   sortDir: "asc" | "desc"
 }
@@ -122,6 +125,7 @@ export const fetchExpensesThunk = createAsyncThunk<
         paymentMethod: params.paymentMethod || undefined,
         dateFrom: params.dateFrom || undefined,
         dateTo: params.dateTo || undefined,
+        createdBy: params.createdBy || undefined,
         sortBy: params.sortBy,
         sortDir: params.sortDir,
       },
@@ -261,6 +265,7 @@ const initialState: ExpensesState = {
     paymentMethod: "",
     dateFrom: "",
     dateTo: "",
+    createdBy: "",
     sortBy: "date",
     sortDir: "desc",
   },

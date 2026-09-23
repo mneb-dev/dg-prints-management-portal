@@ -73,6 +73,13 @@ export type {
   StatusAging,
 } from "@/lib/orders-slice"
 
+/** What's still owed on an order — 0 for statuses that can't carry a balance (paid/refunded).
+ * Shared by the Orders table and the dashboard's Recent orders "₱X due" line. */
+export function getAmountDue(order: Order): number {
+  const { status, balance } = order.payment
+  return status === "paid" || status === "refunded" ? 0 : Math.max(0, balance)
+}
+
 /** Paginated Orders list — for the Orders list page only. Refetches whenever `params` changes. */
 export function useOrders() {
   const orders = useAppSelector((state) => state.orders.items)

@@ -1,9 +1,11 @@
-import { useEffect } from "react"
-import { ChevronDownIcon, PackageIcon, Trash2Icon } from "lucide-react"
+import { useEffect, useRef } from "react"
+import { ChevronDownIcon, FlameIcon, InfoIcon, PackageIcon, Trash2Icon } from "lucide-react"
 
+import { CharCount } from "@/components/char-count"
 import { Badge } from "@/components/ui/badge"
+import { OrderFormSectionHeader } from "@/components/orders/order-form-section-header"
 import { Button } from "@/components/ui/button"
-import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardAction, CardContent, CardHeader } from "@/components/ui/card"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import {
   Combobox,
@@ -28,6 +30,7 @@ import { valueForOption } from "@/lib/pricing-resolver"
 import { ALL_VARIANTS, type PricingEntry, type Product } from "@/lib/products"
 import type { SintraThickness } from "@/lib/sintra-board-pricing"
 import type { StickerUnit } from "@/lib/sticker-quotation"
+import { useScrollIntoViewOnOpen } from "@/lib/use-scroll-into-view-on-open"
 import { formatCurrency } from "@/lib/utils"
 
 import { LaminatedStickerQuotationFields } from "./laminated-sticker-quotation-fields"
@@ -184,31 +187,58 @@ export function OrderLineItemCard({
 
   const detail = product && !isMissingProduct ? summaryDetail(product, draft, computed) : null
 
+  // Expanding a collapsed item scrolls it into view once the open animation settles, so the
+  // newly revealed fields aren't left below the fold.
+  const cardRef = useRef<HTMLDivElement>(null)
+  useScrollIntoViewOnOpen(cardRef, canCollapse && isOpen ? "open" : null)
+
   return (
-    <Card id={id} className={id ? "scroll-mt-24 shadow-xs" : "shadow-xs"}>
+    // scroll-mt clears the sticky app header; scroll-mb leaves room below when an expand scrolls
+    // the card into view.
+    <Card ref={cardRef} id={id} className="scroll-mt-24 scroll-mb-6">
       <Collapsible open={canCollapse ? isOpen : true} onOpenChange={onOpenChange}>
         <CardHeader>
           {canCollapse ? (
-            <CollapsibleTrigger
-              className="group flex min-w-0 items-center gap-2 text-left"
-              render={<CardTitle />}
-            >
-              <PackageIcon className="size-4 shrink-0 text-muted-foreground" />
-              <span className="shrink-0">{itemLabel}</span>
-              {!isOpen && (
-                <span className="flex min-w-0 items-center gap-2 truncate font-normal text-muted-foreground">
-                  {detail && <Badge variant="secondary">{detail}</Badge>}
-                  <span className="truncate text-sm">Qty {draft.quantity}</span>
-                  <span className="text-sm">{formatCurrency(computed.lineTotal)}</span>
-                </span>
-              )}
-              <ChevronDownIcon className="ml-auto size-4 shrink-0 text-muted-foreground transition-transform group-data-[panel-open]:rotate-180" />
+            // The whole header row is the toggle: a soft wash on hover, and the chevron sits in a
+            // round chip that tints and flips as the panel opens.
+            <CollapsibleTrigger className="group/toggle -mx-2 -my-1 flex min-w-0 items-center gap-2 rounded-lg px-2 py-1 text-left outline-none transition-colors duration-200 hover:bg-accent/40 focus-visible:ring-3 focus-visible:ring-ring/50">
+              <OrderFormSectionHeader
+                icon={PackageIcon}
+                title={itemLabel}
+                description={
+                  // Keyed so the swap between the hint and the collapsed summary eases in instead
+                  // of snapping.
+                  <span
+                    key={isOpen ? "open" : "closed"}
+                    className="flex min-w-0 animate-in items-center gap-2 duration-300 fade-in-0 slide-in-from-left-1 motion-reduce:animate-none"
+                  >
+                    {isOpen ? (
+                      "Product, options and quantity"
+                    ) : (
+                      <>
+                        {detail && <Badge variant="secondary">{detail}</Badge>}
+                        <span className="truncate">Qty {draft.quantity}</span>
+                        <span className="font-medium text-foreground tabular-nums">
+                          {formatCurrency(computed.lineTotal)}
+                        </span>
+                      </>
+                    )}
+                  </span>
+                }
+              />
+              <span
+                aria-hidden
+                className="ml-auto flex size-7 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground transition-[background-color,color,rotate] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover/toggle:bg-accent group-hover/toggle:text-accent-foreground group-data-[panel-open]/toggle:rotate-180 motion-reduce:transition-colors"
+              >
+                <ChevronDownIcon className="size-4" />
+              </span>
             </CollapsibleTrigger>
           ) : (
-            <CardTitle className="flex items-center gap-2">
-              <PackageIcon className="size-4 text-muted-foreground" />
-              {index === 0 ? "Item 1" : itemLabel}
-            </CardTitle>
+            <OrderFormSectionHeader
+              icon={PackageIcon}
+              title={index === 0 ? "Item 1" : itemLabel}
+              description="Product, options and quantity"
+            />
           )}
           {index > 0 && onRemove && (
             <CardAction>
@@ -218,14 +248,17 @@ export function OrderLineItemCard({
                 size="icon-sm"
                 onClick={onRemove}
                 aria-label={`Remove ${itemLabel}`}
+                className="hover:bg-destructive/10 hover:text-destructive"
               >
                 <Trash2Icon />
               </Button>
             </CardAction>
           )}
         </CardHeader>
-        <CollapsibleContent>
-      <CardContent>
+        {/* Height eases between 0 and Base UI's measured --collapsible-panel-height, while the
+            content fades and settles into place a beat behind it. */}
+        <CollapsibleContent className="group/panel h-(--collapsible-panel-height) overflow-hidden transition-[height] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] data-[ending-style]:h-0 data-[starting-style]:h-0 motion-reduce:transition-none">
+      <CardContent className="pt-4 transition-[opacity,translate] duration-300 ease-out group-data-[ending-style]/panel:-translate-y-2 group-data-[ending-style]/panel:opacity-0 group-data-[starting-style]/panel:-translate-y-2 group-data-[starting-style]/panel:opacity-0 motion-reduce:transition-none">
         <FieldGroup>
           <Field data-invalid={!!errors.product}>
             <FieldLabel htmlFor={`${idPrefix}order-product`}>Product</FieldLabel>
@@ -251,12 +284,16 @@ export function OrderLineItemCard({
                     const candidate = activeProducts.find((item) => item.id === id)
                     return (
                       <ComboboxItem key={id} value={id}>
-                        <span className="flex flex-1 items-center gap-1.5">
-                          {candidate?.name}
+                        <span className="flex min-w-0 flex-1 items-center gap-2">
+                          <span className="truncate">{candidate?.name}</span>
                           {hotProductIds.has(id) && (
-                            <Badge variant="warning" className="h-4 px-1.5 text-[10px]">
+                            <Badge variant="secondary" className="h-4 gap-0.5 px-1.5 text-[10px]">
+                              <FlameIcon aria-hidden className="size-2.5! text-order-status-tangerine" />
                               Hot
                             </Badge>
+                          )}
+                          {candidate?.category && (
+                            <span className="ml-auto shrink-0 text-xs text-muted-foreground">{candidate.category}</span>
                           )}
                         </span>
                       </ComboboxItem>
@@ -269,7 +306,8 @@ export function OrderLineItemCard({
           </Field>
 
           {isMissingProduct && (
-            <p className="text-sm text-muted-foreground">
+            <p className="flex items-start gap-2 rounded-md bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
+              <InfoIcon aria-hidden className="mt-0.5 size-4 shrink-0" />
               This item's product is no longer in the catalog, so pricing can't be recalculated.
             </p>
           )}
@@ -418,7 +456,10 @@ export function OrderLineItemCard({
 
           {product && !isMissingProduct && (
             <Field data-invalid={!!errors.notes}>
-              <FieldLabel htmlFor={`${idPrefix}order-notes`}>Notes</FieldLabel>
+              <div className="flex items-baseline justify-between gap-2">
+                <FieldLabel htmlFor={`${idPrefix}order-notes`}>Notes</FieldLabel>
+                <CharCount value={draft.notes} max={60} />
+              </div>
               <Textarea
                 id={`${idPrefix}order-notes`}
                 value={draft.notes}
@@ -432,6 +473,14 @@ export function OrderLineItemCard({
               />
               <FieldError>{errors.notes}</FieldError>
             </Field>
+          )}
+
+          {/* Line total, always visible while the item is open (the collapsed header shows it too). */}
+          {product && !isMissingProduct && (
+            <div className="-mb-1 flex items-center justify-between border-t pt-3 text-sm">
+              <span className="text-muted-foreground">Line total</span>
+              <span className="text-base font-semibold tabular-nums">{formatCurrency(computed.lineTotal)}</span>
+            </div>
           )}
         </FieldGroup>
       </CardContent>

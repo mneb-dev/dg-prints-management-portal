@@ -1,8 +1,7 @@
 import { useState } from "react"
-import { ClockIcon, PackageSearchIcon, TriangleAlertIcon } from "lucide-react"
+import { PackageSearchIcon, TriangleAlertIcon } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 
-import { Badge } from "@/components/ui/badge"
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Empty, EmptyDescription, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -10,12 +9,12 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { DASHBOARD_EXCLUDED_STATUSES, ORDER_TERMINAL_STATUSES } from "@/lib/order-status"
 import { useActiveOrderStatuses, useOrderStatusLookup } from "@/lib/order-statuses"
 import { useOrderActions, useOrderStats } from "@/lib/orders"
-import { cn } from "@/lib/utils"
+import { cn, formatDate } from "@/lib/utils"
 
 // A non-zero stage never renders as an invisible sliver next to a much larger one.
 const MIN_BAR_PERCENT = 2
-// Matches the server's order_stats() buckets: `over3d` drives the solid part of each bar, and an
-// oldest order past a week turns the row's age hint into a warning.
+// Matches the server's order_stats() buckets: an order waiting 3+ days (`over3d`) counts as
+// delayed, and an oldest order past a week turns the stage's delay hint into a warning.
 const STALE_DAYS = 7
 const DAY_MS = 24 * 60 * 60 * 1000
 
@@ -23,6 +22,10 @@ function daysSince(iso: string | null | undefined, now: number): number | null {
   if (!iso) return null
   const time = new Date(iso).getTime()
   return Number.isNaN(time) ? null : Math.floor((now - time) / DAY_MS)
+}
+
+function plural(count: number, one: string, many: string) {
+  return `${count.toLocaleString()} ${count === 1 ? one : many}`
 }
 
 // Orders that have left the pipeline: released (the finished outcome) first, then the terminal
@@ -40,7 +43,7 @@ export function StatusPipelineCard() {
     (s) => !ORDER_TERMINAL_STATUSES.includes(s.name) && !DASHBOARD_EXCLUDED_STATUSES.includes(s.name)
   )
 
-  // Absent on a server that predates aging support — every aging hint below is then skipped.
+  // Absent on a server that predates aging support — every delay hint below is then skipped.
   const agingByStatus = stats?.agingByStatus
   const hasAging = agingByStatus !== undefined
   // Captured once per mount: ages are shown in whole days, so a fixed "now" is precise enough and
@@ -50,18 +53,21 @@ export function StatusPipelineCard() {
   const rows = pipelineStages.map((item) => {
     const count = stats?.byStatus[item.name] ?? 0
     const aging = agingByStatus?.[item.name]
+    const over3d = Math.min(count, aging?.over3d ?? 0)
     return {
       status: item.name,
       label: getLabel(item.name),
       count,
       colors: getColors(item.name),
-      over3d: Math.min(count, aging?.over3d ?? 0),
+      over3d,
+      over7d: Math.min(over3d, aging?.over7d ?? 0),
+      oldestAt: aging?.oldestAt ?? null,
       oldestDays: count > 0 ? daysSince(aging?.oldestAt, now) : null,
     }
   })
   const maxCount = Math.max(0, ...rows.map((row) => row.count))
   const activeTotal = rows.reduce((sum, row) => sum + row.count, 0)
-  const waitingTotal = rows.reduce((sum, row) => sum + row.over3d, 0)
+  const delayedTotal = rows.reduce((sum, row) => sum + row.over3d, 0)
 
   // Same drill-down the dashboard's status tiles use.
   function goToOrders(status: string) {
@@ -76,8 +82,8 @@ export function StatusPipelineCard() {
         <CardDescription>
           {isLoading || !stats
             ? "Orders in each active stage"
-            : `${activeTotal.toLocaleString()} active orders` +
-              (hasAging && waitingTotal > 0 ? ` · ${waitingTotal.toLocaleString()} waiting 3+ days` : "")}
+            : `${plural(activeTotal, "active order", "active orders")}` +
+              (delayedTotal > 0 ? ` · ${delayedTotal.toLocaleString()} delayed` : "")}
         </CardDescription>
         {hasAging && activeTotal > 0 ? (
           <CardAction className="flex items-center gap-3 text-xs text-muted-foreground">
@@ -102,9 +108,9 @@ export function StatusPipelineCard() {
                 <Skeleton className="h-3 w-5" />
               </div>
             ))}
-            <div className="mt-1 flex gap-2 border-t pt-4">
+            <div className="mt-1 flex gap-4 border-t pt-4">
               {CLOSED_STATUSES.map((status) => (
-                <Skeleton key={status} className="h-6 w-24 rounded-4xl" />
+                <Skeleton key={status} className="h-3 w-20" />
               ))}
             </div>
           </div>
@@ -136,28 +142,25 @@ export function StatusPipelineCard() {
                   maxCount === 0 ? 0 : Math.max(MIN_BAR_PERCENT, Math.round((row.count / maxCount) * 100))
                 // Share of this row's bar that's been waiting 3+ days (solid), the rest is newer (faded).
                 const agedShare = row.count === 0 ? 0 : (row.over3d / row.count) * 100
-                const isStale = row.oldestDays !== null && row.oldestDays >= STALE_DAYS
-                // Compact "3 · 9d" (orders waiting 3+ days · longest wait), spelled out in a tooltip.
-                const showAge = hasAging && row.oldestDays !== null && row.oldestDays >= 1
-                const ageShort = !showAge
-                  ? null
-                  : row.over3d > 0
-                    ? `${row.over3d.toLocaleString()} · ${row.oldestDays}d`
-                    : `${row.oldestDays}d`
-                const ageDetail = !showAge
-                  ? null
-                  : (row.over3d > 0
-                      ? `${row.over3d.toLocaleString()} ${row.over3d === 1 ? "order" : "orders"} waiting 3+ days · `
-                      : "") +
-                    `${row.over3d > 0 ? "longest" : "Longest"} wait ${row.oldestDays} ${row.oldestDays === 1 ? "day" : "days"}`
+                // Only a stage with delayed orders (3+ days) gets a hint — quiet stages stay quiet.
+                const isDelayed = row.over3d > 0 && row.oldestDays !== null
+                const isStale = isDelayed && row.oldestDays! >= STALE_DAYS
+                const delayLines = isDelayed
+                  ? [
+                      `${row.over3d.toLocaleString()} of ${plural(row.count, "order", "orders")} waiting 3+ days`,
+                      row.over7d > 0 ? `${row.over7d.toLocaleString()} waiting 7+ days` : null,
+                      `Longest wait ${plural(row.oldestDays!, "day", "days")}` +
+                        (row.oldestAt ? ` · since ${formatDate(row.oldestAt)}` : ""),
+                    ].filter((line): line is string => line !== null)
+                  : []
                 return (
                   <li key={row.status} className="col-span-4 grid grid-cols-subgrid">
                     <button
                       type="button"
                       onClick={() => goToOrders(row.status)}
                       aria-label={
-                        `${row.label}: ${row.count} orders` +
-                        (ageDetail ? `, ${ageDetail}` : "") +
+                        `${row.label}: ${plural(row.count, "order", "orders")}` +
+                        (isDelayed ? `. Delayed: ${delayLines.join(", ")}` : "") +
                         " — view orders"
                       }
                       className="group/row col-span-4 grid cursor-pointer grid-cols-subgrid items-center rounded-md px-2 py-2 text-left text-sm transition-colors duration-200 ease-out outline-none hover:bg-accent/60 focus-visible:ring-3 focus-visible:ring-ring/50"
@@ -167,9 +170,7 @@ export function StatusPipelineCard() {
                           aria-hidden
                           className={cn("size-2 shrink-0 translate-y-px rounded-full", row.colors.solid)}
                         />
-                        <span
-                          className="leading-none whitespace-nowrap text-muted-foreground transition-colors group-hover/row:text-foreground"
-                        >
+                        <span className="leading-none whitespace-nowrap text-muted-foreground transition-colors group-hover/row:text-foreground">
                           {row.label}
                         </span>
                       </span>
@@ -196,21 +197,30 @@ export function StatusPipelineCard() {
                       </span>
                       {/* Always rendered (even empty) so every row keeps the same 4 grid cells. */}
                       <span className="flex justify-end">
-                        {ageShort ? (
+                        {isDelayed ? (
                           // A <span> trigger, not the default <button>, since the whole row is
                           // already a button; the row's aria-label carries the same detail.
                           <Tooltip>
                             <TooltipTrigger
                               render={<span />}
                               className={cn(
-                                "flex items-center gap-1 text-xs leading-none whitespace-nowrap tabular-nums",
+                                "flex items-center gap-1.5 text-xs leading-none whitespace-nowrap tabular-nums",
                                 isStale ? "font-medium text-status-warning" : "text-muted-foreground"
                               )}
                             >
-                              <ClockIcon aria-hidden className="size-3 shrink-0" />
-                              {ageShort}
+                              {isStale ? (
+                                <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-status-warning" />
+                              ) : null}
+                              {row.oldestDays}d
                             </TooltipTrigger>
-                            <TooltipContent>{ageDetail}</TooltipContent>
+                            <TooltipContent className="flex flex-col items-start gap-0.5">
+                              <span className="font-medium">Delayed in {row.label}</span>
+                              {delayLines.map((line) => (
+                                <span key={line} className="opacity-80">
+                                  {line}
+                                </span>
+                              ))}
+                            </TooltipContent>
                           </Tooltip>
                         ) : null}
                       </span>
@@ -228,20 +238,19 @@ export function StatusPipelineCard() {
               })}
             </ul>
 
-            <div className="mt-4 flex flex-wrap items-center gap-2 border-t pt-4">
-              <span className="mr-1 text-xs text-muted-foreground">Closed</span>
+            <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 border-t pt-4 text-xs">
+              <span className="text-muted-foreground">Closed</span>
               {CLOSED_STATUSES.map((status) => {
                 const count = stats.byStatus[status] ?? 0
                 const label = getLabel(status)
                 return (
-                  <Badge
+                  <button
                     key={status}
-                    variant="secondary"
-                    render={<button type="button" />}
+                    type="button"
                     onClick={() => goToOrders(status)}
-                    aria-label={`${label}: ${count} orders — view orders`}
+                    aria-label={`${label}: ${plural(count, "order", "orders")} — view orders`}
                     className={cn(
-                      "h-6 cursor-pointer gap-1.5 px-2.5 transition-[background-color,opacity] duration-200 hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50",
+                      "flex cursor-pointer items-center gap-1.5 rounded-sm text-muted-foreground transition-[color,opacity] duration-200 outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50",
                       count === 0 && "opacity-60 hover:opacity-100"
                     )}
                   >
@@ -250,8 +259,10 @@ export function StatusPipelineCard() {
                       className={cn("size-2 shrink-0 translate-y-px rounded-full", getColors(status).solid)}
                     />
                     <span className="leading-none">{label}</span>
-                    <span className="leading-none font-semibold tabular-nums">{count.toLocaleString()}</span>
-                  </Badge>
+                    <span className="leading-none font-medium text-foreground tabular-nums">
+                      {count.toLocaleString()}
+                    </span>
+                  </button>
                 )
               })}
             </div>

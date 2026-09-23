@@ -1,17 +1,6 @@
 import { Trash2Icon } from "lucide-react"
 
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogMedia,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
-import { Spinner } from "@/components/ui/spinner"
+import { ConfirmDialog, Name } from "@/components/confirm-dialog"
 import type { Product } from "@/lib/products"
 
 export function DeleteProductDialog({
@@ -26,33 +15,17 @@ export function DeleteProductDialog({
   onConfirm: (product: Product) => void
 }) {
   return (
-    <AlertDialog open={!!product} onOpenChange={onOpenChange}>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogMedia className="bg-destructive/10 text-destructive">
-            <Trash2Icon />
-          </AlertDialogMedia>
-          <AlertDialogTitle>Delete product</AlertDialogTitle>
-          <AlertDialogDescription>
-            Are you sure you want to delete{" "}
-            <span className="font-medium text-foreground">{product?.name}</span>?
-            If it has existing orders, it will be hidden from your catalog but kept for
-            order history; otherwise it will be permanently removed. This can't be undone
-            from here.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
-          <AlertDialogAction
-            variant="destructive-solid"
-            disabled={isDeleting}
-            onClick={() => product && onConfirm(product)}
-          >
-            {isDeleting && <Spinner data-icon="inline-start" />}
-            {isDeleting ? "Deleting..." : "Delete"}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+    <ConfirmDialog
+      open={!!product}
+      onOpenChange={onOpenChange}
+      tone="danger"
+      icon={Trash2Icon}
+      title={<>Delete product <Name>{product?.name}</Name>?</>}
+      description={"If it has orders, it's hidden from the catalog but kept for order history. Otherwise it's removed for good."}
+      confirmLabel="Yes, delete it"
+      pendingLabel="Deleting…"
+      isPending={isDeleting}
+      onConfirm={() => product && onConfirm(product)}
+    />
   )
 }

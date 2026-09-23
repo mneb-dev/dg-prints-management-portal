@@ -1,16 +1,6 @@
 import { TriangleAlertIcon } from "lucide-react"
 
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogMedia,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
+import { ConfirmDialog } from "@/components/confirm-dialog"
 
 export function DiscardOrderChangesDialog({
   open,
@@ -22,25 +12,16 @@ export function DiscardOrderChangesDialog({
   onDiscard: () => void
 }) {
   return (
-    <AlertDialog open={open} onOpenChange={onOpenChange}>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogMedia className="bg-status-warning/10 text-status-warning">
-            <TriangleAlertIcon />
-          </AlertDialogMedia>
-          <AlertDialogTitle>Discard unsaved changes?</AlertDialogTitle>
-          <AlertDialogDescription>
-            You've made changes to this order that haven't been saved. Leaving now will discard
-            them.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>Keep editing</AlertDialogCancel>
-          <AlertDialogAction variant="destructive-solid" onClick={onDiscard}>
-            Discard changes
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+    <ConfirmDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      tone="danger"
+      icon={TriangleAlertIcon}
+      title="Discard your changes?"
+      description="Your unsaved edits to this order will be lost."
+      confirmLabel="Yes, discard"
+      cancelLabel="No, keep editing"
+      onConfirm={onDiscard}
+    />
   )
 }

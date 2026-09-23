@@ -1,19 +1,10 @@
+import { WalletIcon } from "lucide-react"
 import { useEffect, useState } from "react"
 
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
+import { ChoiceTile } from "@/components/choice-tile"
+import { ConfirmDialog, Name } from "@/components/confirm-dialog"
 import { CurrencyInput } from "@/components/ui/currency-input"
 import { Field, FieldError, FieldLabel } from "@/components/ui/field"
-import { Spinner } from "@/components/ui/spinner"
-import { Toggle } from "@/components/ui/toggle"
 import { ToggleGroup } from "@/components/ui/toggle-group"
 import type { Order, Payment, PaymentMethod } from "@/lib/orders"
 import { useEnabledPaymentMethods } from "@/lib/payment-methods"
@@ -98,20 +89,25 @@ export function RecordPaymentDialog({
   }
 
   return (
-    <AlertDialog open={!!order && !!targetStatus} onOpenChange={onOpenChange}>
-      <AlertDialogContent size="sm">
-        <AlertDialogHeader>
-          <AlertDialogTitle>
-            Mark as {targetStatus === "paid" ? "Paid" : "Partially Paid"}
-          </AlertDialogTitle>
-          <AlertDialogDescription>
-            Order <span className="font-medium text-foreground">{order?.orderNumber}</span>
-            {targetStatus === "partially_paid"
-              ? " needs a down payment amount and method."
-              : " needs a payment method."}
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-
+    <ConfirmDialog
+      open={!!order && !!targetStatus}
+      onOpenChange={onOpenChange}
+      tone="primary"
+      icon={WalletIcon}
+      title={
+        <>
+          Mark <Name>{order?.orderNumber}</Name> as {targetStatus === "paid" ? "paid" : "partially paid"}?
+        </>
+      }
+      description={
+        targetStatus === "partially_paid" ? "Add the down payment and how it was paid." : "Pick how it was paid."
+      }
+      confirmLabel="Yes, save payment"
+      pendingLabel="Saving…"
+      cancelLabel="No, go back"
+      isPending={isPending}
+      onConfirm={() => order && targetStatus && handleConfirm(order, targetStatus)}
+    >
         <div className="flex flex-col gap-3">
           <Field data-invalid={!!errors.method}>
             <FieldLabel htmlFor="record-payment-method">Payment Method</FieldLabel>
@@ -123,17 +119,12 @@ export function RecordPaymentDialog({
                 if (value) setMethod(value)
               }}
               disabled={isShopee}
-              className={cn("gap-1", errors.method && "rounded-lg ring-1 ring-destructive")}
+              className={cn(errors.method && "rounded-lg ring-1 ring-destructive ring-offset-2 ring-offset-popover")}
             >
               {paymentMethodOptions.map((option) => (
-                <Toggle
-                  key={option}
-                  value={option}
-                  disabled={isShopee}
-                  className="h-7 px-1.5 text-xs"
-                >
+                <ChoiceTile key={option} value={option} disabled={isShopee}>
                   {option}
-                </Toggle>
+                </ChoiceTile>
               ))}
             </ToggleGroup>
             {isShopee && (
@@ -174,17 +165,6 @@ export function RecordPaymentDialog({
           </div>
         </div>
 
-        <AlertDialogFooter>
-          <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
-          <AlertDialogAction
-            disabled={isPending}
-            onClick={() => order && targetStatus && handleConfirm(order, targetStatus)}
-          >
-            {isPending && <Spinner data-icon="inline-start" />}
-            {isPending ? "Saving..." : "Save"}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+    </ConfirmDialog>
   )
 }

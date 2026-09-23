@@ -4,16 +4,8 @@ import { toast } from "sonner"
 
 import { ColorPicker } from "@/components/categories/color-picker"
 import { IconPicker } from "@/components/categories/icon-picker"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
+import { ConfirmDialog, Name } from "@/components/confirm-dialog"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -59,6 +51,9 @@ export function OrderStatusList({
   onReorder: (order: string[]) => Promise<void>
 }) {
   const [dragId, setDragId] = useState<string | null>(null)
+  // The row currently under the dragged one — gets a primary drop line so it's clear where the
+  // status will land.
+  const [dragOverId, setDragOverId] = useState<string | null>(null)
   const [isReordering, setIsReordering] = useState(false)
   const [pendingDelete, setPendingDelete] = useState<OrderStatusItem | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -66,6 +61,7 @@ export function OrderStatusList({
   async function handleDrop(targetId: string) {
     const draggedId = dragId
     setDragId(null)
+    setDragOverId(null)
     if (!draggedId || draggedId === targetId) return
 
     const ids = statuses.map((item) => item.id)
@@ -99,24 +95,35 @@ export function OrderStatusList({
 
   return (
     <div className="w-full">
-      <div className="overflow-x-auto rounded-lg border">
+      <div className="overflow-x-auto rounded-xl border bg-card">
         {isLoading ? (
-          <div className="flex flex-col gap-2 p-2.5">
-            <Skeleton className="h-8 w-full" />
-            <Skeleton className="h-8 w-full" />
-            <Skeleton className="h-8 w-full" />
+          <div className="flex flex-col divide-y">
+            {Array.from({ length: 4 }).map((_, index) => (
+              <div key={index} className="flex min-h-11 items-center gap-2 px-3">
+                <Skeleton className="size-4 rounded" />
+                <Skeleton className="size-7 rounded-md" />
+                <Skeleton className="size-7 rounded-md" />
+                <Skeleton className="h-4 flex-1" />
+                <Skeleton className="h-5 w-16 rounded-full" />
+              </div>
+            ))}
           </div>
         ) : statuses.length === 0 ? (
-          <p className="px-2.5 py-3 text-center text-xs text-muted-foreground">Nothing yet.</p>
+          <p className="px-3 py-6 text-center text-sm text-muted-foreground">No statuses yet — add one below.</p>
         ) : (
           statuses.map((item) => (
             <StatusRow
               key={item.id}
               item={item}
               isDragging={dragId === item.id}
+              isDropTarget={dragId !== null && dragOverId === item.id && dragId !== item.id}
               isReordering={isReordering}
               onDragStart={() => setDragId(item.id)}
-              onDragEnd={() => setDragId(null)}
+              onDragEnter={() => setDragOverId(item.id)}
+              onDragEnd={() => {
+                setDragId(null)
+                setDragOverId(null)
+              }}
               onDrop={() => handleDrop(item.id)}
               onUpdate={(input) => onUpdate(item.id, input)}
               onDeleteRequest={() => setPendingDelete(item)}
@@ -126,24 +133,18 @@ export function OrderStatusList({
         <AddRow onAdd={onAdd} />
       </div>
 
-      <AlertDialog open={!!pendingDelete} onOpenChange={(open) => !open && setPendingDelete(null)}>
-        <AlertDialogContent size="sm">
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete "{pendingDelete?.label}"?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This can't be undone. If any order currently has this status, deletion will be
-              blocked — disable it instead.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleConfirmDelete} disabled={isDeleting}>
-              {isDeleting && <Spinner data-icon="inline-start" />}
-              {isDeleting ? "Deleting..." : "Delete"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={!!pendingDelete}
+        onOpenChange={(open) => !open && setPendingDelete(null)}
+        tone="danger"
+        icon={Trash2Icon}
+        title={<>Delete status <Name>{pendingDelete?.label}</Name>?</>}
+        description="This can't be undone. If an order is in this status, deleting is blocked — disable it instead."
+        confirmLabel="Yes, delete it"
+        pendingLabel="Deleting…"
+        isPending={isDeleting}
+        onConfirm={handleConfirmDelete}
+      />
     </div>
   )
 }
@@ -151,8 +152,10 @@ export function OrderStatusList({
 function StatusRow({
   item,
   isDragging,
+  isDropTarget,
   isReordering,
   onDragStart,
+  onDragEnter,
   onDragEnd,
   onDrop,
   onUpdate,
@@ -160,8 +163,10 @@ function StatusRow({
 }: {
   item: OrderStatusItem
   isDragging: boolean
+  isDropTarget: boolean
   isReordering: boolean
   onDragStart: () => void
+  onDragEnter: () => void
   onDragEnd: () => void
   onDrop: () => void
   onUpdate: (input: { label?: string; icon?: string; color?: string; enabled?: boolean }) => Promise<void>
@@ -195,11 +200,11 @@ function StatusRow({
     <Button
       variant="ghost"
       size="icon-sm"
-      className="size-6"
       disabled={item.protected}
       onClick={onDeleteRequest}
+      className="hover:bg-destructive/10 hover:text-destructive"
     >
-      <Trash2Icon className="size-3.5" />
+      <Trash2Icon />
       <span className="sr-only">Delete {item.label}</span>
     </Button>
   )
@@ -208,25 +213,44 @@ function StatusRow({
     <div
       draggable={!isReordering}
       onDragStart={onDragStart}
+      onDragEnter={onDragEnter}
       onDragEnd={onDragEnd}
       onDragOver={(event) => event.preventDefault()}
       onDrop={onDrop}
       className={cn(
-        "flex items-center gap-1.5 border-b px-2 py-1.5 last:border-b-0",
-        isDragging && "opacity-40"
+        "group/status flex min-h-11 items-center gap-2 border-b px-3 py-1.5 transition-[opacity,box-shadow,background-color] duration-150 last:border-b-0 hover:bg-muted/30",
+        isDragging && "opacity-40",
+        isDropTarget && "shadow-[inset_0_2px_0_var(--color-primary)]",
+        !item.enabled && "bg-muted/20"
       )}
     >
-      <GripVerticalIcon className="size-3.5 shrink-0 cursor-grab text-muted-foreground" />
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <span className="flex shrink-0 cursor-grab text-muted-foreground/70 transition-colors group-hover/status:text-muted-foreground active:cursor-grabbing" />
+          }
+        >
+          <GripVerticalIcon className="size-4" />
+          <span className="sr-only">Drag to reorder</span>
+        </TooltipTrigger>
+        <TooltipContent>Drag to reorder</TooltipContent>
+      </Tooltip>
       <IconPicker value={item.icon} onSelect={handleIconSelect} />
       <ColorPicker value={item.color} onSelect={handleColorSelect} />
-      <EditableLabel value={item.label} onCommit={(label) => onUpdate({ label })} />
+      <EditableLabel value={item.label} dimmed={!item.enabled} onCommit={(label) => onUpdate({ label })} />
       {item.protected && (
         <Tooltip>
-          <TooltipTrigger render={<LockIcon className="size-3 shrink-0 text-muted-foreground" />} />
-          <TooltipContent>Built-in status — can't be renamed or deleted.</TooltipContent>
+          <TooltipTrigger render={<Badge variant="secondary" className="shrink-0 gap-1" />}>
+            <LockIcon aria-hidden className="size-3!" />
+            Built-in
+          </TooltipTrigger>
+          <TooltipContent>Built-in status — can be renamed, but not deleted.</TooltipContent>
         </Tooltip>
       )}
-      <Switch size="sm" checked={item.enabled} onCheckedChange={(checked) => handleToggle(!!checked)} />
+      <label className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
+        <Switch size="sm" checked={item.enabled} onCheckedChange={(checked) => handleToggle(!!checked)} />
+        <span className="w-11">{item.enabled ? "Shown" : "Hidden"}</span>
+      </label>
       {item.protected ? (
         <Tooltip>
           <TooltipTrigger render={deleteButton} />
@@ -241,9 +265,11 @@ function StatusRow({
 
 function EditableLabel({
   value,
+  dimmed = false,
   onCommit,
 }: {
   value: string
+  dimmed?: boolean
   onCommit: (label: string) => Promise<void>
 }) {
   const [draft, setDraft] = useState(value)
@@ -273,7 +299,11 @@ function EditableLabel({
         if (event.key === "Enter") (event.target as HTMLInputElement).blur()
         if (event.key === "Escape") setDraft(value)
       }}
-      className="min-w-24 flex-1 truncate rounded px-1 py-0.5 text-sm outline-none hover:bg-muted/50 focus:bg-muted focus:ring-1 focus:ring-ring"
+      aria-label="Status name"
+      className={cn(
+        "min-w-24 flex-1 truncate rounded-md px-1.5 py-1 text-sm font-medium outline-none transition-colors hover:bg-muted/60 focus:bg-background focus:ring-3 focus:ring-ring/50",
+        dimmed && "text-muted-foreground"
+      )}
     />
   )
 }
@@ -306,22 +336,22 @@ function AddRow({
   }
 
   return (
-    <div className="flex items-center gap-1.5 border-t p-1.5">
-      <Input
-        value={value}
-        onChange={(event) => setValue(event.target.value)}
-        onKeyDown={(event) => event.key === "Enter" && submit()}
-        placeholder="Add new status..."
-        disabled={isSubmitting}
-        className="h-7 flex-1 text-sm"
-      />
-      <Button
-        size="icon-sm"
-        className="size-7 shrink-0"
-        onClick={submit}
-        disabled={isSubmitting || !value.trim()}
-      >
-        {isSubmitting ? <Spinner className="size-3.5" /> : <PlusIcon className="size-3.5" />}
+    <div className="flex items-center gap-2 border-t border-dashed bg-muted/20 p-2">
+      <div className="relative flex-1">
+        <PlusIcon aria-hidden className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          value={value}
+          onChange={(event) => setValue(event.target.value)}
+          onKeyDown={(event) => event.key === "Enter" && submit()}
+          placeholder="Add a status…"
+          aria-label="New status name"
+          disabled={isSubmitting}
+          className="bg-card pl-8"
+        />
+      </div>
+      <Button size="sm" onClick={submit} disabled={isSubmitting || !value.trim()}>
+        {isSubmitting && <Spinner data-icon="inline-start" />}
+        {isSubmitting ? "Adding…" : "Add"}
       </Button>
     </div>
   )

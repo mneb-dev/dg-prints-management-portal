@@ -2,20 +2,9 @@ import { useState } from "react"
 import { CopyIcon, KeyRoundIcon } from "lucide-react"
 import { toast } from "sonner"
 
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogMedia,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
+import { ConfirmDialog, Name } from "@/components/confirm-dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Spinner } from "@/components/ui/spinner"
 import { copyToClipboard } from "@/lib/clipboard"
 import type { User } from "@/lib/users"
 
@@ -52,62 +41,47 @@ export function ResetPasswordDialog({
     }
   }
 
+  // Two steps in one dialog: the question, then the one-time result with a single "Done".
   return (
-    <AlertDialog open={!!user} onOpenChange={handleOpenChange}>
-      <AlertDialogContent>
-        {generatedPassword ? (
-          <>
-            <AlertDialogHeader>
-              <AlertDialogMedia className="bg-primary/10 text-primary">
-                <KeyRoundIcon />
-              </AlertDialogMedia>
-              <AlertDialogTitle>Password reset</AlertDialogTitle>
-              <AlertDialogDescription>
-                Copy this password now — it won't be shown again.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <div className="flex items-center gap-2">
-              <Input readOnly value={generatedPassword} className="font-mono" />
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                onClick={() => copyToClipboard(generatedPassword)}
-                aria-label="Copy password"
-              >
-                <CopyIcon />
-              </Button>
-            </div>
-            <AlertDialogFooter>
-              <AlertDialogAction onClick={() => handleOpenChange(false)}>Done</AlertDialogAction>
-            </AlertDialogFooter>
-          </>
+    <ConfirmDialog
+      open={!!user}
+      onOpenChange={handleOpenChange}
+      tone="primary"
+      icon={KeyRoundIcon}
+      title={
+        generatedPassword ? (
+          "Password reset"
         ) : (
           <>
-            <AlertDialogHeader>
-              <AlertDialogMedia className="bg-primary/10 text-primary">
-                <KeyRoundIcon />
-              </AlertDialogMedia>
-              <AlertDialogTitle>Reset password</AlertDialogTitle>
-              <AlertDialogDescription>
-                Reset the password for{" "}
-                <span className="font-medium text-foreground">
-                  {user ? `${user.firstName} ${user.lastName}` : ""}
-                </span>
-                ? This immediately replaces their current password with a new, randomly generated
-                one.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel disabled={isResetting}>Cancel</AlertDialogCancel>
-              <AlertDialogAction disabled={isResetting} onClick={handleConfirm}>
-                {isResetting && <Spinner data-icon="inline-start" />}
-                {isResetting ? "Resetting..." : "Reset Password"}
-              </AlertDialogAction>
-            </AlertDialogFooter>
+            Reset <Name>{user ? `${user.firstName} ${user.lastName}` : ""}</Name>'s password?
           </>
-        )}
-      </AlertDialogContent>
-    </AlertDialog>
+        )
+      }
+      description={
+        generatedPassword
+          ? "Copy it now — it won't be shown again."
+          : "Their current password is replaced right away with a new random one."
+      }
+      confirmLabel={generatedPassword ? "Done" : "Yes, reset it"}
+      pendingLabel="Resetting…"
+      cancelLabel={generatedPassword ? null : "No, keep it"}
+      isPending={isResetting}
+      onConfirm={generatedPassword ? () => handleOpenChange(false) : handleConfirm}
+    >
+      {generatedPassword ? (
+        <div className="flex items-center gap-2">
+          <Input readOnly value={generatedPassword} className="font-mono" />
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            onClick={() => copyToClipboard(generatedPassword)}
+            aria-label="Copy password"
+          >
+            <CopyIcon />
+          </Button>
+        </div>
+      ) : null}
+    </ConfirmDialog>
   )
 }

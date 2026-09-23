@@ -1,17 +1,7 @@
 import { Fragment, useState } from "react"
 import { ChevronDownIcon, HourglassIcon, Loader2Icon } from "lucide-react"
 
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogMedia,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
+import { ConfirmDialog, Name } from "@/components/confirm-dialog"
 import { badgeVariants } from "@/components/ui/badge"
 import {
   DropdownMenu,
@@ -20,7 +10,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Spinner } from "@/components/ui/spinner"
 import { TickingText } from "@/components/ticking-text"
 import { useCategories } from "@/lib/categories"
 import { useActiveOrderStatuses, useOrderStatusLookup } from "@/lib/order-statuses"
@@ -170,31 +159,23 @@ export function OrderStatusMenu({
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <AlertDialog open={!!pendingStatus} onOpenChange={(open) => !open && setPendingStatus(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogMedia className="bg-status-warning/10 text-status-warning">
-              <HourglassIcon />
-            </AlertDialogMedia>
-            <AlertDialogTitle>Change status?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Change this order from {getLabel(CURING_STATUS_NAME)}
-              {curingDuration && ` (${curingDuration})`} to{" "}
-              <span className="font-medium text-foreground">
-                {pendingStatus && getLabel(pendingStatus)}
-              </span>
-              ? The curing time will reset.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isUpdating}>Cancel</AlertDialogCancel>
-            <AlertDialogAction disabled={isUpdating} onClick={() => void handleConfirmCuringExit()}>
-              {isUpdating && <Spinner data-icon="inline-start" />}
-              {isUpdating ? "Changing..." : "Change Status"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={!!pendingStatus}
+        onOpenChange={(open) => !open && setPendingStatus(null)}
+        tone="warning"
+        icon={HourglassIcon}
+        title={
+          <>
+            Move out of {getLabel(CURING_STATUS_NAME)} to <Name>{pendingStatus && getLabel(pendingStatus)}</Name>?
+          </>
+        }
+        description={`The curing time${curingDuration ? ` (${curingDuration})` : ""} will reset.`}
+        confirmLabel="Yes, change it"
+        pendingLabel="Changing…"
+        cancelLabel="No, keep curing"
+        isPending={isUpdating}
+        onConfirm={() => void handleConfirmCuringExit()}
+      />
     </>
   )
 }
