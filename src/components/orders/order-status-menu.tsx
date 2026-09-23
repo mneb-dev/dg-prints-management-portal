@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { Fragment, useState } from "react"
 import { ChevronDownIcon, HourglassIcon, Loader2Icon } from "lucide-react"
 
 import {
@@ -17,6 +17,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Spinner } from "@/components/ui/spinner"
@@ -47,6 +48,7 @@ export function OrderStatusMenu({
   size = "sm",
   role,
   triggerClassName,
+  showCuringDuration = true,
 }: {
   order: Order
   onCancel: (order: Order) => void
@@ -58,6 +60,9 @@ export function OrderStatusMenu({
   /** Extra classes for the trigger button — e.g. a fixed width so the column doesn't reflow
    * as the status changes. Left unset, the trigger stays `w-fit` (badgeVariants' default). */
   triggerClassName?: string
+  /** Set false to suppress the "Curing + 3h" ticking suffix on the trigger — e.g. the orders
+   * table, which already has its own "last update" column right next to this trigger. */
+  showCuringDuration?: boolean
 }) {
   const { updateStatus, isUpdating } = useOrderStatusUpdate()
   const { categories } = useCategories()
@@ -65,18 +70,14 @@ export function OrderStatusMenu({
   const { getLabel, getColors } = useOrderStatusLookup()
   const [pendingStatus, setPendingStatus] = useState<OrderStatus | null>(null)
 
-  const isCuring = order.status === CURING_STATUS_NAME
-
   const options = getOrderStatusOptions(
     order,
     categories,
     role,
     statuses.map((s) => s.name)
   )
-  // Ticks independently every 30s (see TickingText) instead of driving this whole menu's
-  // re-render off a timer -- curingDuration itself is only used for the confirm-dialog copy
-  // below, which doesn't need to tick.
-  const curingDuration = isCuring ? formatCuringDuration(order.statusUpdatedAt) : null
+  const curingDuration =
+    order.status === CURING_STATUS_NAME ? formatCuringDuration(order.statusUpdatedAt) : null
 
   async function commitStatus(status: OrderStatus) {
     onOptimisticChange?.(status)
@@ -130,7 +131,7 @@ export function OrderStatusMenu({
           )}
           <span className="leading-none">
             {getLabel(order.status)}
-            {isCuring && (
+            {showCuringDuration && order.status === CURING_STATUS_NAME && (
               <TickingText
                 intervalMs={30_000}
                 format={() => {
@@ -148,27 +149,22 @@ export function OrderStatusMenu({
           {options.map((option) => {
             const isCurrent = option.value === order.status
             return (
-              <DropdownMenuItem
-                key={option.value}
-                disabled={option.disabled || isCurrent}
-                variant={
-                  option.value === "cancelled" ||
-                  option.value === "refunded" ||
-                  option.value === "returned"
-                    ? "destructive"
-                    : "default"
-                }
-                onClick={() => void handleSelect(option.value)}
-              >
-                <span
-                  aria-hidden
-                  className={cn(
-                    "size-2 shrink-0 translate-y-px rounded-full",
-                    getColors(option.value).solid
-                  )}
-                />
-                <span className="leading-none">{getLabel(option.value)}</span>
-              </DropdownMenuItem>
+              <Fragment key={option.value}>
+                {option.value === "cancelled" && <DropdownMenuSeparator />}
+                <DropdownMenuItem
+                  disabled={option.disabled || isCurrent}
+                  onClick={() => void handleSelect(option.value)}
+                >
+                  <span
+                    aria-hidden
+                    className={cn(
+                      "size-2 shrink-0 translate-y-px rounded-full",
+                      getColors(option.value).solid
+                    )}
+                  />
+                  <span className="leading-none">{getLabel(option.value)}</span>
+                </DropdownMenuItem>
+              </Fragment>
             )
           })}
         </DropdownMenuContent>

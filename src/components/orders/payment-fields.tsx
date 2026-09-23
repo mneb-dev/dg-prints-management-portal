@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { Fragment, useEffect, useState } from "react"
 import { ChevronDownIcon } from "lucide-react"
 
 import {
@@ -16,6 +16,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { CurrencyInput } from "@/components/ui/currency-input"
@@ -29,11 +30,7 @@ import { useEnabledPaymentMethods } from "@/lib/payment-methods"
 import { cn, formatCurrency } from "@/lib/utils"
 import { validatePaymentAmount } from "@/lib/validation"
 
-import {
-  PAYMENT_STATUS_COLORS,
-  PAYMENT_STATUS_ICONS,
-  PAYMENT_STATUS_LABELS,
-} from "./payment-status-badge"
+import { PAYMENT_STATUS_LABELS, PaymentStatusDot } from "./payment-status-badge"
 
 export function PaymentFields({
   channel,
@@ -75,7 +72,6 @@ export function PaymentFields({
   const isShopee = channel === "Shopee"
   const currentStatus: PaymentStatus = markPaid ? paymentStatus : "unpaid"
   const [targetStatus, setTargetStatus] = useState<"paid" | "partially_paid" | null>(null)
-  const StatusIcon = PAYMENT_STATUS_ICONS[currentStatus]
   const paymentError = errors?.paymentMethod || errors?.downPayment
   // What's already been paid/still owed right now, before this update — passed to the dialog so
   // marking "paid" after a prior partial payment shows the real outstanding amount instead of the
@@ -139,32 +135,29 @@ export function PaymentFields({
                 <button
                   type="button"
                   className={cn(
-                    badgeVariants({ variant: "plain" }),
-                    PAYMENT_STATUS_COLORS[currentStatus].badge,
-                    "border-transparent h-8 cursor-pointer gap-1.5 px-3 text-sm transition-opacity hover:opacity-80 [&>svg]:size-4!"
+                    badgeVariants({ variant: "secondary" }),
+                    "justify-start border-transparent h-8 cursor-pointer gap-1.5 px-3 text-sm transition-opacity hover:opacity-80 [&>svg]:size-4!"
                   )}
                 />
               }
             >
-              <StatusIcon data-icon="inline-start" />
-              {PAYMENT_STATUS_LABELS[currentStatus]}
-              <ChevronDownIcon className="size-4 opacity-70" />
+              <PaymentStatusDot status={currentStatus} />
+              <span className="leading-none">{PAYMENT_STATUS_LABELS[currentStatus]}</span>
+              <ChevronDownIcon className="ml-auto size-4 opacity-70" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start">
-              {PAYMENT_STATUSES.map((status) => {
-                const OptionIcon = PAYMENT_STATUS_ICONS[status]
-                const isCurrent = status === currentStatus
-                return (
+              {PAYMENT_STATUSES.map((status) => (
+                <Fragment key={status}>
+                  {status === "refunded" && <DropdownMenuSeparator />}
                   <DropdownMenuItem
-                    key={status}
-                    disabled={isCurrent}
+                    disabled={status === currentStatus}
                     onClick={() => handleSelect(status)}
                   >
-                    <OptionIcon />
-                    {PAYMENT_STATUS_LABELS[status]}
+                    <PaymentStatusDot status={status} />
+                    <span className="leading-none">{PAYMENT_STATUS_LABELS[status]}</span>
                   </DropdownMenuItem>
-                )
-              })}
+                </Fragment>
+              ))}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

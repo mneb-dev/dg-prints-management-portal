@@ -25,6 +25,9 @@ import {
 import {
   ChevronDownIcon,
   LineChartIcon,
+  MinusIcon,
+  RotateCcwIcon,
+  SparklesIcon,
   TrendingDownIcon,
   TrendingUpIcon,
   TriangleAlertIcon,
@@ -54,9 +57,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Empty, EmptyDescription, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Switch } from "@/components/ui/switch"
+import { Toggle } from "@/components/ui/toggle"
+import { ToggleGroup } from "@/components/ui/toggle-group"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useAuth } from "@/lib/auth"
 import { ORDER_TERMINAL_STATUSES } from "@/lib/order-status"
 import { PAYMENT_STATUSES, useSalesOrders } from "@/lib/orders"
@@ -65,7 +69,7 @@ import type { Order, PaymentStatus } from "@/lib/orders"
 import { PAYMENT_STATUS_LABELS } from "@/components/orders/payment-status-badge"
 import { useUserOptions } from "@/lib/users"
 import type { UserOption } from "@/lib/users"
-import { cn, formatCurrency } from "@/lib/utils"
+import { formatCurrency } from "@/lib/utils"
 
 type PeriodPreset = "this_week" | "this_month" | "last_3_months" | "last_6_months" | "this_year" | "custom"
 type BucketUnit = "day" | "week" | "month"
@@ -81,6 +85,38 @@ const PRESET_LABELS: Record<PeriodPreset, string> = {
   this_year: "This year",
   custom: "Custom",
 }
+
+// Compact labels so all six admin presets fit in one segmented control; the full PRESET_LABELS
+// text stays available as each button's aria-label/title.
+const PRESET_SHORT_LABELS: Record<PeriodPreset, string> = {
+  this_week: "Week",
+  this_month: "Month",
+  last_3_months: "3M",
+  last_6_months: "6M",
+  this_year: "Year",
+  custom: "Custom",
+}
+
+type CompareBy = "total" | "creator" | "payment"
+
+const COMPARE_LABELS: Record<CompareBy, string> = {
+  total: "Total",
+  creator: "Staff",
+  payment: "Payment",
+}
+
+const COMPARE_ARIA_LABELS: Record<CompareBy, string> = {
+  total: "Show a single total line",
+  creator: "Compare by staff",
+  payment: "Compare by payment status",
+}
+
+const COMPARE_OPTIONS: CompareBy[] = ["total", "creator", "payment"]
+
+// Joined, pill-in-a-track segmented control built from ToggleGroup/Toggle — the active segment keeps
+// Toggle's own primary-token pressed styles.
+const SEGMENTED_GROUP_CLASS = "flex-nowrap gap-0.5 rounded-lg border border-input bg-muted/40 p-0.5"
+const SEGMENTED_ITEM_CLASS = "h-7 rounded-md border-0 px-2.5 text-xs"
 
 const PERIOD_DESCRIPTIONS: Record<PeriodPreset, string> = {
   this_week: "Total for this week",
@@ -249,6 +285,62 @@ function buildPaymentStatusSeries(
   })
 }
 
+type TrendKind = "up" | "down" | "flat" | "new" | "none"
+type Trend = { kind: TrendKind; pct: number }
+
+const PREVIOUS_PERIOD_LABELS: Record<PeriodPreset, string> = {
+  this_week: "vs last week",
+  this_month: "vs last month",
+  last_3_months: "vs prior 3 months",
+  last_6_months: "vs prior 6 months",
+  this_year: "vs last year",
+  custom: "vs prior period",
+}
+
+// Same tinted status-token variants the other Badges use — no bespoke colors.
+const TREND_BADGE_VARIANTS = {
+  up: "success",
+  down: "destructive",
+  flat: "secondary",
+  new: "info",
+} as const satisfies Record<Exclude<TrendKind, "none">, string>
+
+// "new" = sales this period with nothing to compare against — shown as "New" rather than a
+// made-up +100%. "none" = nothing on either side, so the badge is hidden entirely.
+function computeTrend(current: number, previous: number): Trend {
+  if (previous <= 0) return current > 0 ? { kind: "new", pct: 0 } : { kind: "none", pct: 0 }
+  const pct = Math.round(((current - previous) / previous) * 100)
+  if (pct === 0) return { kind: "flat", pct }
+  return { kind: pct > 0 ? "up" : "down", pct }
+}
+
+function formatTrendValue(trend: Trend): string {
+  if (trend.kind === "new") return "New"
+  if (trend.kind === "flat") return "0%"
+  return `${trend.pct > 0 ? "+" : "−"}${Math.abs(trend.pct).toLocaleString()}%`
+}
+
+function TrendIcon({ kind }: { kind: TrendKind }) {
+  if (kind === "up") return <TrendingUpIcon aria-hidden />
+  if (kind === "down") return <TrendingDownIcon aria-hidden />
+  if (kind === "new") return <SparklesIcon aria-hidden />
+  return <MinusIcon aria-hidden />
+}
+
+// Default "Compare by staff" lines when no one is explicitly picked: the highest-grossing creators
+// in the (already filtered) period, so the chart opens on the people who actually moved revenue.
+function topCreatorIds(orders: Order[], limit: number): string[] {
+  const totals = new Map<string, number>()
+  for (const order of orders) {
+    if (order.createdBy == null || ORDER_TERMINAL_STATUSES.includes(order.status)) continue
+    totals.set(order.createdBy, (totals.get(order.createdBy) ?? 0) + order.total)
+  }
+  return [...totals.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, limit)
+    .map(([id]) => id)
+}
+
 const DEFAULT_CHART_CONFIG = {
   total: { label: "Sales", color: "var(--color-chart-1)" },
 } satisfies ChartConfig
@@ -310,6 +402,7 @@ export function SalesChartCard() {
   const [includeSunday, setIncludeSunday] = useState(true)
   const [selectedCreatorIds, setSelectedCreatorIds] = useState<string[]>([])
   const [selectedPaymentStatuses, setSelectedPaymentStatuses] = useState<PaymentStatus[]>([])
+  const [compareBy, setCompareBy] = useState<CompareBy>("total")
 
   const range = useMemo(
     () => computePeriodRange(preset, customFrom, customTo, new Date()),
@@ -368,46 +461,70 @@ export function SalesChartCard() {
   )
 
   const bucketUnit = range ? pickBucketUnit(range.currentStart, range.currentEnd) : "day"
-  // Only one dimension can drive the chart's lines at a time. Creator takes priority when both a
-  // multi-creator and a multi-payment-status selection are active — the payment-status selection
-  // still narrows which orders are included either way.
-  const isCreatorMultiLine = selectedCreatorIds.length > 1
-  const isPaymentStatusMultiLine = !isCreatorMultiLine && selectedPaymentStatuses.length > 1
-  const creatorChartConfig = useMemo<ChartConfig>(
-    () => (isCreatorMultiLine ? buildCreatorChartConfig(selectedCreatorIds, userOptions) : DEFAULT_CHART_CONFIG),
-    [isCreatorMultiLine, selectedCreatorIds, userOptions]
+  // "Compare by" alone decides which lines the chart draws; the creator/payment filters only narrow
+  // which orders are included. Staff always see the single total line.
+  const effectiveCompareBy: CompareBy = isStaffView ? "total" : compareBy
+  const creatorLineIds = useMemo(
+    () =>
+      effectiveCompareBy !== "creator"
+        ? []
+        : selectedCreatorIds.length > 0
+          ? selectedCreatorIds
+          : topCreatorIds(filteredCurrentOrders, MAX_SELECTED_CREATORS),
+    [effectiveCompareBy, selectedCreatorIds, filteredCurrentOrders]
   )
-  const paymentStatusChartConfig = useMemo<ChartConfig>(
-    () => (isPaymentStatusMultiLine ? buildPaymentStatusChartConfig(selectedPaymentStatuses) : DEFAULT_CHART_CONFIG),
-    [isPaymentStatusMultiLine, selectedPaymentStatuses]
+  const paymentLineStatuses = useMemo<PaymentStatus[]>(
+    () =>
+      effectiveCompareBy !== "payment"
+        ? []
+        : selectedPaymentStatuses.length > 0
+          ? selectedPaymentStatuses
+          : [...PAYMENT_STATUSES],
+    [effectiveCompareBy, selectedPaymentStatuses]
   )
-  const chartConfig: ChartConfig = isCreatorMultiLine
-    ? creatorChartConfig
-    : isPaymentStatusMultiLine
-      ? paymentStatusChartConfig
-      : DEFAULT_CHART_CONFIG
-  const multiLineKeys: string[] | null = isCreatorMultiLine
-    ? selectedCreatorIds
-    : isPaymentStatusMultiLine
-      ? selectedPaymentStatuses
-      : null
+  const chartConfig = useMemo<ChartConfig>(() => {
+    if (effectiveCompareBy === "creator") return buildCreatorChartConfig(creatorLineIds, userOptions)
+    if (effectiveCompareBy === "payment") return buildPaymentStatusChartConfig(paymentLineStatuses)
+    return DEFAULT_CHART_CONFIG
+  }, [effectiveCompareBy, creatorLineIds, paymentLineStatuses, userOptions])
+  const multiLineKeys: string[] | null =
+    effectiveCompareBy === "creator"
+      ? creatorLineIds
+      : effectiveCompareBy === "payment"
+        ? paymentLineStatuses
+        : null
   const series = useMemo(() => {
     if (!range) return []
     const buckets = buildBuckets(range, bucketUnit, includeSunday)
-    if (isCreatorMultiLine) return buildCreatorSeries(filteredCurrentOrders, buckets, selectedCreatorIds)
-    if (isPaymentStatusMultiLine)
-      return buildPaymentStatusSeries(filteredCurrentOrders, buckets, selectedPaymentStatuses)
+    if (effectiveCompareBy === "creator") return buildCreatorSeries(filteredCurrentOrders, buckets, creatorLineIds)
+    if (effectiveCompareBy === "payment")
+      return buildPaymentStatusSeries(filteredCurrentOrders, buckets, paymentLineStatuses)
     return buildSeries(filteredCurrentOrders, buckets)
   }, [
     filteredCurrentOrders,
     range,
     bucketUnit,
     includeSunday,
-    isCreatorMultiLine,
-    isPaymentStatusMultiLine,
-    selectedCreatorIds,
-    selectedPaymentStatuses,
+    effectiveCompareBy,
+    creatorLineIds,
+    paymentLineStatuses,
   ])
+
+  const hasActiveFilters =
+    selectedPaymentStatuses.length > 0 || selectedCreatorIds.length > 0 || !includeSunday || compareBy !== "total"
+
+  function resetFilters() {
+    setSelectedPaymentStatuses([])
+    setSelectedCreatorIds([])
+    setIncludeSunday(true)
+    setCompareBy("total")
+  }
+
+  // Chip dots reuse the line color when that dimension is driving the chart, otherwise the single
+  // series color.
+  function chipDotColor(key: string, isCompareDimension: boolean): string {
+    return isCompareDimension ? ((chartConfig[key]?.color as string) ?? "var(--color-chart-1)") : "var(--color-chart-1)"
+  }
 
   const periodTotal = filteredCurrentOrders.reduce(
     (sum, order) => (ORDER_TERMINAL_STATUSES.includes(order.status) ? sum : sum + order.total),
@@ -417,13 +534,7 @@ export function SalesChartCard() {
     (sum, order) => (ORDER_TERMINAL_STATUSES.includes(order.status) ? sum : sum + order.total),
     0
   )
-  const changePct =
-    previousTotal > 0
-      ? Math.round(((periodTotal - previousTotal) / previousTotal) * 100)
-      : periodTotal > 0
-        ? 100
-        : 0
-  const isUp = changePct >= 0
+  const trend = computeTrend(periodTotal, previousTotal)
 
   function toggleCreator(id: string, checked: boolean) {
     setSelectedCreatorIds((prev) => (checked ? [...prev, id] : prev.filter((existing) => existing !== id)))
@@ -443,191 +554,243 @@ export function SalesChartCard() {
     setSelectedPaymentStatuses((prev) => prev.filter((existing) => existing !== status))
   }
 
+  const creatorTriggerLabel =
+    selectedCreatorIds.length === 0
+      ? "All"
+      : selectedCreatorIds.length === 1
+        ? (() => {
+            const user = userOptions.find((candidate) => candidate.id === selectedCreatorIds[0])
+            return user ? creatorFullName(user) : "1 selected"
+          })()
+        : `${selectedCreatorIds.length} selected`
+  const paymentTriggerLabel =
+    selectedPaymentStatuses.length === 0
+      ? "All"
+      : selectedPaymentStatuses.length === 1
+        ? PAYMENT_STATUS_LABELS[selectedPaymentStatuses[0]]
+        : `${selectedPaymentStatuses.length} selected`
+
   return (
     <Card className="lg:col-span-3">
       <CardHeader>
         <CardTitle>Sales overview</CardTitle>
-        <CardDescription>Revenue trend for the selected period</CardDescription>
-        <CardAction className="flex items-center gap-3">
-          <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Switch size="sm" checked={includeSunday} onCheckedChange={(checked) => setIncludeSunday(!!checked)} />
-            Include Sunday
-          </label>
-          <Select value={preset} onValueChange={(value) => value && setPreset(value as PeriodPreset)}>
-            <SelectTrigger size="sm" className="text-xs">
-              <SelectValue>
-                {(value: string | null) => PRESET_LABELS[(value as PeriodPreset) ?? "this_week"]}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {presets.map((value) => (
-                <SelectItem key={value} value={value}>
-                  {PRESET_LABELS[value]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {!isStaffView ? (
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="max-w-40 justify-between gap-1.5 text-xs"
-                  />
-                }
+        <CardDescription>
+          {effectiveCompareBy === "creator"
+            ? "Revenue trend · compared by staff"
+            : effectiveCompareBy === "payment"
+              ? "Revenue trend · compared by payment status"
+              : "Revenue trend for the selected period"}
+        </CardDescription>
+        <CardAction className="max-w-full overflow-x-auto">
+          <ToggleGroup
+            aria-label="Sales period"
+            value={[preset]}
+            onValueChange={(next) => {
+              const value = next[0] as PeriodPreset | undefined
+              if (value) setPreset(value)
+            }}
+            className={SEGMENTED_GROUP_CLASS}
+          >
+            {presets.map((value) => (
+              <Toggle
+                key={value}
+                value={value}
+                aria-label={PRESET_LABELS[value]}
+                title={PRESET_LABELS[value]}
+                className={SEGMENTED_ITEM_CLASS}
               >
-                <span className="truncate">
-                  {selectedPaymentStatuses.length === 0
-                    ? "All"
-                    : selectedPaymentStatuses.length === 1
-                      ? PAYMENT_STATUS_LABELS[selectedPaymentStatuses[0]]
-                      : `${selectedPaymentStatuses.length} selected`}
-                </span>
-                <ChevronDownIcon className="size-3.5 shrink-0 opacity-60" />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuGroup>
-                  <DropdownMenuLabel>Filter by payment status</DropdownMenuLabel>
-                </DropdownMenuGroup>
-                <DropdownMenuSeparator />
-                <DropdownMenuCheckboxItem
-                  checked={selectedPaymentStatuses.length === 0}
-                  onCheckedChange={() => setSelectedPaymentStatuses([])}
+                {isStaffView ? PRESET_LABELS[value] : PRESET_SHORT_LABELS[value]}
+              </Toggle>
+            ))}
+          </ToggleGroup>
+        </CardAction>
+      </CardHeader>
+      <CardContent>
+        {!isStaffView ? (
+          <div className="mb-4 flex flex-col gap-3 border-b pb-3">
+            <div className="flex flex-wrap items-center gap-2">
+              {preset === "custom" ? (
+                <DateRangeFilter
+                  id="sales-date-range"
+                  from={customFrom}
+                  to={customTo}
+                  onChange={(from, to) => {
+                    setCustomFrom(from)
+                    setCustomTo(to)
+                  }}
+                />
+              ) : null}
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="max-w-52 justify-between gap-1.5 text-xs"
+                    />
+                  }
                 >
-                  All
-                </DropdownMenuCheckboxItem>
-                <DropdownMenuSeparator />
-                {PAYMENT_STATUSES.map((status) => {
-                  const isChecked = selectedPaymentStatuses.includes(status)
-                  return (
+                  <span className="truncate">
+                    <span className="text-muted-foreground">Payment:</span> {paymentTriggerLabel}
+                  </span>
+                  <ChevronDownIcon className="size-3.5 shrink-0 opacity-60" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-56">
+                  <DropdownMenuGroup>
+                    <DropdownMenuLabel>Filter by payment status</DropdownMenuLabel>
+                  </DropdownMenuGroup>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuCheckboxItem
+                    checked={selectedPaymentStatuses.length === 0}
+                    onCheckedChange={() => setSelectedPaymentStatuses([])}
+                  >
+                    All
+                  </DropdownMenuCheckboxItem>
+                  <DropdownMenuSeparator />
+                  {PAYMENT_STATUSES.map((status) => (
                     <DropdownMenuCheckboxItem
                       key={status}
-                      checked={isChecked}
+                      checked={selectedPaymentStatuses.includes(status)}
                       onCheckedChange={(checked) => togglePaymentStatus(status, !!checked)}
                     >
                       {PAYMENT_STATUS_LABELS[status]}
                     </DropdownMenuCheckboxItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={isLoadingUsers}
+                      className="max-w-56 justify-between gap-1.5 text-xs"
+                    />
+                  }
+                >
+                  <span className="truncate">
+                    <span className="text-muted-foreground">Created by:</span> {creatorTriggerLabel}
+                  </span>
+                  <ChevronDownIcon className="size-3.5 shrink-0 opacity-60" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-56">
+                  <DropdownMenuGroup>
+                    <DropdownMenuLabel>Filter by creator</DropdownMenuLabel>
+                  </DropdownMenuGroup>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuCheckboxItem
+                    checked={selectedCreatorIds.length === 0}
+                    onCheckedChange={() => setSelectedCreatorIds([])}
+                  >
+                    All
+                  </DropdownMenuCheckboxItem>
+                  <DropdownMenuSeparator />
+                  {activeUserOptions.map((user) => {
+                    const isChecked = selectedCreatorIds.includes(user.id)
+                    const atCap = !isChecked && selectedCreatorIds.length >= MAX_SELECTED_CREATORS
+                    return (
+                      <DropdownMenuCheckboxItem
+                        key={user.id}
+                        checked={isChecked}
+                        disabled={atCap}
+                        title={atCap ? `Up to ${MAX_SELECTED_CREATORS} people can be compared at once` : undefined}
+                        onCheckedChange={(checked) => toggleCreator(user.id, !!checked)}
+                      >
+                        {creatorFullName(user)}
+                      </DropdownMenuCheckboxItem>
+                    )
+                  })}
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <Toggle
+                pressed={includeSunday}
+                onPressedChange={setIncludeSunday}
+                title={includeSunday ? "Sundays are included" : "Sundays are excluded"}
+                className="h-7 px-2.5 text-xs"
+              >
+                Sundays
+              </Toggle>
+              <div className="ml-auto flex items-center gap-2">
+                <span className="text-xs text-muted-foreground">Compare by</span>
+                <ToggleGroup
+                  aria-label="Compare by"
+                  value={[compareBy]}
+                  onValueChange={(next) => {
+                    const value = next[0] as CompareBy | undefined
+                    if (value) setCompareBy(value)
+                  }}
+                  className={SEGMENTED_GROUP_CLASS}
+                >
+                  {COMPARE_OPTIONS.map((value) => (
+                    <Toggle
+                      key={value}
+                      value={value}
+                      aria-label={COMPARE_ARIA_LABELS[value]}
+                      className={SEGMENTED_ITEM_CLASS}
+                    >
+                      {COMPARE_LABELS[value]}
+                    </Toggle>
+                  ))}
+                </ToggleGroup>
+                {hasActiveFilters ? (
+                  <Button type="button" variant="ghost" size="sm" className="gap-1.5 text-xs" onClick={resetFilters}>
+                    <RotateCcwIcon className="size-3.5" />
+                    Reset
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+
+            {selectedPaymentStatuses.length > 0 || selectedCreatorIds.length > 0 ? (
+              <div className="flex flex-wrap items-center gap-1.5">
+                {selectedPaymentStatuses.map((status) => {
+                  const name = PAYMENT_STATUS_LABELS[status]
+                  return (
+                    <Badge key={status} variant="secondary" className="gap-1.5 pr-1">
+                      <span
+                        aria-hidden
+                        className="size-2 shrink-0 translate-y-px rounded-full"
+                        style={{ backgroundColor: chipDotColor(status, effectiveCompareBy === "payment") }}
+                      />
+                      <span className="leading-none">{name}</span>
+                      <button
+                        type="button"
+                        onClick={() => removePaymentStatus(status)}
+                        className="rounded-full p-0.5 hover:bg-foreground/10"
+                      >
+                        <XIcon className="size-3" />
+                        <span className="sr-only">Remove filter: {name}</span>
+                      </button>
+                    </Badge>
                   )
                 })}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          ) : null}
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              render={
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={isLoadingUsers}
-                  className="max-w-40 justify-between gap-1.5 text-xs"
-                />
-              }
-            >
-              <span className="truncate">
-                {selectedCreatorIds.length === 0
-                  ? "All"
-                  : selectedCreatorIds.length === 1
-                    ? (() => {
-                        const user = userOptions.find((candidate) => candidate.id === selectedCreatorIds[0])
-                        return user ? creatorFullName(user) : "1 selected"
-                      })()
-                    : `${selectedCreatorIds.length} selected`}
-              </span>
-              <ChevronDownIcon className="size-3.5 shrink-0 opacity-60" />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuGroup>
-                <DropdownMenuLabel>Filter by creator</DropdownMenuLabel>
-              </DropdownMenuGroup>
-              <DropdownMenuSeparator />
-              <DropdownMenuCheckboxItem
-                checked={selectedCreatorIds.length === 0}
-                onCheckedChange={() => setSelectedCreatorIds([])}
-              >
-                All
-              </DropdownMenuCheckboxItem>
-              <DropdownMenuSeparator />
-              {activeUserOptions.map((user) => {
-                const isChecked = selectedCreatorIds.includes(user.id)
-                const atCap = !isChecked && selectedCreatorIds.length >= MAX_SELECTED_CREATORS
-                return (
-                  <DropdownMenuCheckboxItem
-                    key={user.id}
-                    checked={isChecked}
-                    disabled={atCap}
-                    title={atCap ? `Up to ${MAX_SELECTED_CREATORS} people can be compared at once` : undefined}
-                    onCheckedChange={(checked) => toggleCreator(user.id, !!checked)}
-                  >
-                    {creatorFullName(user)}
-                  </DropdownMenuCheckboxItem>
-                )
-              })}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </CardAction>
-      </CardHeader>
-      <CardContent>
-        {preset === "custom" ? (
-          <div className="mb-4">
-            <DateRangeFilter
-              id="sales-date-range"
-              from={customFrom}
-              to={customTo}
-              onChange={(from, to) => {
-                setCustomFrom(from)
-                setCustomTo(to)
-              }}
-            />
-          </div>
-        ) : null}
-
-        {selectedPaymentStatuses.length > 0 || selectedCreatorIds.length > 0 ? (
-          <div className="mb-4 flex flex-wrap items-center gap-1.5">
-            {selectedPaymentStatuses.map((status) => {
-              const name = PAYMENT_STATUS_LABELS[status]
-              const dotColor = isPaymentStatusMultiLine
-                ? (paymentStatusChartConfig[status]?.color as string)
-                : "var(--color-chart-1)"
-              return (
-                <Badge key={status} variant="secondary" className="gap-1.5 pr-1">
-                  <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: dotColor }} />
-                  {name}
-                  <button
-                    type="button"
-                    onClick={() => removePaymentStatus(status)}
-                    className="rounded-full p-0.5 hover:bg-foreground/10"
-                  >
-                    <XIcon className="size-3" />
-                    <span className="sr-only">Remove filter: {name}</span>
-                  </button>
-                </Badge>
-              )
-            })}
-            {selectedCreatorIds.map((id) => {
-              const user = userOptions.find((candidate) => candidate.id === id)
-              const name = user ? creatorFullName(user) : "Unknown"
-              const dotColor = isCreatorMultiLine
-                ? (creatorChartConfig[id]?.color as string)
-                : "var(--color-chart-1)"
-              return (
-                <Badge key={id} variant="secondary" className="gap-1.5 pr-1">
-                  <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: dotColor }} />
-                  {name}
-                  <button
-                    type="button"
-                    onClick={() => removeCreator(id)}
-                    className="rounded-full p-0.5 hover:bg-foreground/10"
-                  >
-                    <XIcon className="size-3" />
-                    <span className="sr-only">Remove filter: {name}</span>
-                  </button>
-                </Badge>
-              )
-            })}
+                {selectedCreatorIds.map((id) => {
+                  const user = userOptions.find((candidate) => candidate.id === id)
+                  const name = user ? creatorFullName(user) : "Unknown"
+                  return (
+                    <Badge key={id} variant="secondary" className="gap-1.5 pr-1">
+                      <span
+                        aria-hidden
+                        className="size-2 shrink-0 translate-y-px rounded-full"
+                        style={{ backgroundColor: chipDotColor(id, effectiveCompareBy === "creator") }}
+                      />
+                      <span className="leading-none">{name}</span>
+                      <button
+                        type="button"
+                        onClick={() => removeCreator(id)}
+                        className="rounded-full p-0.5 hover:bg-foreground/10"
+                      >
+                        <XIcon className="size-3" />
+                        <span className="sr-only">Remove filter: {name}</span>
+                      </button>
+                    </Badge>
+                  )
+                })}
+              </div>
+            ) : null}
           </div>
         ) : null}
 
@@ -677,17 +840,35 @@ export function SalesChartCard() {
                   </span>
                 ) : null}
               </div>
-              <div
-                className={cn(
-                  "flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium",
-                  isUp
-                    ? "bg-status-success/10 text-status-success"
-                    : "bg-destructive/10 text-destructive"
-                )}
-              >
-                {isUp ? <TrendingUpIcon className="size-3.5" /> : <TrendingDownIcon className="size-3.5" />}
-                {Math.abs(changePct)}% vs previous period
-              </div>
+              {trend.kind !== "none" ? (
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Badge
+                        variant={TREND_BADGE_VARIANTS[trend.kind]}
+                        className="h-6 cursor-default gap-1.5 px-2.5 [&>svg]:size-3.5!"
+                      />
+                    }
+                  >
+                    <TrendIcon kind={trend.kind} />
+                    <span className="font-semibold tabular-nums">{formatTrendValue(trend)}</span>
+                    <span className="font-normal opacity-80">{PREVIOUS_PERIOD_LABELS[preset]}</span>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <div className="flex flex-col gap-0.5">
+                      <span>
+                        Previous period: {format(range.previousStart, "MMM d, yyyy")} –{" "}
+                        {format(subDays(range.currentStart, 1), "MMM d, yyyy")}
+                      </span>
+                      {showAmounts ? (
+                        <span className="tabular-nums">
+                          {formatCurrency(previousTotal)} → {formatCurrency(periodTotal)}
+                        </span>
+                      ) : null}
+                    </div>
+                  </TooltipContent>
+                </Tooltip>
+              ) : null}
             </div>
             <ChartContainer config={chartConfig} className="aspect-auto h-64 w-full">
               <AreaChart data={series} margin={{ left: 4, right: 12, top: 8 }}>

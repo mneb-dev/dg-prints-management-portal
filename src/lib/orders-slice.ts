@@ -313,7 +313,7 @@ export const fetchOrderByIdThunk = createAsyncThunk<Order, string, { rejectValue
 )
 
 export const HOT_PRODUCT_TOP_N = 5
-const HOT_PRODUCT_MIN_ORDER_COUNT = 2
+export const HOT_PRODUCT_MIN_ORDER_COUNT = 2
 
 // Ranks products by how many of the latest 100 orders they appear in (breadth of demand,
 // not summed quantity, so one bulk order doesn't outrank genuinely repeat-ordered products).
@@ -378,7 +378,7 @@ export const fetchSalesOrdersThunk = createAsyncThunk<
 })
 
 export const fetchTopCustomersThunk = createAsyncThunk<
-  CustomerRanking[],
+  CustomerRankingResponse,
   void,
   { rejectValue: string; state: RootState }
 >(
@@ -386,7 +386,7 @@ export const fetchTopCustomersThunk = createAsyncThunk<
   async (_arg, { rejectWithValue }) => {
     try {
       const { data } = await apiClient.get<CustomerRankingResponse>("/orders/customers/top")
-      return data.customers
+      return data
     } catch (err) {
       return rejectWithValue(getErrorMessage(err))
     }
@@ -396,8 +396,19 @@ export const fetchTopCustomersThunk = createAsyncThunk<
   }
 )
 
+/** How long orders have been waiting in one status — `oldestAt` is when that status's
+ * longest-waiting order entered it. */
+export type StatusAging = {
+  oldestAt: string | null
+  over3d: number
+  over7d: number
+}
+
 export type OrderStats = {
   byStatus: Record<string, number>
+  /** Optional so an older server without aging support still works; the pipeline card simply
+   * hides its aging hints when this is absent. */
+  agingByStatus?: Record<string, StatusAging>
   byPaymentStatus: Record<string, number>
   byChannel: Record<string, number>
   outstandingBalance: number
@@ -521,6 +532,9 @@ type OrdersState = {
   rankingStatus: "idle" | "loading" | "succeeded" | "failed"
   rankingError: string | null
   customerRankings: CustomerRanking[]
+  /** How many days back the server ranks customers over (its CUSTOMER_RANKING_WINDOW_DAYS);
+   * null until the first ranking fetch lands. */
+  customerRankingWindowDays: number | null
   customerRankingStatus: "idle" | "loading" | "succeeded" | "failed"
   customerRankingError: string | null
   orderStats: OrderStats | null
@@ -547,6 +561,7 @@ const initialState: OrdersState = {
   rankingStatus: "idle",
   rankingError: null,
   customerRankings: [],
+  customerRankingWindowDays: null,
   customerRankingStatus: "idle",
   customerRankingError: null,
   orderStats: null,
@@ -649,9 +664,10 @@ const ordersSlice = createSlice({
         state.customerRankingStatus = "loading"
         state.customerRankingError = null
       })
-      .addCase(fetchTopCustomersThunk.fulfilled, (state, action: PayloadAction<CustomerRanking[]>) => {
+      .addCase(fetchTopCustomersThunk.fulfilled, (state, action: PayloadAction<CustomerRankingResponse>) => {
         state.customerRankingStatus = "succeeded"
-        state.customerRankings = action.payload
+        state.customerRankings = action.payload.customers
+        state.customerRankingWindowDays = action.payload.windowDays
       })
       .addCase(fetchTopCustomersThunk.rejected, (state, action) => {
         state.customerRankingStatus = "failed"
@@ -685,6 +701,7 @@ const ordersSlice = createSlice({
         state.recentOrders = action.payload.recentOrders.map(normalizeOrder)
         state.customerRankingStatus = "succeeded"
         state.customerRankings = action.payload.customers
+        state.customerRankingWindowDays = action.payload.windowDays
       })
       .addCase(fetchDashboardSummaryThunk.rejected, (state, action) => {
         state.orderStatsStatus = "failed"

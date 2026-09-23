@@ -31,6 +31,7 @@ import type {
 
 export {
   DEFAULT_ORDERS_PARAMS,
+  HOT_PRODUCT_MIN_ORDER_COUNT,
   HOT_PRODUCT_TOP_N,
   PAYMENT_STATUSES,
 } from "@/lib/orders-slice"
@@ -69,6 +70,7 @@ export type {
   PaymentStatus,
   SelectedOption,
   ShippingAddress,
+  StatusAging,
 } from "@/lib/orders-slice"
 
 /** Paginated Orders list — for the Orders list page only. Refetches whenever `params` changes. */
@@ -182,9 +184,12 @@ export function useOrderStats() {
   const status = useAppSelector((state) => state.orders.orderStatsStatus)
   const dispatch = useAppDispatch()
 
+  // Re-runs when `status` changes so a long-lived consumer (the sidebar's Orders badge) refetches
+  // after `markDashboardStale` resets it to "idle" — the thunk's `condition` only fires while
+  // idle, so this never double-fetches.
   useEffect(() => {
     dispatch(fetchOrderStatsThunk())
-  }, [dispatch])
+  }, [dispatch, status])
 
   return {
     stats,
@@ -199,6 +204,8 @@ export function useOrderStats() {
 export function useCustomerRankings() {
   const rankings = useAppSelector((state) => state.orders.customerRankings)
   const status = useAppSelector((state) => state.orders.customerRankingStatus)
+  // `?? null` covers orders state rehydrated from localStorage before this field existed.
+  const windowDays = useAppSelector((state) => state.orders.customerRankingWindowDays ?? null)
   const dispatch = useAppDispatch()
 
   useEffect(() => {
@@ -219,6 +226,8 @@ export function useCustomerRankings() {
     customerNames,
     topCustomerNames,
     customerDetailsByName,
+    /** Days the ranking covers (server's CUSTOMER_RANKING_WINDOW_DAYS); null until loaded. */
+    windowDays,
     isLoading: status === "loading" || status === "idle",
   }
 }

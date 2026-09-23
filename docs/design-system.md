@@ -46,6 +46,26 @@ Where a menu item or trigger needs to carry a semantic color (order status, etc.
 - No icons in this context — status is color + text only, kept deliberately minimal (see the
   dashboard status tiles and Recent Orders badges, which dropped icons the same way).
 
+### Applies to every status chip — editable or read-only
+
+The same neutral chrome + dot is used for **every** order and payment status chip, whether it's a
+dropdown trigger (`OrderStatusMenu`, `PaymentStatusMenu`, `PaymentFields`' Payment Status) or a
+read-only badge (`OrderStatusBadge`, `PaymentStatusBadge`) — so a status looks identical whether or
+not the viewer can change it; only the chevron differs. Destructive-ish options (Cancelled for order
+status, Refunded for payment) sit below a `DropdownMenuSeparator`.
+
+Payment status dot colors (`STATUS_DOT_CLASSES` in `payment-status-badge.tsx`):
+
+| Status   | Dot                  |
+| -------- | -------------------- |
+| Unpaid   | `bg-status-warning`  |
+| Partial  | `bg-status-info`     |
+| Paid     | `bg-status-success`  |
+| Refunded | `bg-destructive`     |
+
+Partial is deliberately info blue, not `status-progress`: progress's orange (hue 55) sits too close
+to warning's amber (hue 75) to tell the two dots apart at `size-2`.
+
 ### The one alignment gotcha
 
 A fixed-size dot next to text, centered with plain `items-center`, optically sits a hair too high
@@ -64,3 +84,19 @@ fix it together, and both are needed:
 Skipping either one is visible the moment you see the dot repeated down a table column — a single
 isolated badge can look "close enough," but the same 1–2px offset reads as a clear misalignment
 once it repeats across many rows.
+
+## Clickable stat tiles (dashboard status tiles)
+
+`StatCard` with `onClick`/`href` follows the same "neutral chrome + dot" rule on hover:
+
+- Tile: lifts `-translate-y-1` with `--shadow-elevated`, `border-primary/40`, and a
+  `bg-accent/60` wash — brand indigo only, never the status's own color.
+- Dot: scales to 125% and gains a `ring-4` halo in the status's `ring` class (from
+  `getOrderStatusColors`), so the dot stays the only thing that carries the status color.
+- Label: `text-muted-foreground` → `text-foreground`.
+- Press: `scale-[0.98]`, back at rest with `--shadow-soft`. Keyboard focus:
+  `border-ring ring-3 ring-ring/50`, same as Buttons/Inputs.
+- 200ms `ease-out`. Under `motion-reduce` only the movement (lift/scale) is dropped; the color
+  and shadow feedback stays, otherwise the hover is nearly invisible.
+- Tailwind v4 `translate-*`/`scale-*` utilities set the `translate`/`scale` CSS properties, not
+  `transform` — list those in `transition-[...]`, or the movement snaps instead of easing.

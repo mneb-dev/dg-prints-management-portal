@@ -1,3 +1,4 @@
+import { Fragment } from "react"
 import { ChevronDownIcon, Loader2Icon } from "lucide-react"
 
 import { badgeVariants } from "@/components/ui/badge"
@@ -5,22 +6,20 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { PAYMENT_STATUSES, usePaymentStatusUpdate } from "@/lib/orders"
 import type { Order, PaymentStatus } from "@/lib/orders"
 import { cn } from "@/lib/utils"
 
-import {
-  PAYMENT_STATUS_COLORS,
-  PAYMENT_STATUS_ICONS,
-  PAYMENT_STATUS_LABELS,
-} from "./payment-status-badge"
+import { PAYMENT_STATUS_LABELS, PaymentStatusDot } from "./payment-status-badge"
 
 /** Compact, click-to-change payment control for the orders table row — same trigger/menu shape
- * as `OrderStatusMenu`. `unpaid` commits instantly. `paid` and `partially_paid` always hand off
- * to `onRequestPayment` so the caller can open `RecordPaymentDialog` and let the user confirm or
- * change the method (and amount, for `partially_paid`) first — never an instant, silent commit. */
+ * as `OrderStatusMenu` (neutral chrome + status dot). `unpaid` commits instantly. `paid` and
+ * `partially_paid` always hand off to `onRequestPayment` so the caller can open
+ * `RecordPaymentDialog` and let the user confirm or change the method (and amount, for
+ * `partially_paid`) first — never an instant, silent commit. */
 export function PaymentStatusMenu({
   order,
   onRequestPayment,
@@ -35,7 +34,6 @@ export function PaymentStatusMenu({
   triggerClassName?: string
 }) {
   const { updatePayment, isUpdating } = usePaymentStatusUpdate()
-  const Icon = PAYMENT_STATUS_ICONS[order.payment.status]
 
   async function handleSelect(status: PaymentStatus) {
     if (status === order.payment.status || isUpdating) return
@@ -61,9 +59,8 @@ export function PaymentStatusMenu({
           <button
             type="button"
             className={cn(
-              badgeVariants({ variant: "plain" }),
-              PAYMENT_STATUS_COLORS[order.payment.status].badge,
-              "border-transparent cursor-pointer pr-1.5 transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-60",
+              badgeVariants({ variant: "secondary" }),
+              "justify-start border-transparent cursor-pointer pr-1.5 transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-60",
               size === "lg" && "h-8 gap-1.5 px-3 text-sm [&>svg]:size-4!",
               triggerClassName
             )}
@@ -71,28 +68,26 @@ export function PaymentStatusMenu({
         }
       >
         {isUpdating ? (
-          <Loader2Icon data-icon="inline-start" className="animate-spin" />
+          <Loader2Icon className="animate-spin" />
         ) : (
-          <Icon data-icon="inline-start" />
+          <PaymentStatusDot status={order.payment.status} />
         )}
-        {PAYMENT_STATUS_LABELS[order.payment.status]}
-        <ChevronDownIcon className={cn("opacity-70", size === "lg" ? "size-4" : "size-3")} />
+        <span className="leading-none">{PAYMENT_STATUS_LABELS[order.payment.status]}</span>
+        <ChevronDownIcon className={cn("ml-auto opacity-70", size === "lg" ? "size-4" : "size-3")} />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start">
-        {PAYMENT_STATUSES.map((status) => {
-          const OptionIcon = PAYMENT_STATUS_ICONS[status]
-          const isCurrent = status === order.payment.status
-          return (
+        {PAYMENT_STATUSES.map((status) => (
+          <Fragment key={status}>
+            {status === "refunded" && <DropdownMenuSeparator />}
             <DropdownMenuItem
-              key={status}
-              disabled={isCurrent}
+              disabled={status === order.payment.status}
               onClick={() => void handleSelect(status)}
             >
-              <OptionIcon />
-              {PAYMENT_STATUS_LABELS[status]}
+              <PaymentStatusDot status={status} />
+              <span className="leading-none">{PAYMENT_STATUS_LABELS[status]}</span>
             </DropdownMenuItem>
-          )
-        })}
+          </Fragment>
+        ))}
       </DropdownMenuContent>
     </DropdownMenu>
   )

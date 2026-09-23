@@ -1,8 +1,7 @@
 import { ChevronsUpDownIcon, LogOutIcon, SettingsIcon, UserIcon } from "lucide-react"
-import { useNavigate } from "react-router-dom"
+import { useLocation, useNavigate } from "react-router-dom"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Badge } from "@/components/ui/badge"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,6 +19,8 @@ import {
 } from "@/components/ui/sidebar"
 import { useAuth } from "@/lib/auth"
 import { getAvatarDataUri } from "@/lib/avatars"
+import { useNavGuard } from "@/lib/nav-guard"
+import { cn } from "@/lib/utils"
 
 const ROLE_LABELS: Record<string, string> = {
   staff: "Staff",
@@ -27,17 +28,22 @@ const ROLE_LABELS: Record<string, string> = {
   superadmin: "Super Admin",
 }
 
-const ROLE_VARIANTS: Record<string, "default" | "info" | "secondary"> = {
-  superadmin: "default",
-  admin: "info",
-  staff: "secondary",
-}
+// Same soft indigo tone as the dashboard's customer avatars.
+const AVATAR_FALLBACK_CLASSNAME = "bg-accent text-accent-foreground font-semibold"
 
 export function NavUser() {
   const { isMobile } = useSidebar()
   const { user, logout, role, hasPermission } = useAuth()
+  const { requestNavigation } = useNavGuard()
   const navigate = useNavigate()
+  const location = useLocation()
   const canManageSettings = role === "superadmin" || hasPermission("manage_settings")
+
+  // Same unsaved-changes guard the sidebar links use: if a dirty form is open, it prompts first
+  // and navigates itself once confirmed.
+  function goTo(path: string) {
+    if (requestNavigation(path)) navigate(path)
+  }
 
   function handleLogout() {
     logout()
@@ -49,63 +55,84 @@ export function NavUser() {
     ? `${user.firstName[0] ?? ""}${user.lastName[0] ?? ""}`.toUpperCase() || "?"
     : "?"
   const roleLabel = user ? (ROLE_LABELS[user.role] ?? user.role) : ""
-  const roleVariant = user ? (ROLE_VARIANTS[user.role] ?? "secondary") : "secondary"
+
+  const avatar = (
+    <Avatar>
+      {user?.avatar && <AvatarImage src={getAvatarDataUri(user.avatar)} alt="" />}
+      <AvatarFallback className={AVATAR_FALLBACK_CLASSNAME}>{initials}</AvatarFallback>
+    </Avatar>
+  )
+
+  const menuItems = [
+    { path: "/profile", label: "Profile", icon: UserIcon, visible: true },
+    { path: "/settings", label: "Settings", icon: SettingsIcon, visible: canManageSettings },
+  ].filter((item) => item.visible)
 
   return (
     <SidebarMenu>
       <SidebarMenuItem>
         <DropdownMenu>
           <DropdownMenuTrigger
-            render={<SidebarMenuButton size="lg" className="aria-expanded:bg-muted" />}
+            render={
+              <SidebarMenuButton
+                size="lg"
+                aria-label={`Account menu for ${displayName}`}
+                className="aria-expanded:bg-sidebar-accent aria-expanded:text-sidebar-accent-foreground"
+              />
+            }
           >
-            <Avatar>
-              {user?.avatar && <AvatarImage src={getAvatarDataUri(user.avatar)} alt={displayName} />}
-              <AvatarFallback>{initials}</AvatarFallback>
-            </Avatar>
-            <div className="grid flex-1 text-left text-sm leading-tight group-data-[collapsible=icon]:hidden">
-              <span className="truncate font-medium">{displayName}</span>
-              <Badge variant={roleVariant} className="w-fit">
-                {roleLabel}
-              </Badge>
+            {avatar}
+            <div className="grid flex-1 gap-1 text-left leading-none group-data-[collapsible=icon]:hidden">
+              <span className="truncate text-sm font-medium">{displayName}</span>
+              <span className="truncate text-xs text-muted-foreground">{roleLabel}</span>
             </div>
-            <ChevronsUpDownIcon className="ml-auto size-4 group-data-[collapsible=icon]:hidden" />
+            <ChevronsUpDownIcon className="ml-auto size-4 opacity-60 group-data-[collapsible=icon]:hidden" />
           </DropdownMenuTrigger>
           <DropdownMenuContent
-            className="w-fit"
+            className="min-w-60"
             side={isMobile ? "bottom" : "right"}
             align="end"
-            sideOffset={4}
+            sideOffset={8}
           >
             <DropdownMenuGroup>
               <DropdownMenuLabel className="p-0 font-normal">
-                <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
-                  <Avatar>
-                    {user?.avatar && <AvatarImage src={getAvatarDataUri(user.avatar)} alt={displayName} />}
-                    <AvatarFallback>{initials}</AvatarFallback>
-                  </Avatar>
-                  <div className="grid flex-1 text-left text-sm leading-tight">
-                    <span className="truncate font-medium">{displayName}</span>
-                    <Badge variant={roleVariant} className="w-fit">
-                {roleLabel}
-              </Badge>
+                <div className="flex items-center gap-2.5 px-1.5 py-2 text-left">
+                  {avatar}
+                  <div className="grid min-w-0 flex-1 gap-1 leading-none">
+                    <span className="truncate text-sm font-medium text-foreground">{displayName}</span>
+                    <span className="truncate text-xs text-muted-foreground">
+                      {user?.username ? `@${user.username}` : null}
+                      {user?.username && roleLabel ? " · " : null}
+                      {roleLabel}
+                    </span>
                   </div>
                 </div>
               </DropdownMenuLabel>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => navigate("/profile")}>
-              <UserIcon />
-              Profile
-            </DropdownMenuItem>
-            {canManageSettings && (
-              <DropdownMenuItem onClick={() => navigate("/settings")}>
-                <SettingsIcon />
-                Settings
-              </DropdownMenuItem>
-            )}
+            <DropdownMenuGroup>
+              {menuItems.map((item) => {
+                const isCurrent = location.pathname === item.path
+                return (
+                  <DropdownMenuItem
+                    key={item.path}
+                    onClick={() => goTo(item.path)}
+                    aria-current={isCurrent ? "page" : undefined}
+                    className={cn(isCurrent && "font-medium [&>svg]:text-primary")}
+                  >
+                    <item.icon />
+                    <span className="leading-none">{item.label}</span>
+                    {isCurrent ? (
+                      <span aria-hidden className="ml-auto size-1.5 shrink-0 rounded-full bg-primary" />
+                    ) : null}
+                  </DropdownMenuItem>
+                )
+              })}
+            </DropdownMenuGroup>
+            <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleLogout}>
               <LogOutIcon />
-              Log out
+              <span className="leading-none">Log out</span>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

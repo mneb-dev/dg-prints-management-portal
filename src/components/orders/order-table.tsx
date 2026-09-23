@@ -301,10 +301,9 @@ export function OrderTable({
                     <PaymentStatusMenu
                       order={order}
                       onRequestPayment={onRequestPayment}
-                      triggerClassName="w-28"
                     />
                   ) : (
-                    <PaymentStatusBadge status={order.payment.status} className="w-28" />
+                    <PaymentStatusBadge status={order.payment.status} />
                   )}
                 </TableCell>
                 <TableCell className="px-4">
@@ -315,12 +314,10 @@ export function OrderTable({
                       onRefund={onRefund}
                       onReturn={onReturn}
                       role={role}
+                      showCuringDuration={false}
                     />
                   ) : (
-                    <OrderStatusBadge
-                      status={order.status}
-                      statusUpdatedAt={order.statusUpdatedAt}
-                    />
+                    <OrderStatusBadge status={order.status} />
                   )}
                 </TableCell>
                 <TableCell className="px-4 text-muted-foreground">

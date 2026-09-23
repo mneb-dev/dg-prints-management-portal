@@ -68,6 +68,7 @@ export function DashboardPage() {
               label={getLabel(item.name)}
               value={stats?.byStatus[item.name] ?? 0}
               dotClassName={getColors(item.name).solid}
+              dotRingClassName={getColors(item.name).ring}
               onClick={() => goToOrders(item.name)}
             />
           </div>
