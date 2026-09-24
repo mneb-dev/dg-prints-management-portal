@@ -173,6 +173,26 @@ Never hand-build an `AlertDialog`. Every "are you sure?" goes through `ConfirmDi
 - The footer has a ghost **"Cancel"** (a form isn't a question) and a specific primary verb:
   "Create product" when new, "Save changes" when editing, and "Saving…" while submitting.
 
+### Stepped form dialogs: `FormStepper` (`components/form-stepper.tsx`)
+
+For forms that are too much for one screen (the product form: Details → Pricing → Review), show one
+concern per step instead of stacking numbered `FormSection`s.
+
+- The stepper sits between the header and the scrolling form. It shows numbered circles, which turn
+  into checks once a step is complete, joined by connector lines. Labels hide below `sm`, where the
+  header description carries "Step 2 of 3 · Pricing".
+- **Creating** walks forward: the primary button is "Next" until the last step, which says "Create
+  product". Enter does the same. You can only jump back to steps you've already reached.
+- **Editing** lets you click any step, and "Save changes" is the primary button on every step,
+  with an outline "Next" beside it.
+- Moving forward validates the steps being left and stops on the first bad one, focusing its field.
+  Saving validates every step.
+- "Back" is an outline button next to the primary. "Cancel" is a ghost button on the far left.
+- The last step is a **Review** with a summary card whose rows each have an "Edit" link back to their
+  step, followed by the on/off settings as switch rows.
+- Closing a changed form asks first, with a warning `ConfirmDialog`: "Discard changes?" with
+  "Discard" / "Keep editing".
+
 ## Dark mode
 
 Light, Dark or System (follows the OS live), picked from the sun/moon/monitor button in the top bar

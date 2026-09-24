@@ -2,8 +2,8 @@ import type { ReactNode } from "react"
 
 import { cn } from "@/lib/utils"
 
-/** Numbered step heading for multi-part forms ("① Basics", "② Pricing") — the product form,
- * recurring expense form and Run payroll. `action` sits on the right of the heading (e.g. a
+/** Numbered step heading for multi-part forms ("① Basics", "② Pricing") — the recurring expense
+ * form and Run payroll. (Forms that need one step per screen use `FormStepper` instead.) `action` sits on the right of the heading (e.g. a
  * "Select all"); `className` goes on the section, e.g. to place it in a grid. */
 export function FormSection({
   step,
