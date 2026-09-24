@@ -62,6 +62,8 @@ export type Product = {
   category: ProductCategory
   description: string
   status: ProductStatus
+  /** Listed on the online shop. Independent of `status`; the shop only shows Active products with this set. */
+  showInShop: boolean
   deletedAt: string | null
   options: ProductOption[]
   pricing: PricingEntry[]
@@ -93,6 +95,8 @@ export type ProductsQueryParams = {
   category: string
   status: string
   pricingType: string
+  /** "" = all, "true" = listed in the online shop, "false" = not listed. */
+  showInShop: "" | "true" | "false"
   sortBy: string
   sortDir: "asc" | "desc"
 }
@@ -118,6 +122,7 @@ export const fetchProductsThunk = createAsyncThunk<
         category: params.category || undefined,
         status: params.status || undefined,
         pricingType: params.pricingType || undefined,
+        showInShop: params.showInShop || undefined,
         sortBy: params.sortBy,
         sortDir: params.sortDir,
       },
@@ -159,7 +164,7 @@ export const createProductThunk = createAsyncThunk<Product, ProductInput, { reje
 
 export const updateProductThunk = createAsyncThunk<
   Product,
-  { id: string; input: ProductInput },
+  { id: string; input: Partial<ProductInput> },
   { rejectValue: string }
 >("products/update", async ({ id, input }, { rejectWithValue }) => {
   try {
@@ -207,6 +212,7 @@ const initialState: ProductsState = {
     category: "",
     status: "",
     pricingType: "",
+    showInShop: "",
     sortBy: "created_at",
     sortDir: "asc",
   },
@@ -259,6 +265,8 @@ const productsSlice = createSlice({
       .addCase(updateProductThunk.fulfilled, (state, action: PayloadAction<Product>) => {
         const index = state.catalog.findIndex((item) => item.id === action.payload.id)
         if (index !== -1) state.catalog[index] = action.payload
+        const itemIndex = state.items.findIndex((item) => item.id === action.payload.id)
+        if (itemIndex !== -1) state.items[itemIndex] = action.payload
       })
       .addCase(deleteProductThunk.fulfilled, (state, action: PayloadAction<string>) => {
         state.catalog = state.catalog.filter((item) => item.id !== action.payload)

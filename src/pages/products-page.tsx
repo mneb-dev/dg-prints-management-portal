@@ -45,6 +45,9 @@ import {
 const ANY_CATEGORY = "All Categories"
 const ALL_STATUS = "all"
 const ANY_PRICING = "All Pricing"
+const ANY_SHOP = "any"
+
+const SHOP_FILTER_LABELS = { true: "Listed in shop", false: "Not in shop" } as const
 
 const SORT_OPTIONS = [
   { value: "created_at", label: "Date Created" },
@@ -58,7 +61,7 @@ export function ProductsPage() {
   const canManage = hasPermission("manage_products")
   const { products, total, params, setParams, refetch, isLoading, isFetching, isError, error } = useProducts()
   useClampPage(params.page, params.pageSize, total, isFetching, (page) => setParams({ page }))
-  const { deleteProduct } = useProductActions()
+  const { deleteProduct, updateProduct } = useProductActions()
   const { categories } = useCategories()
   const [searchInput, setSearchInput] = useState(params.search)
   const debouncedSearch = useDebouncedValue(searchInput, 400)
@@ -83,6 +86,7 @@ export function ProductsPage() {
     params.category !== "" ||
     params.status !== "" ||
     params.pricingType !== "" ||
+    params.showInShop !== "" ||
     params.sortBy !== "created_at" ||
     params.sortDir !== "asc"
 
@@ -93,6 +97,7 @@ export function ProductsPage() {
       category: "",
       status: "",
       pricingType: "",
+      showInShop: "",
       sortBy: "created_at",
       sortDir: "asc",
       page: 1,
@@ -123,6 +128,11 @@ export function ProductsPage() {
       label: `Pricing: ${params.pricingType}`,
       onRemove: () => setParams({ pricingType: "", page: 1 }),
     },
+    params.showInShop && {
+      key: "showInShop",
+      label: `Shop: ${SHOP_FILTER_LABELS[params.showInShop]}`,
+      onRemove: () => setParams({ showInShop: "", page: 1 }),
+    },
   ].filter((filter): filter is ActiveFilter => Boolean(filter))
   // What the phone "Filters" button badges: everything except the always-visible search.
   const secondaryFilterCount = activeFilters.filter((filter) => filter.key !== "search").length
@@ -148,6 +158,18 @@ export function ProductsPage() {
       toast.error(typeof err === "string" ? err : "Failed to delete product.")
     } finally {
       setIsDeleting(false)
+    }
+  }
+
+  async function handleToggleShop(product: Product, showInShop: boolean) {
+    try {
+      await updateProduct(product.id, { showInShop })
+      toast.success(showInShop ? `${product.name} is now listed in the online shop.` : `${product.name} removed from the online shop.`)
+      // Under a shop filter the row no longer matches, so refetch to drop it from the page.
+      if (params.showInShop) refetch()
+    } catch (err) {
+      toast.error(typeof err === "string" ? err : "Failed to update online shop listing.")
+      throw err
     }
   }
 
@@ -271,6 +293,33 @@ export function ProductsPage() {
             </SelectContent>
           </Select>
 
+          <Select
+            value={params.showInShop || ANY_SHOP}
+            onValueChange={(value) =>
+              setParams({
+                showInShop: value === "true" || value === "false" ? value : "",
+                page: 1,
+              })
+            }
+            disabled={isLoading || isError}
+          >
+            <SelectTrigger
+              aria-label="Filter by online shop listing"
+              className={cn("min-w-36", params.showInShop && ACTIVE_FILTER_TRIGGER_CLASS)}
+            >
+              <SelectValue>
+                {(value: string | null) =>
+                  value === "true" || value === "false" ? SHOP_FILTER_LABELS[value] : "Any shop listing"
+                }
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ANY_SHOP}>Any shop listing</SelectItem>
+              <SelectItem value="true">{SHOP_FILTER_LABELS.true}</SelectItem>
+              <SelectItem value="false">{SHOP_FILTER_LABELS.false}</SelectItem>
+            </SelectContent>
+          </Select>
+
           <div className="flex items-center gap-1.5" title="Sort">
             <ArrowUpDownIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
             <SortControl
@@ -307,6 +356,7 @@ export function ProductsPage() {
         onEdit={handleEdit}
         onView={setViewingProduct}
         onDelete={setDeletingProduct}
+        onToggleShop={handleToggleShop}
         footer={
           total > 0 && (
             <PaginationBar

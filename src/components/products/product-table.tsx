@@ -1,4 +1,4 @@
-import { type MouseEvent, type ReactNode } from "react"
+import { useState, type MouseEvent, type ReactNode } from "react"
 import {
   Loader2Icon,
   MoreHorizontalIcon,
@@ -11,6 +11,7 @@ import {
 } from "lucide-react"
 
 import { DataCardItem, DataCardList, DataCardListSkeleton } from "@/components/data-card-list"
+import { NewBadge } from "@/components/new-badge"
 import { Badge } from "@/components/ui/badge"
 import { TABLE_HEAD_CLASS, TABLE_HEADER_CLASS, TABLE_SURFACE_CLASS } from "@/components/table-surface"
 import { Button } from "@/components/ui/button"
@@ -29,6 +30,7 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Switch } from "@/components/ui/switch"
 import {
   Table,
   TableBody,
@@ -38,6 +40,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { isNewProduct } from "@/lib/new-products"
 import { cn, formatCurrency } from "@/lib/utils"
 import { summarizePricing, type Product } from "@/lib/products"
 import type { Role } from "@/lib/users-slice"
@@ -70,6 +73,46 @@ function priceRange(product: Product): string | null {
 
 function stopRowClick(event: MouseEvent) {
   event.stopPropagation()
+}
+
+/** One-click "list in online shop" switch. Flips optimistically and snaps back if the save fails
+ * (the caller toasts). Read-only for people who can't manage products. */
+function ShopToggle({
+  product,
+  onToggle,
+  readOnly,
+}: {
+  product: Product
+  onToggle?: (product: Product, showInShop: boolean) => Promise<void>
+  readOnly: boolean
+}) {
+  const [pending, setPending] = useState<boolean | null>(null)
+  const checked = pending ?? product.showInShop
+
+  async function handleChange(next: boolean) {
+    if (!onToggle) return
+    setPending(next)
+    try {
+      await onToggle(product, next)
+    } catch {
+      // Error already surfaced by the caller; dropping `pending` reverts to the saved value.
+    } finally {
+      setPending(null)
+    }
+  }
+
+  return (
+    <label className="inline-flex items-center gap-1.5 text-xs text-muted-foreground" onClick={stopRowClick}>
+      <Switch
+        size="sm"
+        checked={checked}
+        disabled={readOnly || !onToggle || pending !== null}
+        onCheckedChange={(next) => handleChange(!!next)}
+        aria-label={`Show ${product.name} in online shop`}
+      />
+      <span className="leading-none">{checked ? "Listed" : "Hidden"}</span>
+    </label>
+  )
 }
 
 /** Edit button + "more" menu — the same in a table row and a phone card. */
@@ -125,6 +168,7 @@ function Columns({ showActions }: { showActions: boolean }) {
         <TableHead className={TABLE_HEAD_CLASS}>Product</TableHead>
         <TableHead className={TABLE_HEAD_CLASS}>Pricing</TableHead>
         <TableHead className={TABLE_HEAD_CLASS}>Status</TableHead>
+        <TableHead className={TABLE_HEAD_CLASS}>Online shop</TableHead>
         {showActions && (
           <TableHead className={cn(TABLE_HEAD_CLASS, "text-right")}>
             <span className="sr-only">Actions</span>
@@ -151,6 +195,7 @@ export function ProductTable({
   onEdit,
   onView,
   onDelete,
+  onToggleShop,
 }: {
   /** Rendered inside the table surface, below the rows (the pager). Hidden in loading/empty/error states. */
   footer?: ReactNode
@@ -169,8 +214,12 @@ export function ProductTable({
   /** Read-only details, for people who can't edit (staff). */
   onView?: (product: Product) => void
   onDelete: (product: Product) => void
+  /** Saves the online-shop flag; should reject on failure so the switch reverts. */
+  onToggleShop?: (product: Product, showInShop: boolean) => Promise<void>
 }) {
   const showActions = role !== "staff" && !!canManage
+  // Same fixed "now" approach as useNewProducts (the sidebar count): "new" is measured in days.
+  const [now] = useState(() => Date.now())
 
   if (isLoading) {
     return (
@@ -193,6 +242,9 @@ export function ProductTable({
                 </TableCell>
                 <TableCell className="px-4">
                   <Skeleton className="h-5 w-16 rounded-full" />
+                </TableCell>
+                <TableCell className="px-4">
+                  <Skeleton className="h-4 w-16" />
                 </TableCell>
                 {showActions && (
                   <TableCell className="px-4">
@@ -295,8 +347,11 @@ export function ProductTable({
                     <TableCell className="px-4">
                       <div className="flex items-center gap-3">
                         <div className="flex min-w-0 flex-col gap-0.5">
-                          <span className={cn("truncate font-medium", isInactive && "text-muted-foreground")}>
-                            {product.name}
+                          <span className="flex min-w-0 items-center gap-2">
+                            <span className={cn("truncate font-medium", isInactive && "text-muted-foreground")}>
+                              {product.name}
+                            </span>
+                            {isNewProduct(product, now) && <NewBadge />}
                           </span>
                           <span className="text-xs text-muted-foreground">
                             {product.category}
@@ -315,6 +370,9 @@ export function ProductTable({
                     </TableCell>
                     <TableCell className="px-4">
                       <ProductStatusBadge status={product.status} />
+                    </TableCell>
+                    <TableCell className="px-4">
+                      <ShopToggle product={product} onToggle={onToggleShop} readOnly={!showActions} />
                     </TableCell>
                     {showActions && (
                       <TableCell className="px-4" onClick={stopRowClick}>
@@ -341,7 +399,10 @@ export function ProductTable({
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex min-w-0 flex-col gap-0.5">
-                    <span className={cn("font-medium", isInactive && "text-muted-foreground")}>{product.name}</span>
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span className={cn("font-medium", isInactive && "text-muted-foreground")}>{product.name}</span>
+                      {isNewProduct(product, now) && <NewBadge />}
+                    </span>
                     <span className="text-xs text-muted-foreground">
                       {product.category}
                       {optionCount > 0 && ` · ${optionCount} ${optionCount === 1 ? "option" : "options"}`}
@@ -362,7 +423,10 @@ export function ProductTable({
                         ` · ${product.pricing.length} ${product.pricing.length === 1 ? "price" : "prices"}`}
                     </div>
                   </div>
-                  <ProductStatusBadge status={product.status} />
+                  <div className="flex shrink-0 flex-col items-end gap-2">
+                    <ProductStatusBadge status={product.status} />
+                    <ShopToggle product={product} onToggle={onToggleShop} readOnly={!showActions} />
+                  </div>
                 </div>
               </DataCardItem>
             )

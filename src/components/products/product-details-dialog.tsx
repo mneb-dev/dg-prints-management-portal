@@ -76,6 +76,11 @@ export function ProductDetailsDialog({
                     />
                     <span className="leading-none">{isActive ? "Available" : "Not available"}</span>
                   </Badge>
+                  {product.showInShop && (
+                    <Badge variant="outline">
+                      <span className="leading-none">In online shop</span>
+                    </Badge>
+                  )}
                 </DialogDescription>
               </div>
             </DialogHeader>

@@ -54,6 +54,7 @@ export function useProducts() {
     params.category,
     params.status,
     params.pricingType,
+    params.showInShop,
     params.sortBy,
     params.sortDir,
   ])
@@ -117,7 +118,7 @@ export function useProductActions() {
     await dispatch(createProductThunk(input)).unwrap()
   }
 
-  async function updateProduct(id: string, input: ProductInput) {
+  async function updateProduct(id: string, input: Partial<ProductInput>) {
     await dispatch(updateProductThunk({ id, input })).unwrap()
   }
 
