@@ -21,8 +21,8 @@ export function SaveOrderDraftDialog({
       icon={FileTextIcon}
       title="Leave without saving?"
       description="This order isn't created yet. Save it as a draft to pick up later, or discard it."
-      confirmLabel="Yes, discard"
-      cancelLabel="No, stay"
+      confirmLabel="Discard"
+      cancelLabel="Stay"
       secondaryAction={{ label: "Save draft", onClick: onSaveDraft }}
       onConfirm={onDiscard}
     />

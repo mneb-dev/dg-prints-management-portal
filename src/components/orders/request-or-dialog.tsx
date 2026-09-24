@@ -1,17 +1,19 @@
-import { ReceiptTextIcon } from "lucide-react"
+import { LockIcon, ReceiptTextIcon } from "lucide-react"
 import { useEffect, useState } from "react"
 
 import { ConfirmDialog, Name } from "@/components/confirm-dialog"
-import { Field, FieldError, FieldLabel } from "@/components/ui/field"
+import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
+import { useAuth } from "@/lib/auth"
 import type { Order, OrRequestInput } from "@/lib/orders"
 import { requiredMessage } from "@/lib/validation"
 
 /** Collects Official Receipt request details (Name, Address, TIN, Invoice Number) for an order.
  * Reopening on an order that already has `orRequest` on file pre-fills the existing values so
  * staff can correct/update them, matching `record-payment-dialog.tsx`'s reset-on-identity-change
- * pattern. */
+ * pattern. The invoice number is issued by the office: staff never edit it — the field is hidden
+ * until an admin has set one, then shown read-only (the server enforces the same rule). */
 export function RequestOrDialog({
   order,
   isPending,
@@ -28,6 +30,9 @@ export function RequestOrDialog({
   const [tin, setTin] = useState("")
   const [invoiceNumber, setInvoiceNumber] = useState("")
   const [fieldErrors, setFieldErrors] = useState<{ name?: string; address?: string }>({})
+  const { role } = useAuth()
+  const isStaff = role === "staff"
+  const existingInvoice = order?.orRequest?.invoiceNumber ?? ""
 
   useEffect(() => {
     setName(order?.orRequest?.name ?? "")
@@ -49,7 +54,8 @@ export function RequestOrDialog({
       name: name.trim(),
       address: address.trim(),
       tin: tin.trim() || undefined,
-      invoiceNumber: invoiceNumber.trim() || undefined,
+      // Staff always send back what's stored, never their own input.
+      invoiceNumber: (isStaff ? existingInvoice : invoiceNumber.trim()) || undefined,
     })
   }
 
@@ -64,10 +70,14 @@ export function RequestOrDialog({
           {order?.orRequest ? "Update the OR request for" : "Request an OR for"} <Name>{order?.orderNumber}</Name>?
         </>
       }
-      description="Official Receipt details — TIN and invoice number can be added later."
-      confirmLabel="Yes, save request"
+      description={
+        isStaff
+          ? "Official Receipt details — TIN can be added later."
+          : "Official Receipt details — TIN and invoice number can be added later."
+      }
+      confirmLabel="Save"
       pendingLabel="Saving…"
-      cancelLabel="No, go back"
+      cancelLabel="Back"
       isPending={isPending}
       onConfirm={() => order && handleConfirm(order)}
     >
@@ -114,16 +124,27 @@ export function RequestOrDialog({
             />
           </Field>
 
-          <Field>
-            <FieldLabel htmlFor="or-request-invoice-number">Invoice Number</FieldLabel>
-            <Input
-              id="or-request-invoice-number"
-              value={invoiceNumber}
-              onChange={(event) => setInvoiceNumber(event.target.value)}
-              maxLength={50}
-              placeholder="Optional"
-            />
-          </Field>
+          {!isStaff ? (
+            <Field>
+              <FieldLabel htmlFor="or-request-invoice-number">Invoice number</FieldLabel>
+              <Input
+                id="or-request-invoice-number"
+                value={invoiceNumber}
+                onChange={(event) => setInvoiceNumber(event.target.value)}
+                maxLength={50}
+                placeholder="Optional"
+              />
+            </Field>
+          ) : existingInvoice ? (
+            <Field data-disabled>
+              <FieldLabel htmlFor="or-request-invoice-number" className="gap-1.5">
+                Invoice number
+                <LockIcon aria-hidden className="size-3 text-muted-foreground" />
+              </FieldLabel>
+              <Input id="or-request-invoice-number" value={existingInvoice} disabled readOnly />
+              <FieldDescription>Set by an admin.</FieldDescription>
+            </Field>
+          ) : null}
         </div>
 
     </ConfirmDialog>

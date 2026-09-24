@@ -12,8 +12,10 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import type { IncentiveTier } from "@/lib/incentive-tiers"
 import { formatCurrency } from "@/lib/utils"
 
-// Shared grid so the header, every tier row and the add row line their columns up.
-const ROW_GRID = "grid grid-cols-[4.5rem_minmax(0,1fr)_1rem_minmax(0,1fr)_2rem] items-center gap-2"
+// Shared grid so the header, every tier row and the add row line their columns up. Phones drop the
+// tier column and put the tier badge on its own line above the two amounts.
+const ROW_GRID =
+  "grid grid-cols-[minmax(0,1fr)_1rem_minmax(0,1fr)_2rem] items-center gap-2 sm:grid-cols-[4.5rem_minmax(0,1fr)_1rem_minmax(0,1fr)_2rem]"
 
 function formatCompactCurrency(amount: number): string {
   return new Intl.NumberFormat("en-PH", {
@@ -62,7 +64,7 @@ export function IncentiveTierList({
     <div className="flex w-full flex-col gap-2">
       <div className="overflow-hidden rounded-xl border bg-card shadow-[var(--shadow-soft)]">
         <div className={`${ROW_GRID} border-b bg-muted/40 px-3 py-2 text-xs font-medium text-muted-foreground`}>
-          <span>Tier</span>
+          <span className="max-sm:hidden">Tier</span>
           <span>When team sales reach</span>
           <span />
           <span>Team earns</span>
@@ -105,7 +107,7 @@ export function IncentiveTierList({
         icon={Trash2Icon}
         title="Delete this incentive tier?"
         description="Months already released don't change — only future and unreleased calculations."
-        confirmLabel="Yes, delete it"
+        confirmLabel="Delete"
         pendingLabel="Deleting…"
         isPending={isDeleting}
         onConfirm={handleConfirmDelete}
@@ -142,7 +144,7 @@ function TierRow({
 
   return (
     <div className={`${ROW_GRID} min-h-11 border-b px-3 py-1.5 transition-colors hover:bg-muted/30`}>
-      <Badge variant="secondary" className="w-fit tabular-nums">
+      <Badge variant="secondary" className="col-span-full w-fit tabular-nums sm:col-span-1">
         Tier {step}
       </Badge>
       <EditableAmount

@@ -137,7 +137,7 @@ export function CatalogList({
         icon={Trash2Icon}
         title={<>Delete <Name>{pendingDelete?.name}</Name>?</>}
         description="Orders that already used it keep showing it as recorded."
-        confirmLabel="Yes, delete it"
+        confirmLabel="Delete"
         pendingLabel="Deleting…"
         isPending={isDeleting}
         onConfirm={handleConfirmDelete}

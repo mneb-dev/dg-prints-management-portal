@@ -9,6 +9,7 @@ import { ExpenseFormDialog } from "@/components/expenses/expense-form-dialog"
 import { ExpenseTable } from "@/components/expenses/expense-table"
 import { RunPayrollDialog } from "@/components/expenses/run-payroll-dialog"
 import { ActiveFilterChips, FilterSearchInput, FilterToolbar, type ActiveFilter } from "@/components/filter-toolbar"
+import { ResponsiveFilters } from "@/components/responsive-filters"
 import { PageHeader } from "@/components/page-header"
 import { PaginationBar } from "@/components/pagination-bar"
 import { SortControl } from "@/components/sort-control"
@@ -129,6 +130,8 @@ export function ExpensesPage() {
       onRemove: () => setParams({ dateTo: "", page: 1 }),
     },
   ].filter((filter): filter is ActiveFilter => Boolean(filter))
+  // What the phone "Filters" button badges: everything except the always-visible search.
+  const secondaryFilterCount = activeFilters.filter((filter) => filter.key !== "search").length
 
   function handleAdd() {
     setEditingExpense(null)
@@ -166,15 +169,19 @@ export function ExpensesPage() {
         actions={
           <>
             {canManage && (
-              <Button variant="outline" onClick={() => navigate("/expenses/recurring")}>
+              <Button
+                variant="outline"
+                aria-label="Recurring expenses"
+                onClick={() => navigate("/expenses/recurring")}
+              >
                 <CalendarCogIcon data-icon="inline-start" />
-                Recurring
+                <span className="hidden sm:inline">Recurring</span>
               </Button>
             )}
             {canManage && (
-              <Button variant="outline" onClick={() => setRunPayrollOpen(true)}>
+              <Button variant="outline" aria-label="Run payroll" onClick={() => setRunPayrollOpen(true)}>
                 <HandCoinsIcon data-icon="inline-start" />
-                Run payroll
+                <span className="hidden sm:inline">Run payroll</span>
               </Button>
             )}
             <Button onClick={handleAdd}>
@@ -193,86 +200,88 @@ export function ExpensesPage() {
           disabled={isLoading || isError}
         />
 
-        <Select
-          value={params.category || ANY_CATEGORY}
-          onValueChange={(value) =>
-            setParams({ category: value === ANY_CATEGORY ? "" : (value ?? ""), page: 1 })
-          }
-          disabled={isLoading || isError}
-        >
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent className="min-w-64">
-            <SelectItem value={ANY_CATEGORY}>{ANY_CATEGORY}</SelectItem>
-            {EXPENSE_CATEGORIES.map((category) => (
-              <SelectItem key={category} value={category}>
-                {category}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select
-          value={params.paymentMethod || ANY_METHOD}
-          onValueChange={(value) =>
-            setParams({ paymentMethod: value === ANY_METHOD ? "" : (value ?? ""), page: 1 })
-          }
-          disabled={isLoading || isError}
-        >
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ANY_METHOD}>{ANY_METHOD}</SelectItem>
-            {paymentMethods.map((method) => (
-              <SelectItem key={method.id} value={method.name}>
-                {method.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        {canManage && (
+        <ResponsiveFilters activeCount={secondaryFilterCount} onClearAll={hasActiveFilters ? clearFilters : undefined} disabled={isLoading || isError}>
           <Select
-            value={params.createdBy || ANY_CREATOR}
+            value={params.category || ANY_CATEGORY}
             onValueChange={(value) =>
-              setParams({ createdBy: value === ANY_CREATOR ? "" : (value ?? ""), page: 1 })
+              setParams({ category: value === ANY_CATEGORY ? "" : (value ?? ""), page: 1 })
             }
             disabled={isLoading || isError}
           >
-            <SelectTrigger aria-label="Filter by created by" className="min-w-44 shrink-0">
-              <SelectValue>
-                {(value: string | null) => `Created by: ${value && value !== ANY_CREATOR ? creatorName(value) : ANY_CREATOR}`}
-              </SelectValue>
+            <SelectTrigger>
+              <SelectValue />
             </SelectTrigger>
-            <SelectContent className="min-w-56" alignItemWithTrigger={false}>
-              <SelectItem value={ANY_CREATOR}>{ANY_CREATOR}</SelectItem>
-              {creatorOptions.map((user) => (
-                <SelectItem key={user.id} value={user.id} className="whitespace-nowrap">
-                  {user.firstName} {user.lastName}
-                  {user.status !== "active" && <span className="text-xs text-muted-foreground">Inactive</span>}
+            <SelectContent className="min-w-64">
+              <SelectItem value={ANY_CATEGORY}>{ANY_CATEGORY}</SelectItem>
+              {EXPENSE_CATEGORIES.map((category) => (
+                <SelectItem key={category} value={category}>
+                  {category}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
-        )}
 
-        <DateRangeFilter
-          id="expenses-date-range"
-          from={params.dateFrom}
-          to={params.dateTo}
-          onChange={(dateFrom, dateTo) => setParams({ dateFrom, dateTo, page: 1 })}
-          disabled={isLoading || isError}
-        />
+          <Select
+            value={params.paymentMethod || ANY_METHOD}
+            onValueChange={(value) =>
+              setParams({ paymentMethod: value === ANY_METHOD ? "" : (value ?? ""), page: 1 })
+            }
+            disabled={isLoading || isError}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ANY_METHOD}>{ANY_METHOD}</SelectItem>
+              {paymentMethods.map((method) => (
+                <SelectItem key={method.id} value={method.name}>
+                  {method.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
-        <SortControl
-          value={params.sortBy}
-          direction={params.sortDir}
-          options={SORT_OPTIONS}
-          onChange={(sortBy, sortDir) => setParams({ sortBy, sortDir, page: 1 })}
-          disabled={isLoading || isError}
-        />
+          {canManage && (
+            <Select
+              value={params.createdBy || ANY_CREATOR}
+              onValueChange={(value) =>
+                setParams({ createdBy: value === ANY_CREATOR ? "" : (value ?? ""), page: 1 })
+              }
+              disabled={isLoading || isError}
+            >
+              <SelectTrigger aria-label="Filter by created by" className="shrink-0 sm:min-w-44">
+                <SelectValue>
+                  {(value: string | null) => `Created by: ${value && value !== ANY_CREATOR ? creatorName(value) : ANY_CREATOR}`}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent className="min-w-56" alignItemWithTrigger={false}>
+                <SelectItem value={ANY_CREATOR}>{ANY_CREATOR}</SelectItem>
+                {creatorOptions.map((user) => (
+                  <SelectItem key={user.id} value={user.id} className="whitespace-nowrap">
+                    {user.firstName} {user.lastName}
+                    {user.status !== "active" && <span className="text-xs text-muted-foreground">Inactive</span>}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+
+          <DateRangeFilter
+            id="expenses-date-range"
+            from={params.dateFrom}
+            to={params.dateTo}
+            onChange={(dateFrom, dateTo) => setParams({ dateFrom, dateTo, page: 1 })}
+            disabled={isLoading || isError}
+          />
+
+          <SortControl
+            value={params.sortBy}
+            direction={params.sortDir}
+            options={SORT_OPTIONS}
+            onChange={(sortBy, sortDir) => setParams({ sortBy, sortDir, page: 1 })}
+            disabled={isLoading || isError}
+          />
+        </ResponsiveFilters>
 
         <ActiveFilterChips
           filters={activeFilters}

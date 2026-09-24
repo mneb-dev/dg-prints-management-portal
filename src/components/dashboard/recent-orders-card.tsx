@@ -24,7 +24,7 @@ export function RecentOrdersCard() {
   const orders = recentOrders.slice(0, VISIBLE_COUNT)
 
   return (
-    <Card className="lg:col-span-2">
+    <Card className="xl:col-span-2">
       <CardHeader>
         <CardTitle>Recent orders</CardTitle>
         <CardDescription>Newest activity across all channels</CardDescription>

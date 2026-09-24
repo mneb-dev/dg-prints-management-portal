@@ -19,8 +19,8 @@ export function DiscardOrderChangesDialog({
       icon={TriangleAlertIcon}
       title="Discard your changes?"
       description="Your unsaved edits to this order will be lost."
-      confirmLabel="Yes, discard"
-      cancelLabel="No, keep editing"
+      confirmLabel="Discard"
+      cancelLabel="Keep editing"
       onConfirm={onDiscard}
     />
   )

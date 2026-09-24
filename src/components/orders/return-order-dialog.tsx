@@ -22,9 +22,9 @@ export function ReturnOrderDialog({
       icon={Undo2Icon}
       title={<>Mark order <Name>{order?.orderNumber}</Name> as returned?</>}
       description="It stays in your records, marked as returned."
-      confirmLabel="Yes, mark returned"
+      confirmLabel="Mark returned"
       pendingLabel="Saving…"
-      cancelLabel="No, go back"
+      cancelLabel="Back"
       isPending={isPending}
       onConfirm={() => order && onConfirm(order)}
     />

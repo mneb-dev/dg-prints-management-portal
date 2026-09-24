@@ -150,13 +150,14 @@ Never hand-build an `AlertDialog`. Every "are you sure?" goes through `ConfirmDi
 
 - **The title is a question** that names the thing: "Cancel order ORD-042?". Wrap the name in
   `<Name>`.
-- **The buttons answer it**: confirm **"Yes, <verb> it"**, dismiss **"No, keep it"**. Where "keep"
-  doesn't fit, use "No, go back", "No, stay", "No, not yet" or "No, keep editing". Never put two
-  "Cancel"s side by side.
+- **The buttons answer it, briefly**: confirm is the **verb** ("Delete", "Refund", "Save"), dismiss
+  is **"Keep"** (the default). Where "Keep" doesn't fit, use "Back", "Stay", "Later" or "Keep
+  editing". Never put two "Cancel"s side by side, so the cancel-order modal says "Cancel order" /
+  "Keep".
 - **The description** is one or two short sentences stating the consequence ("This can't be
   undone.").
 - **`tone`** sets the round icon tile and the confirm button:
-  - `danger`: red tile, solid red confirm, **focus starts on "No"** so Enter never destroys.
+  - `danger`: red tile, solid red confirm, **focus starts on the dismiss button** so Enter never destroys.
   - `warning`: amber tile, primary confirm.
   - `primary`: indigo tile, primary confirm.
 - A pending state shows a spinner and a `pendingLabel` ("Deleting…"), disables both buttons and
@@ -171,3 +172,28 @@ Never hand-build an `AlertDialog`. Every "are you sure?" goes through `ConfirmDi
   are sentence case: "New product", "Edit expense".
 - The footer has a ghost **"Cancel"** (a form isn't a question) and a specific primary verb:
   "Create product" when new, "Save changes" when editing, and "Saving…" while submitting.
+
+## Dark mode
+
+Light, Dark or System (follows the OS live), picked from the sun/moon/monitor button in the top bar
+(`components/theme-toggle.tsx`, also on the login page) and stored under `dgprints_theme`. The
+pre-paint script in `index.html` applies `.dark` before React mounts, so there's no flash.
+
+- **Tokens only.** Every color comes from a token that `.dark` in `index.css` redefines. Never use a
+  raw palette color (`bg-white`, `text-slate-*`). When a surface genuinely needs a different
+  treatment in the dark, add a `dark:` variant next to the light class and leave the light class
+  untouched.
+- **Surface ladder:** background → card → popover → secondary/muted, each a step lighter, so menus
+  and dialogs separate from the cards beneath them without relying on shadow.
+- **Elevation:** in the dark, `--shadow-soft` and `--shadow-elevated` are black depth plus a faint
+  1px top-lit hairline. The brand-tinted glow reads as neon on a dark ground, so only CTAs
+  (`--shadow-button`) keep a softer brand glow. Always consume shadows as
+  `shadow-[var(--shadow-*)]`, never as a hard-coded value.
+- **Tinted chips:** `bg-<token>/10` in light, `dark:bg-<token>/20` in dark (see
+  `ORDER_STATUS_COLOR_MAP`, `badge.tsx`).
+- **White text on colored fills:** the dark-tuned status/order-status fills are light, so white
+  text fails there. Flip it with `dark:text-background` (see `rank-badge.ts`).
+- **Primary buttons** keep near-black text on the lighter dark-mode indigo. Lowering primary enough
+  for white text would make `text-primary` links and icons too dim on the dark background.
+- **Logo:** `Logo` renders both `dg-prints-logo.png` and `dg-prints-logo-dark.png` (white "PRINTS"
+  wordmark) and lets `dark:` pick one.

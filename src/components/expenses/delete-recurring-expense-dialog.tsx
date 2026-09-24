@@ -23,7 +23,7 @@ export function DeleteRecurringExpenseDialog({
       icon={Trash2Icon}
       title={<>Delete the <Name>{recurringExpense ? formatCurrency(recurringExpense.amount) : ""}</Name> {recurringExpense?.category} schedule?</>}
       description={"It stops creating new expenses. Ones it already created stay."}
-      confirmLabel="Yes, delete it"
+      confirmLabel="Delete"
       pendingLabel="Deleting…"
       isPending={isDeleting}
       onConfirm={() => recurringExpense && onConfirm(recurringExpense)}

@@ -14,6 +14,7 @@ import {
   FilterToolbar,
   type ActiveFilter,
 } from "@/components/filter-toolbar"
+import { ResponsiveFilters } from "@/components/responsive-filters"
 import { SEGMENT_CLASS, SEGMENT_TRACK_CLASS } from "@/components/segmented"
 import { PageHeader } from "@/components/page-header"
 import { PaginationBar } from "@/components/pagination-bar"
@@ -123,6 +124,8 @@ export function ProductsPage() {
       onRemove: () => setParams({ pricingType: "", page: 1 }),
     },
   ].filter((filter): filter is ActiveFilter => Boolean(filter))
+  // What the phone "Filters" button badges: everything except the always-visible search.
+  const secondaryFilterCount = activeFilters.filter((filter) => filter.key !== "search").length
 
   function handleAdd() {
     setEditingProduct(null)
@@ -156,9 +159,13 @@ export function ProductsPage() {
         actions={
           canManage ? (
             <>
-              <Button variant="outline" onClick={() => setManageCategoriesOpen(true)}>
+              <Button
+                variant="outline"
+                aria-label="Manage categories"
+                onClick={() => setManageCategoriesOpen(true)}
+              >
                 <TagIcon data-icon="inline-start" />
-                Manage categories
+                <span className="hidden sm:inline">Manage categories</span>
               </Button>
               <Button onClick={handleAdd}>
                 <PlusIcon data-icon="inline-start" />
@@ -175,105 +182,107 @@ export function ProductsPage() {
           onChange={setSearchInput}
           placeholder="Search products..."
           disabled={isLoading || isError}
-          className="min-w-56"
+          className="sm:min-w-56"
         />
 
-        {/* Only three values, so one click beats a dropdown — same joined track as the order
-            form's payment status, with the status dots. */}
-        <ToggleGroup
-          aria-label="Filter by status"
-          value={[params.status || ALL_STATUS]}
-          onValueChange={(next) => {
-            const value = next[0]
-            if (value) setParams({ status: value === ALL_STATUS ? "" : value, page: 1 })
-          }}
-          disabled={isLoading || isError}
-          className={SEGMENT_TRACK_CLASS}
-        >
-          <Toggle value={ALL_STATUS} className={SEGMENT_CLASS}>
-            All
-          </Toggle>
-          {PRODUCT_STATUSES.map((status) => (
-            <Toggle key={status} value={status} className={SEGMENT_CLASS}>
-              <span
-                aria-hidden
-                className={cn(
-                  "size-2 shrink-0 translate-y-px rounded-full",
-                  status === "Active" ? "bg-order-status-teal" : "bg-muted-foreground/40"
-                )}
-              />
-              <span className="leading-none">{status}</span>
-            </Toggle>
-          ))}
-        </ToggleGroup>
-
-        <Select
-          value={params.category || ANY_CATEGORY}
-          onValueChange={(value) =>
-            setParams({ category: value === ANY_CATEGORY ? "" : (value ?? ""), page: 1 })
-          }
-          disabled={isLoading || isError}
-        >
-          <SelectTrigger
-            aria-label="Filter by category"
-            className={cn("min-w-40", params.category && ACTIVE_FILTER_TRIGGER_CLASS)}
-          >
-            <SelectValue>
-              {(value: string | null) =>
-                value && value !== ANY_CATEGORY ? (
-                  <span className="truncate">{value}</span>
-                ) : (
-                  "All categories"
-                )
-              }
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ANY_CATEGORY}>All categories</SelectItem>
-            {categories.map((category) => (
-              <SelectItem key={category.id} value={category.name}>
-                {category.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select
-          value={params.pricingType || ANY_PRICING}
-          onValueChange={(value) =>
-            setParams({ pricingType: value === ANY_PRICING ? "" : (value ?? ""), page: 1 })
-          }
-          disabled={isLoading || isError}
-        >
-          <SelectTrigger
-            aria-label="Filter by pricing type"
-            className={cn("min-w-36", params.pricingType && ACTIVE_FILTER_TRIGGER_CLASS)}
-          >
-            <SelectValue>
-              {(value: string | null) => (value && value !== ANY_PRICING ? value : "All pricing")}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ANY_PRICING}>All pricing</SelectItem>
-            {PRICING_TYPES.map((pricingType) => (
-              <SelectItem key={pricingType} value={pricingType}>
-                {pricingType}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <div className="flex items-center gap-1.5" title="Sort">
-          <ArrowUpDownIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-          <SortControl
-            value={params.sortBy}
-            direction={params.sortDir}
-            options={SORT_OPTIONS}
-            onChange={(sortBy, sortDir) => setParams({ sortBy, sortDir, page: 1 })}
+        <ResponsiveFilters activeCount={secondaryFilterCount} onClearAll={hasActiveFilters ? clearFilters : undefined} disabled={isLoading || isError}>
+          {/* Only three values, so one click beats a dropdown — same joined track as the order
+              form's payment status, with the status dots. */}
+          <ToggleGroup
+            aria-label="Filter by status"
+            value={[params.status || ALL_STATUS]}
+            onValueChange={(next) => {
+              const value = next[0]
+              if (value) setParams({ status: value === ALL_STATUS ? "" : value, page: 1 })
+            }}
             disabled={isLoading || isError}
-            className="min-w-44"
-          />
-        </div>
+            className={SEGMENT_TRACK_CLASS}
+          >
+            <Toggle value={ALL_STATUS} className={SEGMENT_CLASS}>
+              All
+            </Toggle>
+            {PRODUCT_STATUSES.map((status) => (
+              <Toggle key={status} value={status} className={SEGMENT_CLASS}>
+                <span
+                  aria-hidden
+                  className={cn(
+                    "size-2 shrink-0 translate-y-px rounded-full",
+                    status === "Active" ? "bg-order-status-teal" : "bg-muted-foreground/40"
+                  )}
+                />
+                <span className="leading-none">{status}</span>
+              </Toggle>
+            ))}
+          </ToggleGroup>
+
+          <Select
+            value={params.category || ANY_CATEGORY}
+            onValueChange={(value) =>
+              setParams({ category: value === ANY_CATEGORY ? "" : (value ?? ""), page: 1 })
+            }
+            disabled={isLoading || isError}
+          >
+            <SelectTrigger
+              aria-label="Filter by category"
+              className={cn("min-w-40", params.category && ACTIVE_FILTER_TRIGGER_CLASS)}
+            >
+              <SelectValue>
+                {(value: string | null) =>
+                  value && value !== ANY_CATEGORY ? (
+                    <span className="truncate">{value}</span>
+                  ) : (
+                    "All categories"
+                  )
+                }
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ANY_CATEGORY}>All categories</SelectItem>
+              {categories.map((category) => (
+                <SelectItem key={category.id} value={category.name}>
+                  {category.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select
+            value={params.pricingType || ANY_PRICING}
+            onValueChange={(value) =>
+              setParams({ pricingType: value === ANY_PRICING ? "" : (value ?? ""), page: 1 })
+            }
+            disabled={isLoading || isError}
+          >
+            <SelectTrigger
+              aria-label="Filter by pricing type"
+              className={cn("min-w-36", params.pricingType && ACTIVE_FILTER_TRIGGER_CLASS)}
+            >
+              <SelectValue>
+                {(value: string | null) => (value && value !== ANY_PRICING ? value : "All pricing")}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ANY_PRICING}>All pricing</SelectItem>
+              {PRICING_TYPES.map((pricingType) => (
+                <SelectItem key={pricingType} value={pricingType}>
+                  {pricingType}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <div className="flex items-center gap-1.5" title="Sort">
+            <ArrowUpDownIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+            <SortControl
+              value={params.sortBy}
+              direction={params.sortDir}
+              options={SORT_OPTIONS}
+              onChange={(sortBy, sortDir) => setParams({ sortBy, sortDir, page: 1 })}
+              disabled={isLoading || isError}
+              className="flex-1 sm:min-w-44 sm:flex-none"
+            />
+          </div>
+        </ResponsiveFilters>
 
         <ActiveFilterChips
           filters={activeFilters}

@@ -22,7 +22,7 @@ export function DeleteProductDialog({
       icon={Trash2Icon}
       title={<>Delete product <Name>{product?.name}</Name>?</>}
       description={"If it has orders, it's hidden from the catalog but kept for order history. Otherwise it's removed for good."}
-      confirmLabel="Yes, delete it"
+      confirmLabel="Delete"
       pendingLabel="Deleting…"
       isPending={isDeleting}
       onConfirm={() => product && onConfirm(product)}

@@ -170,9 +170,9 @@ export function OrderStatusMenu({
           </>
         }
         description={`The curing time${curingDuration ? ` (${curingDuration})` : ""} will reset.`}
-        confirmLabel="Yes, change it"
+        confirmLabel="Change"
         pendingLabel="Changing…"
-        cancelLabel="No, keep curing"
+        cancelLabel="Keep curing"
         isPending={isUpdating}
         onConfirm={() => void handleConfirmCuringExit()}
       />

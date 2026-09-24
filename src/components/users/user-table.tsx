@@ -10,6 +10,7 @@ import {
   XIcon,
 } from "lucide-react"
 
+import { DataCardItem, DataCardList, DataCardListSkeleton } from "@/components/data-card-list"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { TABLE_HEAD_CLASS, TABLE_HEADER_CLASS, TABLE_SURFACE_CLASS } from "@/components/table-surface"
@@ -64,6 +65,65 @@ function initials(user: User): string {
 
 function stopRowClick(event: MouseEvent) {
   event.stopPropagation()
+}
+
+/** Edit button + "more" menu — the same in a table row and a phone card. */
+function RowActions({
+  user,
+  editable,
+  deletable,
+  onEdit,
+  onDelete,
+}: {
+  user: User
+  editable: boolean
+  deletable: boolean
+  onEdit: (user: User) => void
+  onDelete: (user: User) => void
+}) {
+  return (
+    <div className="flex justify-end gap-1">
+      {editable && (
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label={`Edit ${user.firstName} ${user.lastName}`}
+                onClick={() => onEdit(user)}
+              />
+            }
+          >
+            <PencilIcon />
+          </TooltipTrigger>
+          <TooltipContent>Edit user</TooltipContent>
+        </Tooltip>
+      )}
+      {deletable && (
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label="More actions"
+                className="data-popup-open:bg-accent data-popup-open:text-accent-foreground"
+              />
+            }
+          >
+            <MoreHorizontalIcon />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuItem variant="destructive" onClick={() => onDelete(user)}>
+              <Trash2Icon />
+              <span className="leading-none">Delete user</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
+    </div>
+  )
 }
 
 /** Neutral chip + dot (docs/design-system.md). */
@@ -151,7 +211,8 @@ export function UserTable({
   if (isLoading) {
     return (
       <div className={TABLE_SURFACE_CLASS}>
-        <Table>
+        <DataCardListSkeleton />
+        <Table className="max-md:hidden">
           <Columns />
           <TableBody>
             {Array.from({ length: 10 }).map((_, index) => (
@@ -251,113 +312,136 @@ export function UserTable({
   return (
     <div className="relative" aria-busy={isFetching}>
       <div className={cn(TABLE_SURFACE_CLASS, isFetching && "opacity-60 transition-opacity duration-150")}>
-        <Table>
-          <Columns />
-          <TableBody>
-            {users.map((user) => {
-              const isSelf = user.id === currentUserId
-              const editable = currentUserRole ? canManageUser(currentUserRole, user) : false
-              const deletable = !isSelf && editable
-              const fullName = `${user.firstName} ${user.lastName}`
-              const inactive = user.status !== "active"
+        <div className="hidden md:block">
+          <Table>
+            <Columns />
+            <TableBody>
+              {users.map((user) => {
+                const isSelf = user.id === currentUserId
+                const editable = currentUserRole ? canManageUser(currentUserRole, user) : false
+                const deletable = !isSelf && editable
+                const fullName = `${user.firstName} ${user.lastName}`
+                const inactive = user.status !== "active"
 
-              return (
-                <TableRow
-                  key={user.id}
-                  // Managers open the editor by clicking anywhere on the row (like Products/Expenses).
-                  onClick={
-                    editable
-                      ? () => {
-                          if (window.getSelection()?.toString()) return
-                          onEdit(user)
-                        }
-                      : undefined
-                  }
-                  className={cn(
-                    editable ? "cursor-pointer transition-colors duration-150 hover:bg-accent/40" : "hover:bg-transparent"
-                  )}
-                >
-                  <TableCell className="max-w-80 px-4">
-                    <div className="flex min-w-0 items-center gap-3">
-                      <Avatar className={cn(inactive && "opacity-60 grayscale")}>
-                        <UserAvatarImage avatarKey={user.avatar} alt={fullName} />
-                        <AvatarFallback>{initials(user)}</AvatarFallback>
-                      </Avatar>
-                      <div className="flex min-w-0 flex-col gap-0.5">
-                        <span className="flex min-w-0 items-center gap-2">
-                          <span className={cn("truncate font-medium", inactive && "text-muted-foreground")}>
-                            {fullName}
+                return (
+                  <TableRow
+                    key={user.id}
+                    // Managers open the editor by clicking anywhere on the row (like Products/Expenses).
+                    onClick={
+                      editable
+                        ? () => {
+                            if (window.getSelection()?.toString()) return
+                            onEdit(user)
+                          }
+                        : undefined
+                    }
+                    className={cn(
+                      editable ? "cursor-pointer transition-colors duration-150 hover:bg-accent/40" : "hover:bg-transparent"
+                    )}
+                  >
+                    <TableCell className="max-w-80 px-4">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <Avatar className={cn(inactive && "opacity-60 grayscale")}>
+                          <UserAvatarImage avatarKey={user.avatar} alt={fullName} />
+                          <AvatarFallback>{initials(user)}</AvatarFallback>
+                        </Avatar>
+                        <div className="flex min-w-0 flex-col gap-0.5">
+                          <span className="flex min-w-0 items-center gap-2">
+                            <span className={cn("truncate font-medium", inactive && "text-muted-foreground")}>
+                              {fullName}
+                            </span>
+                            {isSelf && (
+                              <Badge variant="outline" className="h-4.5 px-1.5 text-[0.65rem]">
+                                You
+                              </Badge>
+                            )}
                           </span>
-                          {isSelf && (
-                            <Badge variant="outline" className="h-4.5 px-1.5 text-[0.65rem]">
-                              You
-                            </Badge>
-                          )}
-                        </span>
-                        <span className="truncate text-xs text-muted-foreground">@{user.username}</span>
+                          <span className="truncate text-xs text-muted-foreground">@{user.username}</span>
+                        </div>
                       </div>
-                    </div>
-                  </TableCell>
-                  <TableCell className="px-4">
-                    <DotBadge dotClass={ROLE_DOT_CLASS[user.role]} label={ROLE_LABELS[user.role]} />
-                  </TableCell>
-                  <TableCell className="px-4">
-                    <DotBadge dotClass={STATUS_DOT_CLASS[user.status]} label={STATUS_LABELS[user.status]} />
-                  </TableCell>
-                  <TableCell className="px-4 whitespace-nowrap">
-                    <AccessCell user={user} />
-                  </TableCell>
-                  <TableCell className="px-4 whitespace-nowrap text-muted-foreground">
-                    {formatDate(user.createdAt)}
-                  </TableCell>
-                  <TableCell className="px-4" onClick={stopRowClick}>
-                    <div className="flex justify-end gap-1">
-                      {editable && (
-                        <Tooltip>
-                          <TooltipTrigger
-                            render={
-                              <Button
-                                variant="ghost"
-                                size="icon-sm"
-                                aria-label={`Edit ${fullName}`}
-                                onClick={() => onEdit(user)}
-                              />
-                            }
-                          >
-                            <PencilIcon />
-                          </TooltipTrigger>
-                          <TooltipContent>Edit user</TooltipContent>
-                        </Tooltip>
+                    </TableCell>
+                    <TableCell className="px-4">
+                      <DotBadge dotClass={ROLE_DOT_CLASS[user.role]} label={ROLE_LABELS[user.role]} />
+                    </TableCell>
+                    <TableCell className="px-4">
+                      <DotBadge dotClass={STATUS_DOT_CLASS[user.status]} label={STATUS_LABELS[user.status]} />
+                    </TableCell>
+                    <TableCell className="px-4 whitespace-nowrap">
+                      <AccessCell user={user} />
+                    </TableCell>
+                    <TableCell className="px-4 whitespace-nowrap text-muted-foreground">
+                      {formatDate(user.createdAt)}
+                    </TableCell>
+                    <TableCell className="px-4" onClick={stopRowClick}>
+                      <RowActions
+                        user={user}
+                        editable={editable}
+                        deletable={deletable}
+                        onEdit={onEdit}
+                        onDelete={onDelete}
+                      />
+                    </TableCell>
+                  </TableRow>
+                )
+              })}
+            </TableBody>
+          </Table>
+        </div>
+
+        <DataCardList>
+          {users.map((user) => {
+            const isSelf = user.id === currentUserId
+            const editable = currentUserRole ? canManageUser(currentUserRole, user) : false
+            const deletable = !isSelf && editable
+            const fullName = `${user.firstName} ${user.lastName}`
+            const inactive = user.status !== "active"
+            const permissionCount = user.permissions.length
+
+            return (
+              <DataCardItem key={user.id} aria-label={fullName} onOpen={editable ? () => onEdit(user) : undefined}>
+                <div className="flex items-center gap-3">
+                  <Avatar className={cn(inactive && "opacity-60 grayscale")}>
+                    <UserAvatarImage avatarKey={user.avatar} alt={fullName} />
+                    <AvatarFallback>{initials(user)}</AvatarFallback>
+                  </Avatar>
+                  <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span className={cn("truncate font-medium", inactive && "text-muted-foreground")}>
+                        {fullName}
+                      </span>
+                      {isSelf && (
+                        <Badge variant="outline" className="h-4.5 px-1.5 text-[0.65rem]">
+                          You
+                        </Badge>
                       )}
-                      {deletable && (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger
-                            render={
-                              <Button
-                                variant="ghost"
-                                size="icon-sm"
-                                aria-label="More actions"
-                                className="data-popup-open:bg-accent data-popup-open:text-accent-foreground"
-                              />
-                            }
-                          >
-                            <MoreHorizontalIcon />
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-48">
-                            <DropdownMenuItem variant="destructive" onClick={() => onDelete(user)}>
-                              <Trash2Icon />
-                              <span className="leading-none">Delete user</span>
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      )}
+                    </span>
+                    <span className="truncate text-xs text-muted-foreground">@{user.username}</span>
+                  </div>
+                  {(editable || deletable) && (
+                    <div className="-mr-2 shrink-0" onClick={stopRowClick}>
+                      <RowActions
+                        user={user}
+                        editable={editable}
+                        deletable={deletable}
+                        onEdit={onEdit}
+                        onDelete={onDelete}
+                      />
                     </div>
-                  </TableCell>
-                </TableRow>
-              )
-            })}
-          </TableBody>
-        </Table>
+                  )}
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <DotBadge dotClass={ROLE_DOT_CLASS[user.role]} label={ROLE_LABELS[user.role]} />
+                  <DotBadge dotClass={STATUS_DOT_CLASS[user.status]} label={STATUS_LABELS[user.status]} />
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  Joined {formatDate(user.createdAt)}
+                  {permissionCount > 0 &&
+                    ` · ${permissionCount} ${permissionCount === 1 ? "permission" : "permissions"}`}
+                </div>
+              </DataCardItem>
+            )
+          })}
+        </DataCardList>
         {footer}
       </div>
       {isFetching && (

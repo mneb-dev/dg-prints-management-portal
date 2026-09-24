@@ -22,7 +22,7 @@ export function DeleteCategoryDialog({
       icon={Trash2Icon}
       title={<>Delete category <Name>{category?.name}</Name>?</>}
       description={"This can't be undone. If products still use it, deleting is blocked — deactivate it instead."}
-      confirmLabel="Yes, delete it"
+      confirmLabel="Delete"
       pendingLabel="Deleting…"
       isPending={isDeleting}
       onConfirm={() => category && onConfirm(category)}

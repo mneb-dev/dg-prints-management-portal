@@ -1,20 +1,17 @@
 import { useEffect, useState, type ReactNode } from "react"
 import {
-  CalculatorIcon,
   CopyIcon,
   InfoIcon,
   PackageSearchIcon,
   PlusIcon,
-  ReceiptTextIcon,
   RotateCcwIcon,
-  SlidersHorizontalIcon,
   TruckIcon,
 } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 
 import { ChoiceCard } from "@/components/choice-card"
+import { FormSection } from "@/components/form-section"
 import { LaminatedStickerQuotationFields } from "@/components/orders/laminated-sticker-quotation-fields"
-import { OrderFormSectionHeader } from "@/components/orders/order-form-section-header"
 import { type OrderFormSeed } from "@/components/orders/order-form"
 import { ProductOptionsFields } from "@/components/orders/product-options-fields"
 import { QuickSizeChips } from "@/components/orders/quick-size-chips"
@@ -23,7 +20,7 @@ import { StickerQuotationFields } from "@/components/orders/sticker-quotation-fi
 import { PageHeader } from "@/components/page-header"
 import { SEGMENT_CLASS, SEGMENT_TRACK_CLASS } from "@/components/segmented"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
 import { Field, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
@@ -315,14 +312,11 @@ export function CalculatorPage() {
         description="Get a quick price quotation before creating an order."
       />
 
-      {/* Same shape as New Order: inputs on the left, a sticky quote panel on the right. */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_340px]">
-        <div className="flex flex-col gap-4">
-          <Card>
-            <CardHeader>
-              <OrderFormSectionHeader icon={CalculatorIcon} title="Pick a category" description="What are you quoting?" />
-            </CardHeader>
-            <CardContent>
+      {/* One card, top to bottom: category → details (incl. the package/price list) → the quote and
+          its buttons, directly under the prices and pinned to the bottom of the screen while scrolling. */}
+      <Card className="w-full max-w-4xl gap-0 overflow-visible py-0">
+        <CardContent className="flex flex-col gap-8 py-5">
+          <FormSection step={1} title="Category" description="What are you quoting?">
               <ToggleGroup
                 aria-label="Category"
                 value={category ? [category] : []}
@@ -341,25 +335,22 @@ export function CalculatorPage() {
                   />
                 ))}
               </ToggleGroup>
-            </CardContent>
-          </Card>
+          </FormSection>
 
           {category && categoryMeta && (
-            <Card key={category} className="animate-in duration-200 fade-in-0 slide-in-from-top-1 motion-reduce:animate-none">
-              <CardHeader>
-                <OrderFormSectionHeader
-                  icon={SlidersHorizontalIcon}
-                  title={`${categoryMeta.label} quote`}
-                  description={
-                    isStickerLike
-                      ? "Choose a product, then a size — every package is quoted."
-                      : category === "Sintra"
-                        ? "Choose a product, then a standard or custom size."
-                        : "Choose a product and options, then a size."
-                  }
-                />
-              </CardHeader>
-              <CardContent className="flex flex-col gap-5">
+            <FormSection
+              key={category}
+              step={2}
+              title={`${categoryMeta.label} details`}
+              description={
+                isStickerLike
+                  ? "Choose a product, then a size — every package is quoted."
+                  : category === "Sintra"
+                    ? "Choose a product, then a standard or custom size."
+                    : "Choose a product and options, then a size."
+              }
+              className="animate-in border-t pt-6 duration-200 fade-in-0 slide-in-from-top-1 motion-reduce:animate-none"
+            >
                 {noProducts ? (
                   <Empty className="border">
                     <EmptyHeader>
@@ -529,67 +520,63 @@ export function CalculatorPage() {
                     )}
                   </>
                 )}
-              </CardContent>
-            </Card>
+            </FormSection>
           )}
-        </div>
 
-        {/* Quote panel: the answer and what to do with it, always in view on desktop. */}
-        <Card className="lg:sticky lg:top-20 lg:self-start">
-          <CardHeader>
-            <OrderFormSectionHeader icon={ReceiptTextIcon} title="Quote" />
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            {!category ? (
-              <p className="text-sm text-muted-foreground">Pick a category to start a quote.</p>
-            ) : isStickerLike ? (
-              stickerSummary ? (
-                <div className="flex flex-col gap-1">
-                  <span className="text-2xl leading-tight font-semibold tabular-nums">{stickerSummary.size}</span>
-                  <span className="text-sm text-muted-foreground">
-                    {stickerSummary.count} {stickerSummary.count === 1 ? stickerSummary.noun : `${stickerSummary.noun}s`} quoted —
-                    see the list on the left.
-                  </span>
+          {!category && <p className="-mt-4 text-sm text-muted-foreground sm:pl-9">Pick a category to start a quote.</p>}
+        </CardContent>
+
+        {category && !noProducts && (
+          // Quote footer: sits right under the package/price list and sticks to the bottom of the
+          // viewport while a long list scrolls, so Copy / New order are always one tap away.
+          <div className="sticky bottom-0 z-10 flex flex-col gap-3 rounded-b-xl border-t bg-card/95 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur supports-[backdrop-filter]:bg-card/85 sm:flex-row-reverse sm:items-center sm:justify-between">
+            <div aria-live="polite" className="min-w-0 sm:text-right">
+              <span className="text-xs text-muted-foreground">Quote</span>
+              {isStickerLike ? (
+                stickerSummary ? (
+                  <div className="flex flex-wrap items-baseline gap-x-2 sm:justify-end">
+                    <span className="text-2xl leading-tight font-semibold tabular-nums">{stickerSummary.size}</span>
+                    <span className="text-sm text-muted-foreground">
+                      {stickerSummary.count} {stickerSummary.count === 1 ? stickerSummary.noun : `${stickerSummary.noun}s`}{" "}
+                      quoted
+                    </span>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Enter a size to quote every package.</p>
+                )
+              ) : quote !== null ? (
+                <div key={quote} className="flex animate-in flex-wrap items-baseline gap-x-2 duration-200 fade-in-0 motion-reduce:animate-none sm:justify-end">
+                  <span className="text-2xl leading-tight font-semibold tabular-nums">{formatCurrency(quote)}</span>
+                  {quoteBreakdown && <span className="text-sm text-muted-foreground tabular-nums">{quoteBreakdown}</span>}
                 </div>
               ) : (
-                <p className="text-sm text-muted-foreground">Enter a size to quote every package.</p>
-              )
-            ) : quote !== null ? (
-              <div key={quote} className="flex animate-in flex-col gap-1 duration-200 fade-in-0 motion-reduce:animate-none">
-                <span className="text-3xl leading-none font-semibold tabular-nums">{formatCurrency(quote)}</span>
-                {quoteBreakdown && <span className="text-sm text-muted-foreground tabular-nums">{quoteBreakdown}</span>}
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                {selectedProduct ? "Finish the details to see the price." : "Choose a product to see the price."}
-              </p>
-            )}
+                <p className="text-sm text-muted-foreground">
+                  {selectedProduct ? "Finish the details to see the price." : "Choose a product to see the price."}
+                </p>
+              )}
+            </div>
 
-            {category && (
-              <div className="flex flex-col gap-2 border-t pt-4">
-                {canCreateOrder && (
-                  <Button className="w-full" disabled={!canCreate} onClick={handleCreateOrder}>
-                    <PlusIcon data-icon="inline-start" />
-                    New order
-                  </Button>
-                )}
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
-                  <Button type="button" variant="outline" disabled={!hasQuote} onClick={handleCopyQuote}>
-                    <CopyIcon data-icon="inline-start" />
-                    Copy quote
-                  </Button>
-                  {isStickerLike && (
-                    <Button type="button" variant="outline" disabled={!hasQuote} onClick={handleCopyQuoteWithShipping}>
-                      <TruckIcon data-icon="inline-start" />
-                      Copy + shipping
-                    </Button>
-                  )}
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+            <div className="grid shrink-0 grid-cols-1 gap-2 min-[420px]:grid-flow-col min-[420px]:auto-cols-fr sm:flex sm:items-center">
+              <Button type="button" variant="outline" disabled={!hasQuote} onClick={handleCopyQuote}>
+                <CopyIcon data-icon="inline-start" />
+                Copy quote
+              </Button>
+              {isStickerLike && (
+                <Button type="button" variant="outline" disabled={!hasQuote} onClick={handleCopyQuoteWithShipping}>
+                  <TruckIcon data-icon="inline-start" />
+                  Copy + shipping
+                </Button>
+              )}
+              {canCreateOrder && (
+                <Button disabled={!canCreate} onClick={handleCreateOrder}>
+                  <PlusIcon data-icon="inline-start" />
+                  New order
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
+      </Card>
     </div>
   )
 }

@@ -88,7 +88,7 @@ export function OrderFormSectionNav({ sections }: { sections: OrderFormSection[]
   }, [sectionIdsKey])
 
   return (
-    <nav aria-label="Order form sections" className="hidden lg:block">
+    <nav aria-label="Order form sections" className="hidden xl:block">
       <ul className="flex flex-col gap-0.5">
         {sections.map((section) => {
           const isActive = activeId === section.id

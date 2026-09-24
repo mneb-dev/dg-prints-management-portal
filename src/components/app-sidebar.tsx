@@ -1,4 +1,4 @@
-import type { ComponentProps, MouseEvent } from "react"
+import { useEffect, type ComponentProps, type MouseEvent } from "react"
 import {
   CalculatorIcon,
   LayoutDashboardIcon,
@@ -33,6 +33,7 @@ import {
   SidebarMenuItem,
   SidebarRail,
   SidebarSeparator,
+  useSidebar,
 } from "@/components/ui/sidebar"
 
 type NavItem = { title: string; url: string; icon: LucideIcon }
@@ -80,6 +81,12 @@ export function AppSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
   const { requestNavigation } = useNavGuard()
   const { stats } = useOrderStats()
   const { newProductCount, newProductDays } = useNewProducts()
+  const { setOpenMobile } = useSidebar()
+
+  // On phones the sidebar is a modal drawer; close it once a nav link has changed the route.
+  useEffect(() => {
+    setOpenMobile(false)
+  }, [location.pathname, setOpenMobile])
 
   // Same definition as the dashboard pipeline's "N active orders": everything not yet released
   // and not cancelled/refunded/returned.

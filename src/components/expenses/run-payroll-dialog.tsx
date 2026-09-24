@@ -466,9 +466,9 @@ export function RunPayrollDialog({
             must be edited or deleted one by one.
           </>
         }
-        confirmLabel="Yes, run payroll"
+        confirmLabel="Run payroll"
         pendingLabel="Running…"
-        cancelLabel="No, go back"
+        cancelLabel="Back"
         isPending={isSubmitting}
         onConfirm={handleConfirm}
       />

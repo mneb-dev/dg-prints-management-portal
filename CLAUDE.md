@@ -35,7 +35,8 @@ single hook (`useAuth`, `useTheme`, `useProducts`, `useOrders`). Always go throu
 domain types/constants to the slice, re-exporting them from the facade rather than duplicating them.
 
 - **Persistence**: `src/lib/persist-subscribe.ts` subscribes to the store and mirrors `auth`, `theme`, and
-  `orders` state to `localStorage` on every change (there is no `redux-persist`; it's a hand-rolled subscriber).
+  `orders` state to `localStorage` on every change (theme is a `"light" | "dark" | "system"` preference;
+  `ThemeSync` in `theme.tsx` resolves it and follows the OS live) (there is no `redux-persist`; it's a hand-rolled subscriber).
   `products` is deliberately excluded — it's server-backed, not persisted locally.
 - **Products are wired to the real backend**: `useProducts` dispatches async thunks (`fetchProductsThunk`,
   `createProductThunk`, etc.) in `products-slice.ts` that call `apiClient` (`src/lib/api-client.ts`, an axios

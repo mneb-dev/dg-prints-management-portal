@@ -3,6 +3,7 @@ import { PlusIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { ActiveFilterChips, FilterSearchInput, FilterToolbar, type ActiveFilter } from "@/components/filter-toolbar"
+import { ResponsiveFilters } from "@/components/responsive-filters"
 import { PageHeader } from "@/components/page-header"
 import { PaginationBar } from "@/components/pagination-bar"
 import { SEGMENT_CLASS, SEGMENT_TRACK_CLASS } from "@/components/segmented"
@@ -93,6 +94,8 @@ export function UsersPage() {
       onRemove: () => setParams({ status: "", page: 1 }),
     },
   ].filter((filter): filter is ActiveFilter => Boolean(filter))
+  // What the phone "Filters" button badges: everything except the always-visible search.
+  const secondaryFilterCount = activeFilters.filter((filter) => filter.key !== "search").length
 
   function handleAdd() {
     setEditingUser(null)
@@ -141,62 +144,64 @@ export function UsersPage() {
           onChange={setSearchInput}
           placeholder="Search users..."
           disabled={isLoading || isError}
-          className="min-w-56"
+          className="sm:min-w-56"
         />
 
-        {/* Only two values, so one click beats a dropdown — same joined track as Products' status filter. */}
-        <ToggleGroup
-          aria-label="Filter by status"
-          value={[params.status || ALL_STATUS]}
-          onValueChange={(next) => {
-            const value = next[0]
-            if (value) setParams({ status: value === ALL_STATUS ? "" : value, page: 1 })
-          }}
-          disabled={isLoading || isError}
-          className={SEGMENT_TRACK_CLASS}
-        >
-          <Toggle value={ALL_STATUS} className={SEGMENT_CLASS}>
-            All
-          </Toggle>
-          {USER_STATUSES.map((status) => (
-            <Toggle key={status} value={status} className={SEGMENT_CLASS}>
-              <span
-                aria-hidden
-                className={cn(
-                  "size-2 shrink-0 translate-y-px rounded-full",
-                  status === "active" ? "bg-order-status-teal" : "bg-muted-foreground/40"
-                )}
-              />
-              <span className="leading-none">{STATUS_LABELS[status]}</span>
+        <ResponsiveFilters activeCount={secondaryFilterCount} onClearAll={hasActiveFilters ? clearFilters : undefined} disabled={isLoading || isError}>
+          {/* Only two values, so one click beats a dropdown — same joined track as Products' status filter. */}
+          <ToggleGroup
+            aria-label="Filter by status"
+            value={[params.status || ALL_STATUS]}
+            onValueChange={(next) => {
+              const value = next[0]
+              if (value) setParams({ status: value === ALL_STATUS ? "" : value, page: 1 })
+            }}
+            disabled={isLoading || isError}
+            className={SEGMENT_TRACK_CLASS}
+          >
+            <Toggle value={ALL_STATUS} className={SEGMENT_CLASS}>
+              All
             </Toggle>
-          ))}
-        </ToggleGroup>
-
-        <Select
-          value={params.role || ANY_ROLE}
-          onValueChange={(value) => setParams({ role: value === ANY_ROLE ? "" : (value ?? ""), page: 1 })}
-          disabled={isLoading || isError}
-        >
-          <SelectTrigger aria-label="Filter by role">
-            <SelectValue>{(value: string) => (value === ANY_ROLE ? ANY_ROLE : ROLE_LABELS[value as Role])}</SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ANY_ROLE}>{ANY_ROLE}</SelectItem>
-            {ROLES.map((role) => (
-              <SelectItem key={role} value={role}>
-                {ROLE_LABELS[role]}
-              </SelectItem>
+            {USER_STATUSES.map((status) => (
+              <Toggle key={status} value={status} className={SEGMENT_CLASS}>
+                <span
+                  aria-hidden
+                  className={cn(
+                    "size-2 shrink-0 translate-y-px rounded-full",
+                    status === "active" ? "bg-order-status-teal" : "bg-muted-foreground/40"
+                  )}
+                />
+                <span className="leading-none">{STATUS_LABELS[status]}</span>
+              </Toggle>
             ))}
-          </SelectContent>
-        </Select>
+          </ToggleGroup>
 
-        <SortControl
-          value={params.sortBy}
-          direction={params.sortDir}
-          options={SORT_OPTIONS}
-          onChange={(sortBy, sortDir) => setParams({ sortBy, sortDir, page: 1 })}
-          disabled={isLoading || isError}
-        />
+          <Select
+            value={params.role || ANY_ROLE}
+            onValueChange={(value) => setParams({ role: value === ANY_ROLE ? "" : (value ?? ""), page: 1 })}
+            disabled={isLoading || isError}
+          >
+            <SelectTrigger aria-label="Filter by role">
+              <SelectValue>{(value: string) => (value === ANY_ROLE ? ANY_ROLE : ROLE_LABELS[value as Role])}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ANY_ROLE}>{ANY_ROLE}</SelectItem>
+              {ROLES.map((role) => (
+                <SelectItem key={role} value={role}>
+                  {ROLE_LABELS[role]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <SortControl
+            value={params.sortBy}
+            direction={params.sortDir}
+            options={SORT_OPTIONS}
+            onChange={(sortBy, sortDir) => setParams({ sortBy, sortDir, page: 1 })}
+            disabled={isLoading || isError}
+          />
+        </ResponsiveFilters>
 
         <ActiveFilterChips
           filters={activeFilters}

@@ -66,7 +66,7 @@ export function DateRangeFilter({
           <Button
             variant="outline"
             size="sm"
-            className={cn("h-8 min-w-56 justify-start font-normal", dateRange && ACTIVE_FILTER_TRIGGER_CLASS, className)}
+            className={cn("h-8 justify-start font-normal sm:min-w-56", dateRange && ACTIVE_FILTER_TRIGGER_CLASS, className)}
           />
         }
       >

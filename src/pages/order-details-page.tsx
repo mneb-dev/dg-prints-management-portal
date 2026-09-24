@@ -124,8 +124,8 @@ export function OrderDetailsPage() {
           </CardContent>
         </Card>
 
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-          <div className="flex flex-col gap-4 lg:col-span-2">
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+          <div className="flex flex-col gap-4 xl:col-span-2">
             <Card>
               <CardHeader>
                 <Skeleton className="h-5 w-20" />
@@ -164,7 +164,7 @@ export function OrderDetailsPage() {
             </Card>
           </div>
 
-          <div className="flex flex-col gap-4 lg:col-span-1">
+          <div className="flex flex-col gap-4 xl:col-span-1">
             <Card>
               <CardHeader>
                 <Skeleton className="h-5 w-20" />
@@ -508,7 +508,7 @@ export function OrderDetailsPage() {
       </Card>
 
       {/* Same shape as the order form: content on the left, a sticky summary column on the right. */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_360px]">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1fr_360px]">
         <div className="flex flex-col gap-4">
           {items.length > 0 && (
             <Card>
@@ -641,7 +641,7 @@ export function OrderDetailsPage() {
           )}
         </div>
 
-        <div className="flex flex-col gap-4 lg:sticky lg:top-20 lg:self-start">
+        <div className="flex flex-col gap-4 xl:sticky xl:top-20 xl:self-start">
           <Card>
             <CardHeader>
               <OrderFormSectionHeader icon={ReceiptTextIcon} title="Order summary" />

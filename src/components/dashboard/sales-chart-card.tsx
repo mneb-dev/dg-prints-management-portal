@@ -572,7 +572,7 @@ export function SalesChartCard() {
         : `${selectedPaymentStatuses.length} selected`
 
   return (
-    <Card className="lg:col-span-3">
+    <Card className="xl:col-span-3">
       <CardHeader>
         <CardTitle>Sales overview</CardTitle>
         <CardDescription>

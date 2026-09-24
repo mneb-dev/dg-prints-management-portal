@@ -25,7 +25,7 @@ export function EditOrderPage() {
     return (
       <div className="flex flex-col gap-4">
         <Skeleton className="h-8 w-64" />
-        <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
+        <div className="grid gap-6 xl:grid-cols-[1fr_360px]">
           <div className="flex flex-col gap-4">
             <Card className="shadow-xs">
               <CardHeader>

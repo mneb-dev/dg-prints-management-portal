@@ -22,9 +22,8 @@ export function RefundOrderDialog({
       icon={RotateCcwIcon}
       title={<>Refund order <Name>{order?.orderNumber}</Name>?</>}
       description="It stays in your records, marked as refunded."
-      confirmLabel="Yes, refund it"
+      confirmLabel="Refund"
       pendingLabel="Refunding…"
-      cancelLabel="No, keep it"
       isPending={isPending}
       onConfirm={() => order && onConfirm(order)}
     />

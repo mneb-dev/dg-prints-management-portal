@@ -22,7 +22,7 @@ export function DeleteOrderDialog({
       icon={Trash2Icon}
       title={<>Delete order <Name>{order?.orderNumber}</Name>?</>}
       description={"This can't be undone."}
-      confirmLabel="Yes, delete it"
+      confirmLabel="Delete"
       pendingLabel="Deleting…"
       isPending={isDeleting}
       onConfirm={() => order && onConfirm(order)}

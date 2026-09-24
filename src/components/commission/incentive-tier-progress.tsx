@@ -76,12 +76,12 @@ export function IncentiveTierProgress({
             <dl className="flex flex-wrap items-stretch gap-x-8 gap-y-3">
               <div className="flex flex-col gap-1">
                 <dt className="text-xs text-muted-foreground">Current incentive</dt>
-                <dd className="text-3xl leading-none font-semibold tabular-nums">{formatCurrency(pool)}</dd>
+                <dd className="text-2xl leading-none font-semibold tabular-nums sm:text-3xl">{formatCurrency(pool)}</dd>
               </div>
               {!isStaffView ? (
-                <div className="flex flex-col gap-1 border-l pl-8">
+                <div className="flex flex-col gap-1 sm:border-l sm:pl-8">
                   <dt className="text-xs text-muted-foreground">Team sales this month</dt>
-                  <dd className="text-3xl leading-none font-semibold tabular-nums">{sales(totalStaffSales)}</dd>
+                  <dd className="text-2xl leading-none font-semibold tabular-nums sm:text-3xl">{sales(totalStaffSales)}</dd>
                 </div>
               ) : null}
             </dl>

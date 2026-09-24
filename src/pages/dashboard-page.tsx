@@ -61,9 +61,9 @@ export function DashboardPage() {
         }
       />
 
-      <div className="flex min-w-0 gap-3 overflow-x-auto overflow-y-visible p-2 sm:overflow-visible sm:p-0">
+      <div className="flex min-w-0 snap-x snap-mandatory scroll-px-2 gap-3 overflow-x-auto overflow-y-visible p-2 xl:snap-none xl:overflow-visible xl:p-0">
         {workflowStatuses.map((item) => (
-          <div key={item.id} className="w-32 shrink-0 sm:w-0 sm:min-w-0 sm:flex-1">
+          <div key={item.id} className="w-36 shrink-0 snap-start xl:w-0 xl:min-w-0 xl:flex-1">
             <StatCard
               label={getLabel(item.name)}
               value={stats?.byStatus[item.name] ?? 0}
@@ -77,18 +77,18 @@ export function DashboardPage() {
 
       <SalesChartCard />
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
         <StatusPipelineCard />
         <PaymentSummaryCard />
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
         <RecentOrdersCard />
         <TopCustomersCard />
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <HotProductsCard className="lg:col-span-2" />
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+        <HotProductsCard className="xl:col-span-2" />
         <ChannelMixCard />
       </div>
     </div>

@@ -146,7 +146,8 @@
     --foreground: oklch(0.96 0.006 247.896);
     --card: oklch(0.223 0.028 265.755);
     --card-foreground: oklch(0.96 0.006 247.896);
-    --popover: oklch(0.223 0.028 265.755);
+    /* One step above card, so menus/dialogs separate from the cards beneath them. */
+    --popover: oklch(0.25 0.03 265.755);
     --popover-foreground: oklch(0.96 0.006 247.896);
     --primary: oklch(0.673 0.182 276.935);
     --primary-foreground: oklch(0.129 0.042 264.695);
@@ -199,6 +200,12 @@
     --sidebar-accent-foreground: oklch(0.87 0.065 274.039);
     --sidebar-border: oklch(1 0 0 / 10%);
     --sidebar-ring: oklch(0.673 0.182 276.935);
+    /* Elevation in the dark: brand-tinted shadows glow instead of lifting, so surfaces get black
+       depth plus a faint top-lit hairline. Only CTAs keep a (softer) brand glow. Overrides the
+       light values set in @theme — every consumer reads these via var(), so this is enough. */
+    --shadow-soft: 0 1px 2px oklch(0 0 0 / 40%), 0 4px 16px -4px oklch(0 0 0 / 45%);
+    --shadow-elevated: 0 12px 28px -6px oklch(0 0 0 / 60%), 0 0 0 1px oklch(1 0 0 / 6%);
+    --shadow-button: 0 4px 14px 0 oklch(from var(--primary) l c h / 25%);
     color-scheme: dark;
 }
 
@@ -211,6 +218,22 @@
     }
   html {
     @apply font-sans;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    }
+  /* Touch: no grey flash on tap, and no double-tap-zoom delay on controls. */
+  html {
+    -webkit-tap-highlight-color: transparent;
+    }
+  a, button, input, select, textarea, label, summary, [role="button"], [role="tab"], [role="option"], [role="menuitem"], [role="checkbox"], [role="switch"] {
+    touch-action: manipulation;
+    }
+  /* Set by ThemeSync for the frame the `dark` class flips, so the whole UI swaps at once instead
+     of every button/card easing its colors on its own timer. */
+  [data-theme-switching] *,
+  [data-theme-switching] *::before,
+  [data-theme-switching] *::after {
+    transition: none !important;
     }
   * {
     scrollbar-width: thin;

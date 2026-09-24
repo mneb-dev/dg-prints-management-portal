@@ -76,7 +76,7 @@ export function StatusPipelineCard() {
   }
 
   return (
-    <Card className="lg:col-span-2">
+    <Card className="xl:col-span-2">
       <CardHeader>
         <CardTitle>Order status pipeline</CardTitle>
         <CardDescription>

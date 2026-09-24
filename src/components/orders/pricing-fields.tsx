@@ -87,7 +87,8 @@ export function PricingFields({
       )}
 
       {showsDimensions ? (
-        <div className={`grid gap-4 ${hideQuantity ? "grid-cols-3" : "grid-cols-[1fr_1fr_1fr_auto]"}`}>
+        // Phones: width/height on one row, unit/quantity on the next.
+        <div className={`grid grid-cols-2 gap-4 ${hideQuantity ? "sm:grid-cols-3" : "sm:grid-cols-[1fr_1fr_1fr_auto]"}`}>
           <Field>
             <FieldLabel htmlFor={`${idPrefix}order-width`}>Width</FieldLabel>
             <Input

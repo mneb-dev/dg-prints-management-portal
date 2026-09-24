@@ -23,7 +23,7 @@ export function DeleteExpenseDialog({
       icon={Trash2Icon}
       title={<>Delete this <Name>{expense ? formatCurrency(expense.amount) : ""}</Name> expense?</>}
       description={<>{expense?.category ? `${expense.category}. ` : ""}This can't be undone.</>}
-      confirmLabel="Yes, delete it"
+      confirmLabel="Delete"
       pendingLabel="Deleting…"
       isPending={isDeleting}
       onConfirm={() => expense && onConfirm(expense)}

@@ -61,14 +61,14 @@ export function StatCard({
         <CardContent className="flex items-center gap-2.5">
           <div
             className={cn(
-              "flex size-10 shrink-0 items-center justify-center rounded-xl transition-transform group-hover/statcard:scale-105",
+              "flex size-8 shrink-0 items-center justify-center rounded-xl transition-transform sm:size-10 group-hover/statcard:scale-105",
               iconClassName
             )}
           >
-            <Icon className="size-5" />
+            <Icon className="size-4 sm:size-5" />
           </div>
           <div className="flex min-w-0 flex-col">
-            <span className={cn("text-2xl leading-tight font-semibold tabular-nums", valueClassName)}>{value}</span>
+            <span className={cn("truncate text-xl leading-tight font-semibold tabular-nums sm:text-2xl", valueClassName)}>{value}</span>
             <span className="truncate text-sm text-muted-foreground">{label}</span>
           </div>
         </CardContent>
@@ -87,7 +87,7 @@ export function StatCard({
               {label}
             </span>
           </div>
-          <span className={cn("text-2xl leading-none font-bold tabular-nums", valueClassName)}>{value}</span>
+          <span className={cn("truncate text-xl leading-none font-bold tabular-nums sm:text-2xl", valueClassName)}>{value}</span>
         </CardContent>
       )}
       {description ? (

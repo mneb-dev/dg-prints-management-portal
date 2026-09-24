@@ -36,7 +36,7 @@ export function FilterSearchInput({
   className?: string
 }) {
   return (
-    <div className={cn("relative flex-1 min-w-48", className)}>
+    <div className={cn("relative min-w-0 flex-1 sm:min-w-48", className)}>
       <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
       <Input
         value={value}

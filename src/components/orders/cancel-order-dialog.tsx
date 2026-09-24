@@ -22,9 +22,8 @@ export function CancelOrderDialog({
       icon={XCircleIcon}
       title={<>Cancel order <Name>{order?.orderNumber}</Name>?</>}
       description="It stays in your records, marked as cancelled."
-      confirmLabel="Yes, cancel it"
+      confirmLabel="Cancel order"
       pendingLabel="Cancelling…"
-      cancelLabel="No, keep it"
       isPending={isPending}
       onConfirm={() => order && onConfirm(order)}
     />

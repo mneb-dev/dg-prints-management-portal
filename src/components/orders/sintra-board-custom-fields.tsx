@@ -54,7 +54,7 @@ export function SintraBoardCustomFields({
 
   return (
     <>
-      <div className={`grid gap-4 ${quantity !== undefined && onQuantityChange ? "grid-cols-[1fr_1fr_auto]" : "grid-cols-2"}`}>
+      <div className={`grid grid-cols-2 gap-4 ${quantity !== undefined && onQuantityChange ? "sm:grid-cols-[1fr_1fr_auto]" : ""}`}>
         <Field>
           <FieldLabel htmlFor={`${idPrefix}sintra-custom-width`}>Width (in)</FieldLabel>
           <Input
@@ -70,9 +70,17 @@ export function SintraBoardCustomFields({
           <div className="flex items-center justify-between">
             <FieldLabel htmlFor={`${idPrefix}sintra-custom-height`}>Height (in)</FieldLabel>
             {onClear && (
-              <Button type="button" variant="ghost" size="sm" onClick={onClear}>
+              // -my-2 keeps the label row (and so this input) level with the Width input.
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="-my-2"
+                aria-label="Start over"
+                onClick={onClear}
+              >
                 <RotateCcwIcon data-icon="inline-start" />
-                Start over
+                <span className="hidden sm:inline">Start over</span>
               </Button>
             )}
           </div>
@@ -86,7 +94,7 @@ export function SintraBoardCustomFields({
           />
         </Field>
         {quantity !== undefined && onQuantityChange && (
-          <Field>
+          <Field className="col-span-2 sm:col-span-1">
             <FieldLabel htmlFor={`${idPrefix}sintra-custom-quantity`}>Quantity</FieldLabel>
             <QuantityInput
               id={`${idPrefix}sintra-custom-quantity`}

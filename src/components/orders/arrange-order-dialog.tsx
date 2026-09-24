@@ -29,8 +29,8 @@ export function ArrangeOrderDialog({
         </>
       }
       description="SPX opens in a new tab — copy the details below into it."
-      confirmLabel="Yes, open SPX"
-      cancelLabel="No, not now"
+      confirmLabel="Open SPX"
+      cancelLabel="Later"
       confirmDisabled={!shipping}
       onConfirm={() => order && onConfirm(order)}
     >

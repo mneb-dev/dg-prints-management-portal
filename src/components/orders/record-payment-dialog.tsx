@@ -102,9 +102,9 @@ export function RecordPaymentDialog({
       description={
         targetStatus === "partially_paid" ? "Add the down payment and how it was paid." : "Pick how it was paid."
       }
-      confirmLabel="Yes, save payment"
+      confirmLabel="Save"
       pendingLabel="Saving…"
-      cancelLabel="No, go back"
+      cancelLabel="Back"
       isPending={isPending}
       onConfirm={() => order && targetStatus && handleConfirm(order, targetStatus)}
     >

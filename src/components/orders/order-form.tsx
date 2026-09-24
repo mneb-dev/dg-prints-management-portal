@@ -957,7 +957,8 @@ export function OrderForm({
   ]
 
   return (
-    <form onSubmit={handleSubmit} noValidate className="grid gap-6 lg:grid-cols-[1fr_360px]">
+    // Two columns only from xl: with the sidebar open, lg leaves the form column too narrow.
+    <form onSubmit={handleSubmit} noValidate className="grid gap-6 xl:grid-cols-[1fr_360px]">
       <div className="flex flex-col gap-4">
         <Card id="order-section-customer" className="scroll-mt-24">
           <CardHeader>
@@ -1456,19 +1457,9 @@ export function OrderForm({
           </Card>
         )}
 
-        {/* Desktop keeps these in the sticky summary panel; below lg the summary isn't sticky. */}
-        <div className="flex justify-end gap-2 lg:hidden">
-          <Button type="button" variant="outline" onClick={handleCancel}>
-            Cancel
-          </Button>
-          <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting && <Spinner data-icon="inline-start" />}
-            {submitLabel}
-          </Button>
-        </div>
       </div>
 
-      <div className="flex flex-col gap-4 lg:sticky lg:top-20 lg:self-start">
+      <div className="flex flex-col gap-4 xl:sticky xl:top-20 xl:self-start">
         <OrderFormSectionNav sections={sections} />
         <OrderSummaryPanel
           items={resolvedItems.map((resolved) => ({
@@ -1486,7 +1477,7 @@ export function OrderForm({
           shippingFee={shippingFeeNum}
           notes={notes}
           footer={
-            <div className="hidden flex-col gap-2 lg:flex">
+            <div className="hidden flex-col gap-2 xl:flex">
               <Button type="submit" size="lg" className="w-full" disabled={isSubmitting}>
                 {isSubmitting && <Spinner data-icon="inline-start" />}
                 {submitLabel}
@@ -1508,6 +1499,33 @@ export function OrderForm({
             </div>
           }
         />
+      </div>
+
+      {/* Below xl the summary sits under the form instead of beside it, so keep the running total
+          and Save pinned to the bottom of the viewport while the form scrolls (same pattern as the
+          Calculator's quote bar). From xl they live in the sticky summary panel. */}
+      <div className="sticky bottom-0 z-10 -mx-4 flex items-center gap-3 border-t bg-card/95 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur supports-[backdrop-filter]:bg-card/85 md:-mx-6 md:px-6 xl:hidden">
+        <div aria-live="polite" className="min-w-0 flex-1">
+          <div className="text-xs text-muted-foreground">Total</div>
+          <div className="truncate text-lg leading-tight font-semibold tabular-nums">{formatCurrency(previewTotal)}</div>
+          {orderedErrorKeys.length > 0 && (
+            <button
+              type="button"
+              onClick={() => focusErrorField(orderedErrorKeys[0])}
+              className="flex items-center gap-1 rounded-sm text-xs font-medium text-destructive outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
+            >
+              <CircleAlertIcon aria-hidden className="size-3.5" />
+              {orderedErrorKeys.length === 1 ? "1 issue" : `${orderedErrorKeys.length} issues`} — show
+            </button>
+          )}
+        </div>
+        <Button type="button" variant="outline" onClick={handleCancel}>
+          Cancel
+        </Button>
+        <Button type="submit" disabled={isSubmitting}>
+          {isSubmitting && <Spinner data-icon="inline-start" />}
+          {submitLabel}
+        </Button>
       </div>
 
       {order ? (

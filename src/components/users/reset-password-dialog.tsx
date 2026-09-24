@@ -62,9 +62,9 @@ export function ResetPasswordDialog({
           ? "Copy it now — it won't be shown again."
           : "Their current password is replaced right away with a new random one."
       }
-      confirmLabel={generatedPassword ? "Done" : "Yes, reset it"}
+      confirmLabel={generatedPassword ? "Done" : "Reset"}
       pendingLabel="Resetting…"
-      cancelLabel={generatedPassword ? null : "No, keep it"}
+      cancelLabel={generatedPassword ? null : "Keep"}
       isPending={isResetting}
       onConfirm={generatedPassword ? () => handleOpenChange(false) : handleConfirm}
     >

@@ -1,27 +1,56 @@
-import { Switch as SwitchPrimitive } from "@base-ui/react/switch"
-import { MoonIcon, SunIcon } from "lucide-react"
+import { MonitorIcon, MoonIcon, SunIcon } from "lucide-react"
 
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { THEME_PREFERENCES, useTheme, type ThemePreference } from "@/lib/theme"
 import { cn } from "@/lib/utils"
-import { useTheme } from "@/lib/theme"
 
+const THEME_META: Record<ThemePreference, { label: string; icon: typeof SunIcon }> = {
+  light: { label: "Light", icon: SunIcon },
+  dark: { label: "Dark", icon: MoonIcon },
+  system: { label: "System", icon: MonitorIcon },
+}
+
+/** Top-bar theme switch: a quiet icon button (same chrome as the hide-amounts eye) that cycles
+ * Light → Dark → System. The icon shows the current *preference*; the tooltip spells out what
+ * "System" resolved to and what the next click does. */
 export function ThemeToggle({ className }: { className?: string }) {
-  const { theme, toggleTheme } = useTheme()
-  const isDark = theme === "dark"
+  const { theme, resolvedTheme, cycleTheme } = useTheme()
+  const current = THEME_META[theme]
+  const next = THEME_META[THEME_PREFERENCES[(THEME_PREFERENCES.indexOf(theme) + 1) % THEME_PREFERENCES.length]]
+  const Icon = current.icon
+  const currentLabel =
+    theme === "system" ? `System (${THEME_META[resolvedTheme].label})` : current.label
 
   return (
-    <SwitchPrimitive.Root
-      checked={isDark}
-      onCheckedChange={toggleTheme}
-      aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
-      className={cn(
-        "group/theme-toggle relative inline-flex h-8 w-14 shrink-0 items-center rounded-full border border-transparent p-1 transition-colors duration-300 outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 data-checked:bg-primary data-unchecked:bg-muted",
-        className
-      )}
-    >
-      <SwitchPrimitive.Thumb className="relative flex size-6 items-center justify-center rounded-full bg-background shadow-sm ring-0 transition-transform duration-300 ease-out data-checked:translate-x-6 data-unchecked:translate-x-0">
-        <SunIcon className="absolute size-3.5 scale-100 rotate-0 text-muted-foreground opacity-100 transition-all duration-300 ease-out group-data-checked/theme-toggle:scale-50 group-data-checked/theme-toggle:rotate-90 group-data-checked/theme-toggle:opacity-0 motion-reduce:transition-none" />
-        <MoonIcon className="absolute size-3.5 scale-50 -rotate-90 text-muted-foreground opacity-0 transition-all duration-300 ease-out group-data-checked/theme-toggle:scale-100 group-data-checked/theme-toggle:rotate-0 group-data-checked/theme-toggle:opacity-100 motion-reduce:transition-none" />
-      </SwitchPrimitive.Thumb>
-    </SwitchPrimitive.Root>
+    <>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <button
+              type="button"
+              onClick={cycleTheme}
+              aria-label={`Theme: ${currentLabel}. Switch to ${next.label}`}
+              className={cn(
+                "inline-flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted-foreground transition-[background-color,color,box-shadow] duration-200 ease-out outline-none select-none hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none",
+                className
+              )}
+            />
+          }
+        >
+          <Icon
+            key={theme}
+            aria-hidden
+            className="size-4 animate-in duration-200 fade-in-0 zoom-in-75 motion-reduce:animate-none"
+          />
+        </TooltipTrigger>
+        <TooltipContent className="flex flex-col items-start gap-0.5">
+          <span className="font-medium">Theme: {currentLabel}</span>
+          <span className="opacity-80">Click for {next.label}</span>
+        </TooltipContent>
+      </Tooltip>
+      <span className="sr-only" aria-live="polite">
+        Theme: {currentLabel}
+      </span>
+    </>
   )
 }

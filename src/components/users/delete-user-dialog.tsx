@@ -22,7 +22,7 @@ export function DeleteUserDialog({
       icon={Trash2Icon}
       title={<>Delete user <Name>{user ? `${user.firstName} ${user.lastName}` : ""}</Name>?</>}
       description={"This can't be undone."}
-      confirmLabel="Yes, delete it"
+      confirmLabel="Delete"
       pendingLabel="Deleting…"
       isPending={isDeleting}
       onConfirm={() => user && onConfirm(user)}

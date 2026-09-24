@@ -140,7 +140,7 @@ export function OrderStatusList({
         icon={Trash2Icon}
         title={<>Delete status <Name>{pendingDelete?.label}</Name>?</>}
         description="This can't be undone. If an order is in this status, deleting is blocked — disable it instead."
-        confirmLabel="Yes, delete it"
+        confirmLabel="Delete"
         pendingLabel="Deleting…"
         isPending={isDeleting}
         onConfirm={handleConfirmDelete}

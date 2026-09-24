@@ -13,6 +13,7 @@ import {
 import { type MouseEvent, type ReactNode } from "react"
 import { Link } from "react-router-dom"
 
+import { DataCardItem, DataCardList, DataCardListSkeleton } from "@/components/data-card-list"
 import { Badge } from "@/components/ui/badge"
 import { TABLE_HEAD_CLASS, TABLE_HEADER_CLASS, TABLE_SURFACE_CLASS } from "@/components/table-surface"
 import { Button } from "@/components/ui/button"
@@ -70,7 +71,7 @@ function TableColumns() {
   return (
     <TableHeader className={TABLE_HEADER_CLASS}>
       <TableRow className="hover:bg-transparent">
-        <TableHead className={cn(TABLE_HEAD_CLASS, STICKY_CELL_CLASS, "bg-muted/40 backdrop-blur-sm")}>Order</TableHead>
+        <TableHead className={cn(TABLE_HEAD_CLASS, STICKY_CELL_CLASS, "bg-[color-mix(in_oklab,var(--color-muted)_40%,var(--color-card))]")}>Order</TableHead>
         <TableHead className={TABLE_HEAD_CLASS}>Customer</TableHead>
         <TableHead className={TABLE_HEAD_CLASS}>Product</TableHead>
         <TableHead className={cn(TABLE_HEAD_CLASS, "text-right")}>Total</TableHead>
@@ -131,12 +132,13 @@ export function OrderTable({
   onArrange: (order: Order) => void
   onRequestOR: (order: Order) => void
 }) {
-  const isAdminTier = canEditOrderMetadata(role)
+  const actionHandlers = { onEdit, onDelete, onArrange, onRequestOR }
 
   if (isLoading) {
     return (
       <div className={TABLE_SURFACE_CLASS}>
-        <Table>
+        <DataCardListSkeleton />
+        <Table className="max-md:hidden">
           <TableColumns />
           <TableBody>
             {Array.from({ length: 10 }).map((_, index) => (
@@ -240,38 +242,142 @@ export function OrderTable({
   return (
     <div className="relative" aria-busy={isFetching}>
       <div className={cn(TABLE_SURFACE_CLASS, isFetching && "opacity-60 transition-opacity duration-150")}>
-        <Table>
-          <TableColumns />
-          <TableBody>
-            {orders.map((order) => {
-              const isReleaseLocked = isReleaseLockedForRole(order.status, role)
-              const due = getAmountDue(order)
-              const arrangeBlocker = !order.shippingAddress
-                ? "Needs a shipping address"
-                : order.payment.status !== "paid"
-                  ? "Needs payment marked Paid"
-                  : null
-              const hasMenuActions = canManage || isAdminTier
+        <div className="hidden md:block">
+          <Table>
+            <TableColumns />
+            <TableBody>
+              {orders.map((order) => {
+                const isReleaseLocked = isReleaseLockedForRole(order.status, role)
+                const due = getAmountDue(order)
 
-              return (
-                <TableRow
-                  key={order.id}
-                  onClick={() => {
-                    // Selecting text in a row (e.g. copying an order number) shouldn't navigate.
-                    if (window.getSelection()?.toString()) return
-                    onView(order)
-                  }}
-                  className="group/row cursor-pointer transition-colors duration-150 hover:bg-accent/40"
-                >
-                  <TableCell
-                    className={cn(
-                      "px-4",
-                      STICKY_CELL_CLASS,
-                      "transition-colors duration-150 group-hover/row:bg-[color-mix(in_oklab,var(--color-accent)_40%,var(--color-card))]"
-                    )}
+                return (
+                  <TableRow
+                    key={order.id}
+                    onClick={() => {
+                      // Selecting text in a row (e.g. copying an order number) shouldn't navigate.
+                      if (window.getSelection()?.toString()) return
+                      onView(order)
+                    }}
+                    className="group/row cursor-pointer transition-colors duration-150 hover:bg-accent/40"
                   >
-                    <div className="flex items-center gap-2">
-                      {/* Real link: keyboard/Tab access and ctrl/middle-click to a new tab. */}
+                    <TableCell
+                      className={cn(
+                        "px-4",
+                        STICKY_CELL_CLASS,
+                        "transition-colors duration-150 group-hover/row:bg-[color-mix(in_oklab,var(--color-accent)_40%,var(--color-card))]"
+                      )}
+                    >
+                      <div className="flex items-center gap-2">
+                        {/* Real link: keyboard/Tab access and ctrl/middle-click to a new tab. */}
+                        <Link
+                          to={`/orders/${order.id}`}
+                          onClick={stopRowClick}
+                          className="rounded-sm font-medium tabular-nums outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
+                        >
+                          {order.orderNumber}
+                        </Link>
+                        {order.orRequest ? <OrChip orRequest={order.orRequest} /> : null}
+                      </div>
+                      <div className="mt-0.5 text-xs text-muted-foreground">{formatDate(order.createdAt)}</div>
+                    </TableCell>
+                    <TableCell className="px-4">
+                      <div>{order.customerName}</div>
+                      <div className="text-xs text-muted-foreground">{order.channel}</div>
+                    </TableCell>
+                    <TableCell className="px-4 text-muted-foreground" onClick={stopRowClick}>
+                      <div className="text-foreground">{order.items[0]?.productName ?? "—"}</div>
+                      {(() => {
+                        const withNotes = notedItems(order.items)
+                        const parts = withNotes[0] ? describeOrderItemParts(withNotes[0]) : null
+                        if (!parts?.notes) {
+                          return <span className="mt-0.5 block text-xs">—</span>
+                        }
+                        return (
+                          <Tooltip>
+                            <TooltipTrigger
+                              render={
+                                <button
+                                  type="button"
+                                  className="mt-0.5 inline-flex cursor-default items-center gap-1"
+                                />
+                              }
+                            >
+                              <span className="text-xs">
+                                {parts.notes}
+                                {parts.notesTruncated && "…"}
+                                {parts.size && (
+                                  <span className="text-muted-foreground/70"> | {parts.size}</span>
+                                )}
+                                {withNotes.length > 1 && (
+                                  <span className="text-muted-foreground/70"> +{withNotes.length - 1}</span>
+                                )}
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent className="max-w-sm text-[11px]">
+                              <div className="flex flex-col gap-0.5">
+                                {withNotes.map((noted) => {
+                                  const full = describeOrderItemFull(noted)
+                                  return (
+                                    <div key={noted.id}>
+                                      <span className="font-medium">{noted.productName}:</span>{" "}
+                                      {full.notes}
+                                      {full.size && ` (${full.size})`}
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            </TooltipContent>
+                          </Tooltip>
+                        )
+                      })()}
+                    </TableCell>
+                    <TableCell className="px-4 text-right">
+                      <div className="font-medium tabular-nums">{formatCurrency(order.total)}</div>
+                      {due > 0 ? (
+                        <div className="mt-0.5 text-xs text-status-warning tabular-nums">{formatCurrency(due)} due</div>
+                      ) : null}
+                    </TableCell>
+                    <TableCell className="px-4" onClick={stopRowClick}>
+                      <PaymentControl order={order} editable={canManage && !isReleaseLocked} onRequestPayment={onRequestPayment} />
+                    </TableCell>
+                    <TableCell className="px-4" onClick={stopRowClick}>
+                      <StatusControl
+                        order={order}
+                        editable={canManage && !isReleaseLocked}
+                        role={role}
+                        onCancel={onCancel}
+                        onRefund={onRefund}
+                        onReturn={onReturn}
+                      />
+                    </TableCell>
+                    <TableCell
+                      className="px-4 whitespace-nowrap text-muted-foreground"
+                      title={order.statusUpdatedAt ? formatDateTime(order.statusUpdatedAt) : undefined}
+                    >
+                      <TickingText intervalMs={30_000} format={() => formatTimeAgo(order.statusUpdatedAt)} />
+                    </TableCell>
+                    <TableCell className="px-4 text-right" onClick={stopRowClick}>
+                      <RowActions order={order} role={role} canManage={canManage} {...actionHandlers} />
+                    </TableCell>
+                  </TableRow>
+                )
+              })}
+            </TableBody>
+          </Table>
+        </div>
+
+        <DataCardList>
+          {orders.map((order) => {
+            const isReleaseLocked = isReleaseLockedForRole(order.status, role)
+            const due = getAmountDue(order)
+            const withNotes = notedItems(order.items)
+            const firstNotes = withNotes[0] ? describeOrderItemFull(withNotes[0]) : null
+
+            return (
+              <DataCardItem key={order.id} onOpen={() => onView(order)} aria-label={`Order ${order.orderNumber}`}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
                       <Link
                         to={`/orders/${order.id}`}
                         onClick={stopRowClick}
@@ -279,167 +385,63 @@ export function OrderTable({
                       >
                         {order.orderNumber}
                       </Link>
-                      {order.orRequest ? <OrChip orRequest={order.orRequest} /> : null}
+                      {order.orRequest ? <OrChip orRequest={order.orRequest} expanded /> : null}
                     </div>
-                    <div className="mt-0.5 text-xs text-muted-foreground">{formatDate(order.createdAt)}</div>
-                  </TableCell>
-                  <TableCell className="px-4">
-                    <div>{order.customerName}</div>
-                    <div className="text-xs text-muted-foreground">{order.channel}</div>
-                  </TableCell>
-                  <TableCell className="px-4 text-muted-foreground" onClick={stopRowClick}>
-                    <div className="text-foreground">{order.items[0]?.productName ?? "—"}</div>
-                    {(() => {
-                      const withNotes = notedItems(order.items)
-                      const parts = withNotes[0] ? describeOrderItemParts(withNotes[0]) : null
-                      if (!parts?.notes) {
-                        return <span className="mt-0.5 block text-xs">—</span>
-                      }
-                      return (
-                        <Tooltip>
-                          <TooltipTrigger
-                            render={
-                              <button
-                                type="button"
-                                className="mt-0.5 inline-flex cursor-default items-center gap-1"
-                              />
-                            }
-                          >
-                            <span className="text-xs">
-                              {parts.notes}
-                              {parts.notesTruncated && "…"}
-                              {parts.size && (
-                                <span className="text-muted-foreground/70"> | {parts.size}</span>
-                              )}
-                              {withNotes.length > 1 && (
-                                <span className="text-muted-foreground/70"> +{withNotes.length - 1}</span>
-                              )}
-                            </span>
-                          </TooltipTrigger>
-                          <TooltipContent className="max-w-sm text-[11px]">
-                            <div className="flex flex-col gap-0.5">
-                              {withNotes.map((noted) => {
-                                const full = describeOrderItemFull(noted)
-                                return (
-                                  <div key={noted.id}>
-                                    <span className="font-medium">{noted.productName}:</span>{" "}
-                                    {full.notes}
-                                    {full.size && ` (${full.size})`}
-                                  </div>
-                                )
-                              })}
-                            </div>
-                          </TooltipContent>
-                        </Tooltip>
-                      )
-                    })()}
-                  </TableCell>
-                  <TableCell className="px-4 text-right">
+                    <div className="mt-0.5 truncate">
+                      {order.customerName}
+                      {order.channel ? <span className="text-muted-foreground"> · {order.channel}</span> : null}
+                    </div>
+                  </div>
+                  <div className="shrink-0 text-right">
                     <div className="font-medium tabular-nums">{formatCurrency(order.total)}</div>
                     {due > 0 ? (
                       <div className="mt-0.5 text-xs text-status-warning tabular-nums">{formatCurrency(due)} due</div>
                     ) : null}
-                  </TableCell>
-                  <TableCell className="px-4" onClick={stopRowClick}>
-                    {canManage && !isReleaseLocked ? (
-                      <PaymentStatusMenu order={order} onRequestPayment={onRequestPayment} />
-                    ) : (
-                      <PaymentStatusBadge status={order.payment.status} />
-                    )}
-                  </TableCell>
-                  <TableCell className="px-4" onClick={stopRowClick}>
-                    {canManage && !isReleaseLocked ? (
-                      <OrderStatusMenu
-                        order={order}
-                        onCancel={onCancel}
-                        onRefund={onRefund}
-                        onReturn={onReturn}
-                        role={role}
-                        showCuringDuration={false}
-                      />
-                    ) : (
-                      <OrderStatusBadge status={order.status} />
-                    )}
-                  </TableCell>
-                  <TableCell
-                    className="px-4 whitespace-nowrap text-muted-foreground"
-                    title={order.statusUpdatedAt ? formatDateTime(order.statusUpdatedAt) : undefined}
-                  >
-                    <TickingText intervalMs={30_000} format={() => formatTimeAgo(order.statusUpdatedAt)} />
-                  </TableCell>
-                  <TableCell className="px-4 text-right" onClick={stopRowClick}>
-                    <div className="flex justify-end gap-1">
-                      {canManage && (
-                        <RowActionButton
-                          label={`Edit ${order.orderNumber}`}
-                          tooltip={isReleaseLocked ? "Released orders are locked for your role." : "Edit order"}
-                          icon={<PencilIcon />}
-                          disabled={isReleaseLocked}
-                          onClick={() => onEdit(order)}
-                        />
-                      )}
-                      {hasMenuActions && (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger
-                            render={
-                              <Button
-                                variant="ghost"
-                                size="icon-sm"
-                                aria-label={`More actions for ${order.orderNumber}`}
-                                className="data-popup-open:bg-accent data-popup-open:text-accent-foreground"
-                              />
-                            }
-                          >
-                            <MoreHorizontalIcon />
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="min-w-52">
-                            {isAdminTier && (
-                              <DropdownMenuItem disabled={arrangeBlocker !== null} onClick={() => onArrange(order)}>
-                                <PackageCheckIcon />
-                                <span className="flex flex-col gap-0.5">
-                                  <span className="leading-none">Arrange shipment</span>
-                                  {arrangeBlocker ? (
-                                    <span className="text-xs leading-none text-muted-foreground">{arrangeBlocker}</span>
-                                  ) : null}
-                                </span>
-                              </DropdownMenuItem>
-                            )}
-                            {canManage && (
-                              <>
-                                <DropdownMenuItem onClick={() => onRequestOR(order)}>
-                                  <ReceiptTextIcon />
-                                  <span className="leading-none">
-                                    {order.orRequest ? "Update OR request" : "Request OR"}
-                                  </span>
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem
-                                  variant="destructive"
-                                  disabled={isReleaseLocked}
-                                  onClick={() => onDelete(order)}
-                                >
-                                  <Trash2Icon />
-                                  <span className="flex flex-col gap-0.5">
-                                    <span className="leading-none">Delete order</span>
-                                    {isReleaseLocked ? (
-                                      <span className="text-xs leading-none text-muted-foreground">
-                                        Locked for your role once released
-                                      </span>
-                                    ) : null}
-                                  </span>
-                                </DropdownMenuItem>
-                              </>
-                            )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      )}
-                    </div>
-                  </TableCell>
-                </TableRow>
-              )
-            })}
-          </TableBody>
-        </Table>
+                  </div>
+                </div>
+
+                <div className="text-muted-foreground">
+                  <span className="text-foreground">{order.items[0]?.productName ?? "—"}</span>
+                  {order.items.length > 1 ? ` +${order.items.length - 1} more` : null}
+                  {/* The table shows notes in a hover tooltip; touch has no hover, so show them inline. */}
+                  {firstNotes?.notes ? (
+                    <p className="mt-0.5 line-clamp-2 text-xs">
+                      {firstNotes.notes}
+                      {firstNotes.size && ` (${firstNotes.size})`}
+                      {withNotes.length > 1 && ` · ${withNotes.length - 1} more with notes`}
+                    </p>
+                  ) : null}
+                </div>
+
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex min-w-0 flex-wrap items-center gap-1.5" onClick={stopRowClick}>
+                    <PaymentControl
+                      order={order}
+                      editable={canManage && !isReleaseLocked}
+                      onRequestPayment={onRequestPayment}
+                    />
+                    <StatusControl
+                      order={order}
+                      editable={canManage && !isReleaseLocked}
+                      role={role}
+                      onCancel={onCancel}
+                      onRefund={onRefund}
+                      onReturn={onReturn}
+                    />
+                  </div>
+                  <div className="shrink-0" onClick={stopRowClick}>
+                    <RowActions order={order} role={role} canManage={canManage} {...actionHandlers} />
+                  </div>
+                </div>
+
+                <div className="text-xs text-muted-foreground">
+                  Created {formatDate(order.createdAt)} · Updated{" "}
+                  <TickingText intervalMs={30_000} format={() => formatTimeAgo(order.statusUpdatedAt)} />
+                </div>
+              </DataCardItem>
+            )
+          })}
+        </DataCardList>
         {footer}
       </div>
       {isFetching && (
@@ -452,10 +454,158 @@ export function OrderTable({
   )
 }
 
+function PaymentControl({
+  order,
+  editable,
+  onRequestPayment,
+}: {
+  order: Order
+  editable?: boolean
+  onRequestPayment: (order: Order, targetStatus: "paid" | "partially_paid") => void
+}) {
+  return editable ? (
+    <PaymentStatusMenu order={order} onRequestPayment={onRequestPayment} />
+  ) : (
+    <PaymentStatusBadge status={order.payment.status} />
+  )
+}
+
+function StatusControl({
+  order,
+  editable,
+  role,
+  onCancel,
+  onRefund,
+  onReturn,
+}: {
+  order: Order
+  editable?: boolean
+  role?: Role | null
+  onCancel: (order: Order) => void
+  onRefund: (order: Order) => void
+  onReturn: (order: Order) => void
+}) {
+  return editable ? (
+    <OrderStatusMenu
+      order={order}
+      onCancel={onCancel}
+      onRefund={onRefund}
+      onReturn={onReturn}
+      role={role}
+      showCuringDuration={false}
+    />
+  ) : (
+    <OrderStatusBadge status={order.status} />
+  )
+}
+
+/** Edit button + "more" menu — the same in a table row and a phone card. */
+function RowActions({
+  order,
+  role,
+  canManage,
+  onEdit,
+  onDelete,
+  onArrange,
+  onRequestOR,
+}: {
+  order: Order
+  role?: Role | null
+  canManage?: boolean
+  onEdit: (order: Order) => void
+  onDelete: (order: Order) => void
+  onArrange: (order: Order) => void
+  onRequestOR: (order: Order) => void
+}) {
+  const isAdminTier = canEditOrderMetadata(role)
+  const isReleaseLocked = isReleaseLockedForRole(order.status, role)
+  const arrangeBlocker = !order.shippingAddress
+    ? "Needs a shipping address"
+    : order.payment.status !== "paid"
+      ? "Needs payment marked Paid"
+      : null
+  const hasMenuActions = canManage || isAdminTier
+
+  return (
+    <div className="flex justify-end gap-1">
+      {canManage && (
+        <RowActionButton
+          label={`Edit ${order.orderNumber}`}
+          tooltip={isReleaseLocked ? "Released orders are locked for your role." : "Edit order"}
+          icon={<PencilIcon />}
+          disabled={isReleaseLocked}
+          onClick={() => onEdit(order)}
+        />
+      )}
+      {hasMenuActions && (
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label={`More actions for ${order.orderNumber}`}
+                className="data-popup-open:bg-accent data-popup-open:text-accent-foreground"
+              />
+            }
+          >
+            <MoreHorizontalIcon />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="min-w-52">
+            {isAdminTier && (
+              <DropdownMenuItem disabled={arrangeBlocker !== null} onClick={() => onArrange(order)}>
+                <PackageCheckIcon />
+                <span className="flex flex-col gap-0.5">
+                  <span className="leading-none">Arrange shipment</span>
+                  {arrangeBlocker ? (
+                    <span className="text-xs leading-none text-muted-foreground">{arrangeBlocker}</span>
+                  ) : null}
+                </span>
+              </DropdownMenuItem>
+            )}
+            {canManage && (
+              <>
+                <DropdownMenuItem onClick={() => onRequestOR(order)}>
+                  <ReceiptTextIcon />
+                  <span className="leading-none">{order.orRequest ? "Update OR request" : "Request OR"}</span>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem variant="destructive" disabled={isReleaseLocked} onClick={() => onDelete(order)}>
+                  <Trash2Icon />
+                  <span className="flex flex-col gap-0.5">
+                    <span className="leading-none">Delete order</span>
+                    {isReleaseLocked ? (
+                      <span className="text-xs leading-none text-muted-foreground">
+                        Locked for your role once released
+                      </span>
+                    ) : null}
+                  </span>
+                </DropdownMenuItem>
+              </>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
+    </div>
+  )
+}
+
 /** OR request state at a glance: green dot once an invoice number is recorded, amber while it's
- * still missing — neutral chrome + dot, per the design system's status-chip rule. */
-function OrChip({ orRequest }: { orRequest: NonNullable<Order["orRequest"]> }) {
+ * still missing — neutral chrome + dot, per the design system's status-chip rule. `expanded`
+ * spells the state out in the chip, for touch screens where the tooltip can't be hovered. */
+function OrChip({ orRequest, expanded }: { orRequest: NonNullable<Order["orRequest"]>; expanded?: boolean }) {
   const isIssued = Boolean(orRequest.invoiceNumber)
+  if (expanded) {
+    return (
+      <Badge variant="secondary" className="h-5 gap-1 px-1.5 text-xs">
+        <span
+          aria-hidden
+          className={cn("size-1.5 shrink-0 rounded-full", isIssued ? "bg-status-success" : "bg-status-warning")}
+        />
+        {isIssued ? `OR #${orRequest.invoiceNumber}` : "OR requested"}
+      </Badge>
+    )
+  }
   return (
     <Tooltip>
       <TooltipTrigger render={<span onClick={stopRowClick} />} className="inline-flex cursor-default">

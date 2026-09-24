@@ -57,7 +57,7 @@ export function CommissionFilterBar({
             value={selectedStaffId || "all"}
             onValueChange={(value) => value && onSelectedStaffIdChange(value === "all" ? "" : value)}
           >
-            <SelectTrigger aria-label="Filter by staff" className="min-w-44 shrink-0">
+            <SelectTrigger aria-label="Filter by staff" className="shrink-0 sm:min-w-44">
               <SelectValue>
                 {() => (
                   <span className="truncate">

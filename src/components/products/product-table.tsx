@@ -10,6 +10,7 @@ import {
   XIcon,
 } from "lucide-react"
 
+import { DataCardItem, DataCardList, DataCardListSkeleton } from "@/components/data-card-list"
 import { Badge } from "@/components/ui/badge"
 import { TABLE_HEAD_CLASS, TABLE_HEADER_CLASS, TABLE_SURFACE_CLASS } from "@/components/table-surface"
 import { Button } from "@/components/ui/button"
@@ -71,6 +72,52 @@ function stopRowClick(event: MouseEvent) {
   event.stopPropagation()
 }
 
+/** Edit button + "more" menu — the same in a table row and a phone card. */
+function RowActions({
+  product,
+  onEdit,
+  onDelete,
+}: {
+  product: Product
+  onEdit: (product: Product) => void
+  onDelete: (product: Product) => void
+}) {
+  return (
+    <div className="flex justify-end gap-1">
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button variant="ghost" size="icon-sm" aria-label={`Edit ${product.name}`} onClick={() => onEdit(product)} />
+          }
+        >
+          <PencilIcon />
+        </TooltipTrigger>
+        <TooltipContent>Edit product</TooltipContent>
+      </Tooltip>
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label={`More actions for ${product.name}`}
+              className="data-popup-open:bg-accent data-popup-open:text-accent-foreground"
+            />
+          }
+        >
+          <MoreHorizontalIcon />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="min-w-44">
+          <DropdownMenuItem variant="destructive" onClick={() => onDelete(product)}>
+            <Trash2Icon />
+            <span className="leading-none">Delete product</span>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  )
+}
+
 function Columns({ showActions }: { showActions: boolean }) {
   return (
     <TableHeader className={TABLE_HEADER_CLASS}>
@@ -128,7 +175,8 @@ export function ProductTable({
   if (isLoading) {
     return (
       <div className={TABLE_SURFACE_CLASS}>
-        <Table>
+        <DataCardListSkeleton />
+        <Table className="max-md:hidden">
           <Columns showActions={showActions} />
           <TableBody>
             {Array.from({ length: 10 }).map((_, index) => (
@@ -224,95 +272,102 @@ export function ProductTable({
   return (
     <div className="relative" aria-busy={isFetching}>
       <div className={cn(TABLE_SURFACE_CLASS, isFetching && "opacity-60 transition-opacity duration-150")}>
-        <Table>
-          <Columns showActions={showActions} />
-          <TableBody>
-            {products.map((product) => {
-              const isInactive = product.status !== "Active"
-              const optionCount = product.options.length
-              const range = priceRange(product)
-              return (
-                <TableRow
-                  key={product.id}
-                  // Clicking a row opens the product: the editor for managers, read-only details
-                  // for everyone else (staff) — same row-click pattern as Orders.
-                  onClick={() => {
-                    if (window.getSelection()?.toString()) return
-                    if (showActions) onEdit(product)
-                    else onView?.(product)
-                  }}
-                  className="cursor-pointer transition-colors duration-150 hover:bg-accent/40"
-                >
-                  <TableCell className="px-4">
-                    <div className="flex items-center gap-3">
-                      <div className="flex min-w-0 flex-col gap-0.5">
-                        <span className={cn("truncate font-medium", isInactive && "text-muted-foreground")}>
-                          {product.name}
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          {product.category}
-                          {optionCount > 0 && ` · ${optionCount} ${optionCount === 1 ? "option" : "options"}`}
-                        </span>
+        <div className="hidden md:block">
+          <Table>
+            <Columns showActions={showActions} />
+            <TableBody>
+              {products.map((product) => {
+                const isInactive = product.status !== "Active"
+                const optionCount = product.options.length
+                const range = priceRange(product)
+                return (
+                  <TableRow
+                    key={product.id}
+                    // Clicking a row opens the product: the editor for managers, read-only details
+                    // for everyone else (staff) — same row-click pattern as Orders.
+                    onClick={() => {
+                      if (window.getSelection()?.toString()) return
+                      if (showActions) onEdit(product)
+                      else onView?.(product)
+                    }}
+                    className="cursor-pointer transition-colors duration-150 hover:bg-accent/40"
+                  >
+                    <TableCell className="px-4">
+                      <div className="flex items-center gap-3">
+                        <div className="flex min-w-0 flex-col gap-0.5">
+                          <span className={cn("truncate font-medium", isInactive && "text-muted-foreground")}>
+                            {product.name}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            {product.category}
+                            {optionCount > 0 && ` · ${optionCount} ${optionCount === 1 ? "option" : "options"}`}
+                          </span>
+                        </div>
                       </div>
+                    </TableCell>
+                    <TableCell className="px-4">
+                      <div className="tabular-nums">{range ?? "—"}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {summarizePricing(product.pricing)}
+                        {product.pricing.length > 0 &&
+                          ` · ${product.pricing.length} ${product.pricing.length === 1 ? "price" : "prices"}`}
+                      </div>
+                    </TableCell>
+                    <TableCell className="px-4">
+                      <ProductStatusBadge status={product.status} />
+                    </TableCell>
+                    {showActions && (
+                      <TableCell className="px-4" onClick={stopRowClick}>
+                        <RowActions product={product} onEdit={onEdit} onDelete={onDelete} />
+                      </TableCell>
+                    )}
+                  </TableRow>
+                )
+              })}
+            </TableBody>
+          </Table>
+        </div>
+
+        <DataCardList>
+          {products.map((product) => {
+            const isInactive = product.status !== "Active"
+            const optionCount = product.options.length
+            const range = priceRange(product)
+            return (
+              <DataCardItem
+                key={product.id}
+                aria-label={product.name}
+                onOpen={() => (showActions ? onEdit(product) : onView?.(product))}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex min-w-0 flex-col gap-0.5">
+                    <span className={cn("font-medium", isInactive && "text-muted-foreground")}>{product.name}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {product.category}
+                      {optionCount > 0 && ` · ${optionCount} ${optionCount === 1 ? "option" : "options"}`}
+                    </span>
+                  </div>
+                  {showActions && (
+                    <div className="-mt-1 -mr-2 shrink-0" onClick={stopRowClick}>
+                      <RowActions product={product} onEdit={onEdit} onDelete={onDelete} />
                     </div>
-                  </TableCell>
-                  <TableCell className="px-4">
+                  )}
+                </div>
+                <div className="flex items-end justify-between gap-3">
+                  <div className="min-w-0">
                     <div className="tabular-nums">{range ?? "—"}</div>
                     <div className="text-xs text-muted-foreground">
                       {summarizePricing(product.pricing)}
                       {product.pricing.length > 0 &&
                         ` · ${product.pricing.length} ${product.pricing.length === 1 ? "price" : "prices"}`}
                     </div>
-                  </TableCell>
-                  <TableCell className="px-4">
-                    <ProductStatusBadge status={product.status} />
-                  </TableCell>
-                  {showActions && (
-                    <TableCell className="px-4" onClick={stopRowClick}>
-                      <div className="flex justify-end gap-1">
-                        <Tooltip>
-                          <TooltipTrigger
-                            render={
-                              <Button
-                                variant="ghost"
-                                size="icon-sm"
-                                aria-label={`Edit ${product.name}`}
-                                onClick={() => onEdit(product)}
-                              />
-                            }
-                          >
-                            <PencilIcon />
-                          </TooltipTrigger>
-                          <TooltipContent>Edit product</TooltipContent>
-                        </Tooltip>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger
-                            render={
-                              <Button
-                                variant="ghost"
-                                size="icon-sm"
-                                aria-label={`More actions for ${product.name}`}
-                                className="data-popup-open:bg-accent data-popup-open:text-accent-foreground"
-                              />
-                            }
-                          >
-                            <MoreHorizontalIcon />
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="min-w-44">
-                            <DropdownMenuItem variant="destructive" onClick={() => onDelete(product)}>
-                              <Trash2Icon />
-                              <span className="leading-none">Delete product</span>
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                    </TableCell>
-                  )}
-                </TableRow>
-              )
-            })}
-          </TableBody>
-        </Table>
+                  </div>
+                  <ProductStatusBadge status={product.status} />
+                </div>
+              </DataCardItem>
+            )
+          })}
+        </DataCardList>
         {footer}
       </div>
       {isFetching && (

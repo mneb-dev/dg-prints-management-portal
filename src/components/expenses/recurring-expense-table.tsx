@@ -11,6 +11,7 @@ import {
   TriangleAlertIcon,
 } from "lucide-react"
 
+import { DataCardItem, DataCardList, DataCardListSkeleton } from "@/components/data-card-list"
 import { Badge } from "@/components/ui/badge"
 import { TABLE_HEAD_CLASS, TABLE_HEADER_CLASS, TABLE_SURFACE_CLASS } from "@/components/table-surface"
 import { Button } from "@/components/ui/button"
@@ -62,6 +63,66 @@ function stopRowClick(event: MouseEvent) {
   event.stopPropagation()
 }
 
+/** Edit button + "more" menu — the same in a table row and a phone card. */
+function RowActions({
+  item,
+  isToggling,
+  onEdit,
+  onDelete,
+  onToggleActive,
+}: {
+  item: RecurringExpense
+  isToggling: boolean
+  onEdit: (recurring: RecurringExpense) => void
+  onDelete: (recurring: RecurringExpense) => void
+  onToggleActive: (recurring: RecurringExpense) => void
+}) {
+  return (
+    <div className="flex justify-end gap-1">
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label={`Edit ${item.category} schedule`}
+              onClick={() => onEdit(item)}
+            />
+          }
+        >
+          <PencilIcon />
+        </TooltipTrigger>
+        <TooltipContent>Edit schedule</TooltipContent>
+      </Tooltip>
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label={`More actions for ${item.category} schedule`}
+              className="data-popup-open:bg-accent data-popup-open:text-accent-foreground"
+            />
+          }
+        >
+          {isToggling ? <Loader2Icon className="animate-spin" /> : <MoreHorizontalIcon />}
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="min-w-44">
+          <DropdownMenuItem disabled={isToggling} onClick={() => onToggleActive(item)}>
+            {item.active ? <PauseIcon /> : <PlayIcon />}
+            <span className="leading-none">{item.active ? "Pause schedule" : "Resume schedule"}</span>
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem variant="destructive" onClick={() => onDelete(item)}>
+            <Trash2Icon />
+            <span className="leading-none">Delete schedule</span>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  )
+}
+
 /** Neutral chip + dot, like every other status chip in the app (docs/design-system.md). */
 function ScheduleStatusBadge({ active }: { active: boolean }) {
   return (
@@ -104,10 +165,13 @@ export function RecurringExpenseTable({
   onDelete: (recurring: RecurringExpense) => void
   onToggleActive: (recurring: RecurringExpense) => void
 }) {
+  const actionHandlers = { onEdit, onDelete, onToggleActive }
+
   if (isLoading) {
     return (
       <div className={TABLE_SURFACE_CLASS}>
-        <Table>
+        <DataCardListSkeleton rows={4} />
+        <Table className="max-md:hidden">
           <Columns />
           <TableBody>
             {Array.from({ length: 5 }).map((_, index) => (
@@ -182,92 +246,84 @@ export function RecurringExpenseTable({
 
   return (
     <div className={cn(TABLE_SURFACE_CLASS, isFetching && "opacity-60 transition-opacity duration-150")} aria-busy={isFetching}>
-      <Table>
-        <Columns />
-        <TableBody>
-          {recurring.map((item) => {
-            const isToggling = togglingId === item.id
-            return (
-              <TableRow
-                key={item.id}
-                onClick={() => {
-                  if (window.getSelection()?.toString()) return
-                  onEdit(item)
-                }}
-                className="cursor-pointer transition-colors duration-150 hover:bg-accent/40"
-              >
-                <TableCell className="max-w-80 px-4">
-                  <div className="flex min-w-0 flex-col gap-0.5">
-                    <span className={cn("truncate font-medium", !item.active && "text-muted-foreground")}>
-                      {item.category}
-                    </span>
-                    <span className="truncate text-xs text-muted-foreground">
-                      {item.notes || "No notes"}
-                    </span>
-                  </div>
-                </TableCell>
-                <TableCell className="px-4">
-                  <div>{RECURRENCE_FREQUENCY_LABELS[item.frequency]}</div>
-                  <div className="text-xs whitespace-nowrap text-muted-foreground">
-                    {item.active ? `Next run ${formatDate(item.nextRunDate)}` : "Paused"}
-                  </div>
-                </TableCell>
-                <TableCell className="px-4 text-right">
-                  <div className="font-medium whitespace-nowrap tabular-nums">{formatCurrency(item.amount)}</div>
-                  <div className="text-xs text-muted-foreground">{item.paymentMethod}</div>
-                </TableCell>
-                <TableCell className="px-4">
+      <div className="hidden md:block">
+        <Table>
+          <Columns />
+          <TableBody>
+            {recurring.map((item) => {
+              const isToggling = togglingId === item.id
+              return (
+                <TableRow
+                  key={item.id}
+                  onClick={() => {
+                    if (window.getSelection()?.toString()) return
+                    onEdit(item)
+                  }}
+                  className="cursor-pointer transition-colors duration-150 hover:bg-accent/40"
+                >
+                  <TableCell className="max-w-80 px-4">
+                    <div className="flex min-w-0 flex-col gap-0.5">
+                      <span className={cn("truncate font-medium", !item.active && "text-muted-foreground")}>
+                        {item.category}
+                      </span>
+                      <span className="truncate text-xs text-muted-foreground">
+                        {item.notes || "No notes"}
+                      </span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="px-4">
+                    <div>{RECURRENCE_FREQUENCY_LABELS[item.frequency]}</div>
+                    <div className="text-xs whitespace-nowrap text-muted-foreground">
+                      {item.active ? `Next run ${formatDate(item.nextRunDate)}` : "Paused"}
+                    </div>
+                  </TableCell>
+                  <TableCell className="px-4 text-right">
+                    <div className="font-medium whitespace-nowrap tabular-nums">{formatCurrency(item.amount)}</div>
+                    <div className="text-xs text-muted-foreground">{item.paymentMethod}</div>
+                  </TableCell>
+                  <TableCell className="px-4">
+                    <ScheduleStatusBadge active={item.active} />
+                  </TableCell>
+                  <TableCell className="px-4" onClick={stopRowClick}>
+                    <RowActions item={item} isToggling={isToggling} {...actionHandlers} />
+                  </TableCell>
+                </TableRow>
+              )
+            })}
+          </TableBody>
+        </Table>
+      </div>
+
+      <DataCardList>
+        {recurring.map((item) => {
+          const isToggling = togglingId === item.id
+          return (
+            <DataCardItem key={item.id} aria-label={`${item.category} schedule`} onOpen={() => onEdit(item)}>
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex min-w-0 flex-col gap-0.5">
+                  <span className={cn("font-medium", !item.active && "text-muted-foreground")}>{item.category}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {RECURRENCE_FREQUENCY_LABELS[item.frequency]} · {item.paymentMethod}
+                  </span>
+                </div>
+                <span className="shrink-0 font-medium tabular-nums">{formatCurrency(item.amount)}</span>
+              </div>
+              {item.notes ? <p className="line-clamp-2 text-muted-foreground">{item.notes}</p> : null}
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
                   <ScheduleStatusBadge active={item.active} />
-                </TableCell>
-                <TableCell className="px-4" onClick={stopRowClick}>
-                  <div className="flex justify-end gap-1">
-                    <Tooltip>
-                      <TooltipTrigger
-                        render={
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            aria-label={`Edit ${item.category} schedule`}
-                            onClick={() => onEdit(item)}
-                          />
-                        }
-                      >
-                        <PencilIcon />
-                      </TooltipTrigger>
-                      <TooltipContent>Edit schedule</TooltipContent>
-                    </Tooltip>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger
-                        render={
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            aria-label={`More actions for ${item.category} schedule`}
-                            className="data-popup-open:bg-accent data-popup-open:text-accent-foreground"
-                          />
-                        }
-                      >
-                        {isToggling ? <Loader2Icon className="animate-spin" /> : <MoreHorizontalIcon />}
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="min-w-44">
-                        <DropdownMenuItem disabled={isToggling} onClick={() => onToggleActive(item)}>
-                          {item.active ? <PauseIcon /> : <PlayIcon />}
-                          <span className="leading-none">{item.active ? "Pause schedule" : "Resume schedule"}</span>
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem variant="destructive" onClick={() => onDelete(item)}>
-                          <Trash2Icon />
-                          <span className="leading-none">Delete schedule</span>
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                </TableCell>
-              </TableRow>
-            )
-          })}
-        </TableBody>
-      </Table>
+                  {item.active ? (
+                    <span className="text-xs text-muted-foreground">Next run {formatDate(item.nextRunDate)}</span>
+                  ) : null}
+                </div>
+                <div className="-mr-2 shrink-0" onClick={stopRowClick}>
+                  <RowActions item={item} isToggling={isToggling} {...actionHandlers} />
+                </div>
+              </div>
+            </DataCardItem>
+          )
+        })}
+      </DataCardList>
       {footer}
     </div>
   )

@@ -2,6 +2,7 @@ import { useId, useState, type SubmitEvent } from "react"
 import { useNavigate } from "react-router-dom"
 
 import { Logo } from "@/components/logo"
+import { ThemeToggle } from "@/components/theme-toggle"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -64,6 +65,7 @@ export function LoginPage() {
         aria-hidden
         className="bg-brand-gradient pointer-events-none absolute -right-32 -bottom-32 size-96 rounded-full opacity-20 blur-3xl"
       />
+      <ThemeToggle className="absolute top-4 right-4" />
       <Card className="relative w-full max-w-sm shadow-[var(--shadow-elevated)]">
         <CardHeader className="items-center text-center">
           <Logo className="mx-auto mb-2 size-24" />

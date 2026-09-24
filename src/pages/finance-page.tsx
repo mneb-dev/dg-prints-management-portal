@@ -108,7 +108,7 @@ export function FinancePage() {
         )}
       </div>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 xl:grid-cols-4">
         {showSkeleton ? (
           Array.from({ length: 4 }).map((_, index) => (
             <Skeleton key={index} className="h-[88px] w-full rounded-xl" />
@@ -155,7 +155,8 @@ export function FinancePage() {
         isError={isError}
       />
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+      {/* Two across on tablets (the third spans the row), three from xl. */}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 md:max-xl:[&>*:last-child]:col-span-2">
         <BreakdownCard
           icon={ReceiptTextIcon}
           title="Expenses by category"

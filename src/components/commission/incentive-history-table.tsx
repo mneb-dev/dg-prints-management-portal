@@ -254,9 +254,9 @@ export function IncentiveHistoryTable() {
             ? "Locks in the pool and creates one payroll expense per staff member for their share."
             : "Deletes the payroll expenses this release created, so the incentive is computed live again."
         }
-        confirmLabel={confirmTarget?.action === "release" ? "Yes, release" : "Yes, undo it"}
+        confirmLabel={confirmTarget?.action === "release" ? "Release" : "Undo"}
         pendingLabel={confirmTarget?.action === "release" ? "Releasing…" : "Undoing…"}
-        cancelLabel={confirmTarget?.action === "release" ? "No, not yet" : "No, keep it"}
+        cancelLabel={confirmTarget?.action === "release" ? "Later" : "Keep"}
         isPending={isMutating}
         onConfirm={handleConfirm}
       />

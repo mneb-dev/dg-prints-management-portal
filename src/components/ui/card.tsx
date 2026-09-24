@@ -63,7 +63,9 @@ function CardAction({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="card-action"
       className={cn(
-        "col-start-2 row-span-2 row-start-1 self-start justify-self-end",
+        // In a narrow header (phones, narrow grid columns) the action drops onto its own row under
+        // the title instead of squeezing it; the auto column then collapses to nothing.
+        "col-start-2 row-span-2 row-start-1 self-start justify-self-end @max-sm/card-header:col-span-full @max-sm/card-header:col-start-1 @max-sm/card-header:row-span-1 @max-sm/card-header:row-start-auto @max-sm/card-header:mt-2 @max-sm/card-header:justify-self-start",
         className
       )}
       {...props}

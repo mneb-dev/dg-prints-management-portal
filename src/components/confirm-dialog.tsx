@@ -32,9 +32,9 @@ export function Name({ children }: { children: ReactNode }) {
  * The app's one confirmation modal. Every "are you sure?" follows the same pattern
  * (docs/design-system.md → Modals):
  *  - the title is a **question** ("Cancel order ORD-042?"),
- *  - the buttons **answer** it: confirm "Yes, <verb> it", dismiss "No, keep it" (default),
+ *  - the buttons **answer** it: confirm is the verb ("Delete"), dismiss "Keep" (default),
  *  - `tone` sets the icon tile and the confirm button: danger = solid red, and focus starts on
- *    the safe "No" button so Enter never destroys anything by accident.
+ *    the safe dismiss button so Enter never destroys anything by accident.
  * Richer confirmations (record payment, request OR, payroll) pass their fields as `children`.
  */
 export function ConfirmDialog({
@@ -47,7 +47,7 @@ export function ConfirmDialog({
   children,
   confirmLabel,
   pendingLabel,
-  cancelLabel = "No, keep it",
+  cancelLabel = "Keep",
   secondaryAction,
   isPending = false,
   confirmDisabled = false,
@@ -68,7 +68,7 @@ export function ConfirmDialog({
   pendingLabel?: string
   /** Dismiss answer. `null` hides it (single-button info dialogs). */
   cancelLabel?: string | null
-  /** A third, middle choice — e.g. "Save draft" between "No, stay" and "Yes, discard". */
+  /** A third, middle choice — e.g. "Save draft" between "Stay" and "Discard". */
   secondaryAction?: { label: string; onClick: () => void }
   isPending?: boolean
   confirmDisabled?: boolean

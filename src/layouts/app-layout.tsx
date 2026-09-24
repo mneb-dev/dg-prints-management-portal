@@ -3,6 +3,7 @@ import { Link, Outlet, useLocation } from "react-router-dom"
 
 import { AppSidebar } from "@/components/app-sidebar"
 import { SalesVisibilityToggle } from "@/components/sales-visibility-toggle"
+import { ThemeToggle } from "@/components/theme-toggle"
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -42,31 +43,43 @@ export function AppLayout() {
         <SidebarProvider>
           <AppSidebar />
           <SidebarInset>
-            <header className="flex h-16 shrink-0 items-center gap-2 border-b border-border bg-card/80 px-4 backdrop-blur-sm">
-              <SidebarTrigger className="-ml-1" />
+            <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center gap-2 border-b border-border bg-card/80 pr-[max(1rem,env(safe-area-inset-right))] pl-[max(1rem,env(safe-area-inset-left))] backdrop-blur-sm md:h-16">
+              <SidebarTrigger className="-ml-1 max-md:size-10" />
               <Separator orientation="vertical" className="mr-2 h-4" />
               {segments.length > 0 && (
-                <Breadcrumb>
-                  <BreadcrumbList>
-                    {segments.map((segment, index) => (
-                      <div key={segment.label} className="flex items-center gap-1.5">
-                        {index > 0 && <BreadcrumbSeparator />}
-                        <BreadcrumbItem>
-                          {segment.href ? (
-                            <BreadcrumbLink render={<Link to={segment.href} />}>
-                              {segment.label}
-                            </BreadcrumbLink>
-                          ) : (
-                            <BreadcrumbPage>{segment.label}</BreadcrumbPage>
-                          )}
-                        </BreadcrumbItem>
-                      </div>
-                    ))}
+                <Breadcrumb className="min-w-0">
+                  <BreadcrumbList className="flex-nowrap">
+                    {segments.map((segment, index) => {
+                      const isLast = index === segments.length - 1
+                      return (
+                        // Phones only have room for the current page; earlier crumbs show from md.
+                        <div
+                          key={segment.label}
+                          className={
+                            isLast
+                              ? "flex min-w-0 items-center gap-1.5"
+                              : "hidden items-center gap-1.5 md:flex"
+                          }
+                        >
+                          {index > 0 && <BreadcrumbSeparator className="max-md:hidden" />}
+                          <BreadcrumbItem className="min-w-0">
+                            {segment.href ? (
+                              <BreadcrumbLink render={<Link to={segment.href} />}>
+                                {segment.label}
+                              </BreadcrumbLink>
+                            ) : (
+                              <BreadcrumbPage className="truncate">{segment.label}</BreadcrumbPage>
+                            )}
+                          </BreadcrumbItem>
+                        </div>
+                      )
+                    })}
                   </BreadcrumbList>
                 </Breadcrumb>
               )}
-              <div className="ml-auto flex items-center gap-1">
+              <div className="ml-auto flex shrink-0 items-center gap-1">
                 <SalesVisibilityToggle />
+                <ThemeToggle />
               </div>
             </header>
             <div className="mx-auto flex w-full min-w-0 max-w-[1600px] flex-1 flex-col gap-4 p-4 md:p-6">
