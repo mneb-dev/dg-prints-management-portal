@@ -28,6 +28,7 @@ export type {
   PricingUnit,
   Product,
   ProductCategory,
+  ProductImage,
   ProductInput,
   ProductOption,
   ProductsQueryParams,
@@ -115,7 +116,7 @@ export function useProductActions() {
   const dispatch = useAppDispatch()
 
   async function addProduct(input: ProductInput) {
-    await dispatch(createProductThunk(input)).unwrap()
+    return await dispatch(createProductThunk(input)).unwrap()
   }
 
   async function updateProduct(id: string, input: Partial<ProductInput>) {

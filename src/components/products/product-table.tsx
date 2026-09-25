@@ -1,5 +1,6 @@
 import { useState, type MouseEvent, type ReactNode } from "react"
 import {
+  ImagesIcon,
   Loader2Icon,
   MoreHorizontalIcon,
   PackageSearchIcon,
@@ -11,6 +12,7 @@ import {
 } from "lucide-react"
 
 import { DataCardItem, DataCardList, DataCardListSkeleton } from "@/components/data-card-list"
+import { CategoryTile } from "@/components/products/category-tile"
 import { NewBadge } from "@/components/new-badge"
 import { Badge } from "@/components/ui/badge"
 import { TABLE_HEAD_CLASS, TABLE_HEADER_CLASS, TABLE_SURFACE_CLASS } from "@/components/table-surface"
@@ -19,6 +21,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import {
@@ -115,15 +118,41 @@ function ShopToggle({
   )
 }
 
+const THUMB_CLASS = "size-10 shrink-0 rounded-lg"
+
+/** The product's main image as a small thumbnail, or its category placeholder tile (the same one
+ *  the online shop shows) when it has no image or the image fails to load. */
+function ProductThumb({ product }: { product: Product }) {
+  const url = product.images[0]?.url
+  // Remember which URL failed rather than a boolean, so a replaced main image gets a fresh attempt.
+  const [failedUrl, setFailedUrl] = useState<string | null>(null)
+
+  if (!url || failedUrl === url) {
+    return <CategoryTile category={product.category} className={THUMB_CLASS} iconClassName="size-5" />
+  }
+  return (
+    <img
+      src={url}
+      alt=""
+      loading="lazy"
+      decoding="async"
+      onError={() => setFailedUrl(url)}
+      className={`${THUMB_CLASS} border bg-muted object-cover`}
+    />
+  )
+}
+
 /** Edit button + "more" menu — the same in a table row and a phone card. */
 function RowActions({
   product,
   onEdit,
   onDelete,
+  onManageImages,
 }: {
   product: Product
   onEdit: (product: Product) => void
   onDelete: (product: Product) => void
+  onManageImages?: (product: Product) => void
 }) {
   return (
     <div className="flex justify-end gap-1">
@@ -151,6 +180,20 @@ function RowActions({
           <MoreHorizontalIcon />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="min-w-44">
+          {onManageImages && (
+            <>
+              <DropdownMenuItem onClick={() => onManageImages(product)}>
+                <ImagesIcon />
+                <span className="leading-none">
+                  Manage images
+                  {product.images.length > 0 && (
+                    <span className="text-muted-foreground"> · {product.images.length}</span>
+                  )}
+                </span>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+            </>
+          )}
           <DropdownMenuItem variant="destructive" onClick={() => onDelete(product)}>
             <Trash2Icon />
             <span className="leading-none">Delete product</span>
@@ -195,6 +238,7 @@ export function ProductTable({
   onEdit,
   onView,
   onDelete,
+  onManageImages,
   onToggleShop,
 }: {
   /** Rendered inside the table surface, below the rows (the pager). Hidden in loading/empty/error states. */
@@ -214,6 +258,8 @@ export function ProductTable({
   /** Read-only details, for people who can't edit (staff). */
   onView?: (product: Product) => void
   onDelete: (product: Product) => void
+  /** Admin/superadmin only — omit to hide the "Manage images" action. */
+  onManageImages?: (product: Product) => void
   /** Saves the online-shop flag; should reject on failure so the switch reverts. */
   onToggleShop?: (product: Product, showInShop: boolean) => Promise<void>
 }) {
@@ -231,9 +277,12 @@ export function ProductTable({
             {Array.from({ length: 10 }).map((_, index) => (
               <TableRow key={index}>
                 <TableCell className="px-4">
-                  <div className="flex flex-col gap-1.5">
-                    <Skeleton className="h-4 w-40" />
-                    <Skeleton className="h-3 w-24" />
+                  <div className="flex items-center gap-3">
+                    <Skeleton className="size-10 shrink-0 rounded-lg" />
+                    <div className="flex flex-col gap-1.5">
+                      <Skeleton className="h-4 w-40" />
+                      <Skeleton className="h-3 w-24" />
+                    </div>
                   </div>
                 </TableCell>
                 <TableCell className="px-4">
@@ -346,6 +395,7 @@ export function ProductTable({
                   >
                     <TableCell className="px-4">
                       <div className="flex items-center gap-3">
+                        <ProductThumb product={product} />
                         <div className="flex min-w-0 flex-col gap-0.5">
                           <span className="flex min-w-0 items-center gap-2">
                             <span className={cn("truncate font-medium", isInactive && "text-muted-foreground")}>
@@ -376,7 +426,7 @@ export function ProductTable({
                     </TableCell>
                     {showActions && (
                       <TableCell className="px-4" onClick={stopRowClick}>
-                        <RowActions product={product} onEdit={onEdit} onDelete={onDelete} />
+                        <RowActions product={product} onEdit={onEdit} onDelete={onDelete} onManageImages={onManageImages} />
                       </TableCell>
                     )}
                   </TableRow>
@@ -398,19 +448,22 @@ export function ProductTable({
                 onOpen={() => (showActions ? onEdit(product) : onView?.(product))}
               >
                 <div className="flex items-start justify-between gap-3">
-                  <div className="flex min-w-0 flex-col gap-0.5">
-                    <span className="flex min-w-0 items-center gap-2">
-                      <span className={cn("font-medium", isInactive && "text-muted-foreground")}>{product.name}</span>
-                      {isNewProduct(product, now) && <NewBadge />}
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      {product.category}
-                      {optionCount > 0 && ` · ${optionCount} ${optionCount === 1 ? "option" : "options"}`}
-                    </span>
+                  <div className="flex min-w-0 items-center gap-3">
+                    <ProductThumb product={product} />
+                    <div className="flex min-w-0 flex-col gap-0.5">
+                      <span className="flex min-w-0 items-center gap-2">
+                        <span className={cn("font-medium", isInactive && "text-muted-foreground")}>{product.name}</span>
+                        {isNewProduct(product, now) && <NewBadge />}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {product.category}
+                        {optionCount > 0 && ` · ${optionCount} ${optionCount === 1 ? "option" : "options"}`}
+                      </span>
+                    </div>
                   </div>
                   {showActions && (
                     <div className="-mt-1 -mr-2 shrink-0" onClick={stopRowClick}>
-                      <RowActions product={product} onEdit={onEdit} onDelete={onDelete} />
+                      <RowActions product={product} onEdit={onEdit} onDelete={onDelete} onManageImages={onManageImages} />
                     </div>
                   )}
                 </div>

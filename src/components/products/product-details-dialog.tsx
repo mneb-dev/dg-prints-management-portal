@@ -1,4 +1,4 @@
-import { useMemo } from "react"
+import { useMemo, useState } from "react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -11,7 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { ALL_VARIANTS, type PricingEntry, type Product } from "@/lib/products"
+import { ALL_VARIANTS, type PricingEntry, type Product, type ProductImage } from "@/lib/products"
 import { cn, formatCurrency } from "@/lib/utils"
 
 /** "per package" / "per sq.ft." / "" — the unit written the way staff would say it to a customer. */
@@ -32,6 +32,43 @@ function priceLabel(entry: PricingEntry, product: Product): string {
   const parts = [...variant, entry.packageName?.trim()].filter(Boolean) as string[]
   if (parts.length > 0) return parts.join(" · ")
   return product.options.length > 0 ? "Any option" : "Standard"
+}
+
+/** Main image with a thumbnail strip to flip through the rest. */
+function ImageGallery({ images, name }: { images: ProductImage[]; name: string }) {
+  const [selectedId, setSelectedId] = useState(images[0]?.id)
+  const selected = images.find((image) => image.id === selectedId) ?? images[0]
+  if (!selected) return null
+
+  return (
+    <div className="flex flex-col gap-2">
+      <img
+        src={selected.url}
+        alt={name}
+        decoding="async"
+        className="aspect-[4/3] w-full rounded-xl border bg-muted object-cover"
+      />
+      {images.length > 1 && (
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {images.map((image, index) => (
+            <button
+              key={image.id}
+              type="button"
+              aria-label={`Show image ${index + 1}`}
+              aria-pressed={image.id === selected.id}
+              onClick={() => setSelectedId(image.id)}
+              className={cn(
+                "size-14 shrink-0 cursor-pointer overflow-hidden rounded-lg border-2 outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+                image.id === selected.id ? "border-primary" : "border-transparent opacity-70 hover:opacity-100"
+              )}
+            >
+              <img src={image.url} alt="" loading="lazy" decoding="async" className="size-full object-cover" />
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
 }
 
 /** Read-only, staff-friendly product card: what it is, what customers can choose, and what it
@@ -86,6 +123,11 @@ export function ProductDetailsDialog({
             </DialogHeader>
 
             <DialogBody className="flex flex-col gap-5">
+              {product.images.length > 0 && (
+                // Keyed so opening another product starts on its main image.
+                <ImageGallery key={product.id} images={product.images} name={product.name} />
+              )}
+
               {startingPrice !== null && (
                 <div className="flex items-baseline justify-between gap-3 rounded-xl bg-accent/50 px-4 py-3">
                   <span className="text-sm text-muted-foreground">Starts at</span>

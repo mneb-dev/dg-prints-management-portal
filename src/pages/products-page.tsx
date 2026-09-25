@@ -6,6 +6,7 @@ import { ManageCategoriesDialog } from "@/components/categories/manage-categorie
 import { DeleteProductDialog } from "@/components/products/delete-product-dialog"
 import { ProductDetailsDialog } from "@/components/products/product-details-dialog"
 import { ProductFormDialog } from "@/components/products/product-form-dialog"
+import { ProductImagesDialog } from "@/components/products/product-images-dialog"
 import { ProductTable } from "@/components/products/product-table"
 import {
   ACTIVE_FILTER_TRIGGER_CLASS,
@@ -59,6 +60,7 @@ const SORT_OPTIONS = [
 export function ProductsPage() {
   const { hasPermission, role } = useAuth()
   const canManage = hasPermission("manage_products")
+  const canManageImages = role === "admin" || role === "superadmin"
   const { products, total, params, setParams, refetch, isLoading, isFetching, isError, error } = useProducts()
   useClampPage(params.page, params.pageSize, total, isFetching, (page) => setParams({ page }))
   const { deleteProduct, updateProduct } = useProductActions()
@@ -73,6 +75,7 @@ export function ProductsPage() {
   // Staff/viewers get a simple read-only product card instead of the editor.
   const [viewingProduct, setViewingProduct] = useState<Product | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [imagesProductId, setImagesProductId] = useState<string | null>(null)
 
   useEffect(() => {
     if (debouncedSearch !== params.search) {
@@ -356,6 +359,7 @@ export function ProductsPage() {
         onEdit={handleEdit}
         onView={setViewingProduct}
         onDelete={setDeletingProduct}
+        onManageImages={canManageImages ? (product) => setImagesProductId(product.id) : undefined}
         onToggleShop={handleToggleShop}
         footer={
           total > 0 && (
@@ -377,7 +381,10 @@ export function ProductsPage() {
         onOpenChange={setFormOpen}
         product={editingProduct}
         onSaved={refetch}
+        onAddImages={canManageImages ? (product) => setImagesProductId(product.id) : undefined}
       />
+
+      <ProductImagesDialog productId={imagesProductId} onOpenChange={(open) => !open && setImagesProductId(null)} />
 
       <ProductDetailsDialog
         product={viewingProduct}

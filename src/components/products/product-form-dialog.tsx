@@ -282,11 +282,14 @@ export function ProductFormDialog({
   onOpenChange,
   product,
   onSaved,
+  onAddImages,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   product: Product | null
   onSaved?: () => void
+  /** When set, the "Product created" toast offers an "Add images" shortcut for the new product. */
+  onAddImages?: (product: Product) => void
 }) {
   const { addProduct, updateProduct } = useProductActions()
   const { categories: activeCategories } = useActiveCategories()
@@ -468,8 +471,11 @@ export function ProductFormDialog({
         await updateProduct(product.id, payload)
         toast.success("Product updated.")
       } else {
-        await addProduct(payload)
-        toast.success("Product created.")
+        const created = await addProduct(payload)
+        toast.success(
+          "Product created.",
+          onAddImages ? { action: { label: "Add images", onClick: () => onAddImages(created) } } : undefined
+        )
       }
       onOpenChange(false)
       onSaved?.()

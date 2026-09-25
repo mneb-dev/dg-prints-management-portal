@@ -56,6 +56,12 @@ export type PricingEntry = {
   unit: PricingUnit
 }
 
+/** A product photo. The first image in `Product.images` is the main one. */
+export type ProductImage = {
+  id: string
+  url: string
+}
+
 export type Product = {
   id: string
   name: string
@@ -67,11 +73,13 @@ export type Product = {
   deletedAt: string | null
   options: ProductOption[]
   pricing: PricingEntry[]
+  /** Ordered; index 0 is the main image. Managed via the images endpoints, never the product PUT. */
+  images: ProductImage[]
   createdAt: string
   updatedAt: string
 }
 
-export type ProductInput = Omit<Product, "id" | "createdAt" | "updatedAt" | "deletedAt">
+export type ProductInput = Omit<Product, "id" | "createdAt" | "updatedAt" | "deletedAt" | "images">
 
 export function summarizePricing(pricing: PricingEntry[]): string {
   if (pricing.length === 0) return "No pricing"
@@ -228,6 +236,23 @@ const productsSlice = createSlice({
     setProductsParams(state, action: PayloadAction<Partial<ProductsQueryParams>>) {
       state.params = { ...state.params, ...action.payload }
     },
+    /** A product's image list changed (upload, reorder, delete) — patch it wherever it's cached. */
+    productImagesChanged(state, action: PayloadAction<{ productId: string; images: ProductImage[] }>) {
+      const { productId, images } = action.payload
+      for (const list of [state.items, state.catalog]) {
+        const product = list.find((item) => item.id === productId)
+        if (product) product.images = images
+      }
+    },
+    /** One upload finished. Appends (rather than replacing the list) so parallel uploads that
+     *  finish together can't overwrite each other. */
+    productImageAdded(state, action: PayloadAction<{ productId: string; image: ProductImage }>) {
+      const { productId, image } = action.payload
+      for (const list of [state.items, state.catalog]) {
+        const product = list.find((item) => item.id === productId)
+        if (product && !product.images.some((existing) => existing.id === image.id)) product.images.push(image)
+      }
+    },
   },
   extraReducers(builder) {
     builder
@@ -274,6 +299,6 @@ const productsSlice = createSlice({
   },
 })
 
-export const { setProductsParams } = productsSlice.actions
+export const { productImageAdded, productImagesChanged, setProductsParams } = productsSlice.actions
 export default productsSlice.reducer
 export type { ProductsState }
