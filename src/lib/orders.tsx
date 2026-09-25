@@ -80,6 +80,16 @@ export function getAmountDue(order: Order): number {
   return status === "paid" || status === "refunded" ? 0 : Math.max(0, balance)
 }
 
+/** Channel the server stamps on orders placed through the online shop's checkout. */
+export const ONLINE_SHOP_CHANNEL = "Online shop"
+
+/** Who to credit for "Created by" / "Updated by": the staff member's name, "Online shop" for a
+ *  shop order no staff member has touched yet, otherwise "Unknown user". */
+export function actorLabel(name: string, order: Pick<Order, "channel">): string {
+  if (name) return name
+  return order.channel === ONLINE_SHOP_CHANNEL ? "Online shop" : "Unknown user"
+}
+
 /** Paginated Orders list — for the Orders list page only. Refetches whenever `params` changes. */
 export function useOrders() {
   const orders = useAppSelector((state) => state.orders.items)

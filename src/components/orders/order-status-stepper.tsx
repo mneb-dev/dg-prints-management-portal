@@ -8,6 +8,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { useCategories } from "@/lib/categories"
 import { useActiveOrderStatuses, useOrderStatusLookup } from "@/lib/order-statuses"
 import {
+  actorLabel,
   CURING_STATUS_NAME,
   formatCuringDuration,
   getOrderWorkflowStatuses,
@@ -76,7 +77,7 @@ function UpdatedBy({ order, withDot = false }: { order: Order; withDot?: boolean
     <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
       {withDot && <span aria-hidden className="size-2 shrink-0 rounded-full bg-primary ring-3 ring-primary/15" />}
       <span>
-        Updated by {order.statusUpdatedByName || "Unknown user"} ·{" "}
+        Updated by {actorLabel(order.statusUpdatedByName, order)} ·{" "}
         <Tooltip>
           <TooltipTrigger
             render={<button type="button" className="cursor-default font-medium text-foreground" />}
@@ -328,7 +329,7 @@ export function OrderStatusStepper({ order }: { order: Order }) {
                     {isCurrent && order.statusUpdatedAt && (
                       <div className="text-background/70">
                         {formatDateTime(order.statusUpdatedAt)} ·{" "}
-                        {order.statusUpdatedByName || "Unknown user"}
+                        {actorLabel(order.statusUpdatedByName, order)}
                       </div>
                     )}
                   </TooltipContent>

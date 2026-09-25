@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from "react"
 import {
   CheckIcon,
   CreditCardIcon,
+  MessageCircleIcon,
   RulerIcon,
   ShoppingCartIcon,
   TrophyIcon,
@@ -13,6 +14,8 @@ import { toast } from "sonner"
 import { IconBadge } from "@/components/icon-badge"
 import { PageHeader } from "@/components/page-header"
 import { CatalogList } from "@/components/settings/catalog-list"
+import { MessengerLinkCard } from "@/components/settings/messenger-link-card"
+import { ShippingRatesCard } from "@/components/settings/shipping-rates-card"
 import { IncentiveTierList } from "@/components/settings/incentive-tier-list"
 import { QuickSizesCard } from "@/components/settings/quick-sizes-card"
 import { Button } from "@/components/ui/button"
@@ -31,6 +34,7 @@ const SECTIONS = [
   { id: "order-channels", label: "Order channels" },
   { id: "bonus-tiers", label: "Bonus tiers" },
   { id: "shipping", label: "Shipping" },
+  { id: "online-shop", label: "Online shop" },
   { id: "quick-sizes", label: "Quick sizes" },
 ] as const
 
@@ -244,6 +248,18 @@ export function SettingsPage() {
               </div>
               <FieldDescription>Prefills the order form's shipping fee. Staff can still change it per order.</FieldDescription>
             </Field>
+          </div>
+        </SettingsSection>
+
+        <SettingsSection
+          id="online-shop"
+          icon={MessageCircleIcon}
+          title="Online shop"
+          description="Checkout shipping fees and how buyers reach you."
+        >
+          <div className="flex flex-col gap-4">
+            <ShippingRatesCard />
+            <MessengerLinkCard />
           </div>
         </SettingsSection>
 

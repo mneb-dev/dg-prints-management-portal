@@ -70,6 +70,8 @@ export type Product = {
   status: ProductStatus
   /** Listed on the online shop. Independent of `status`; the shop only shows Active products with this set. */
   showInShop: boolean
+  /** Customized per buyer: the shop shows "Message us on Facebook" instead of options + "Add to cart". */
+  madeToOrder: boolean
   deletedAt: string | null
   options: ProductOption[]
   pricing: PricingEntry[]

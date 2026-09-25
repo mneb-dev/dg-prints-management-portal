@@ -4,14 +4,16 @@ import { useAppDispatch, useAppSelector } from "@/lib/hooks"
 import { fetchSettingsThunk, updateSettingsThunk } from "@/lib/settings-slice"
 import type { AppSettings, AppSettingsInput } from "@/lib/settings-slice"
 
-export type { AppSettings, AppSettingsInput } from "@/lib/settings-slice"
+export type { AppSettings, AppSettingsInput, ShippingRates } from "@/lib/settings-slice"
 
 const FALLBACK_SETTINGS: AppSettings = {
   shippingFee: 0,
+  shippingRates: { luzon: 0, visayas: 0, mindanao: 0 },
+  messengerUrl: "",
   updatedAt: "",
 }
 
-/** App-wide settings (currently just the default shipping fee), fetched once per session. */
+/** App-wide settings (default shipping fee, shop Messenger link), fetched once per session. */
 export function useSettings() {
   const data = useAppSelector((state) => state.settings.data)
   const status = useAppSelector((state) => state.settings.status)
@@ -30,7 +32,7 @@ export function useSettings() {
   }
 }
 
-/** Settings update only — no fetch. For the Settings page's shipping fee field. */
+/** Settings update only — no fetch. For the Settings page's editable fields. */
 export function useSettingsActions() {
   const dispatch = useAppDispatch()
 

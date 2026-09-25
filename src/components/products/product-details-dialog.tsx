@@ -118,6 +118,11 @@ export function ProductDetailsDialog({
                       <span className="leading-none">In online shop</span>
                     </Badge>
                   )}
+                  {product.madeToOrder && (
+                    <Badge variant="outline">
+                      <span className="leading-none">Made to order</span>
+                    </Badge>
+                  )}
                 </DialogDescription>
               </div>
             </DialogHeader>

@@ -66,6 +66,7 @@ import {
   type CopyableLineItem,
 } from "@/lib/quote-text"
 import {
+  actorLabel,
   getAmountDue,
   getOrderStatusOptions,
   isReleaseLockedForRole,
@@ -393,7 +394,7 @@ export function OrderDetailsPage() {
                 </TooltipTrigger>
                 <TooltipContent>{formatDateTime(order.createdAt)}</TooltipContent>
               </Tooltip>{" "}
-              by {order.createdByName || "Unknown user"}
+              by {actorLabel(order.createdByName, order)}
               {order.channel ? ` · ${order.channel}` : null}
             </p>
           </div>
@@ -727,14 +728,14 @@ export function OrderDetailsPage() {
                 {order.statusUpdatedAt && (
                   <ActivityEntry
                     label="Status updated"
-                    by={order.statusUpdatedByName || "Unknown user"}
+                    by={actorLabel(order.statusUpdatedByName, order)}
                     at={order.statusUpdatedAt}
                     isLatest
                   />
                 )}
                 <ActivityEntry
                   label="Created"
-                  by={order.createdByName || "Unknown user"}
+                  by={actorLabel(order.createdByName, order)}
                   at={order.createdAt}
                   isLatest={!order.statusUpdatedAt}
                   isLast

@@ -3,14 +3,21 @@ import { createAsyncThunk, createSlice, type PayloadAction } from "@reduxjs/tool
 import { apiClient } from "@/lib/api-client"
 import { getErrorMessage } from "@/lib/api-error"
 
+/** Online shop shipping fee per island group, picked from the buyer's province at checkout. */
+export type ShippingRates = { luzon: number; visayas: number; mindanao: number }
+
 export type AppSettings = {
+  /** Default shipping fee on the order form. */
   shippingFee: number
+  /** Online shop shipping fees (Luzon / Visayas / Mindanao). */
+  shippingRates: ShippingRates
+  /** Messenger link for the online shop's "Message us on Facebook" button; "" = not configured. */
+  messengerUrl: string
   updatedAt: string
 }
 
-export type AppSettingsInput = {
-  shippingFee: number
-}
+/** Partial: only the fields sent are updated. */
+export type AppSettingsInput = Partial<Pick<AppSettings, "shippingFee" | "shippingRates" | "messengerUrl">>
 
 export const fetchSettingsThunk = createAsyncThunk<AppSettings, void, { rejectValue: string }>(
   "settings/fetch",

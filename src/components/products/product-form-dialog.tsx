@@ -68,6 +68,7 @@ function emptyDraft(): ProductInput {
     description: "",
     status: "Active",
     showInShop: false,
+    madeToOrder: false,
     options: [],
     pricing: [],
   }
@@ -80,6 +81,7 @@ function draftFromProduct(product: Product): ProductInput {
     description: product.description,
     status: product.status,
     showInShop: product.showInShop,
+    madeToOrder: product.madeToOrder,
     options: product.options,
     pricing: product.pricing,
   }
@@ -234,21 +236,28 @@ function SwitchRow({
   label,
   description,
   checked,
+  dimmed,
   onCheckedChange,
 }: {
   id: string
   label: string
   description: ReactNode
   checked: boolean
+  /** Grays out the whole row and locks the switch — the setting doesn't apply right now. */
+  dimmed?: boolean
   onCheckedChange: (checked: boolean) => void
 }) {
   return (
-    <Field orientation="horizontal" className="items-start justify-between gap-4 px-4 py-3">
+    <Field
+      orientation="horizontal"
+      data-disabled={dimmed || undefined}
+      className={cn("items-start justify-between gap-4 px-4 py-3", dimmed && "opacity-50")}
+    >
       <div className="flex flex-col gap-1">
         <FieldLabel htmlFor={id}>{label}</FieldLabel>
         <FieldDescription className="text-xs">{description}</FieldDescription>
       </div>
-      <Switch id={id} checked={checked} onCheckedChange={(next) => onCheckedChange(!!next)} />
+      <Switch id={id} checked={checked} disabled={dimmed} onCheckedChange={(next) => onCheckedChange(!!next)} />
     </Field>
   )
 }
@@ -757,7 +766,7 @@ export function ProductFormDialog({
                     description={
                       draft.showInShop && !isActive ? (
                         <span className="text-order-status-gold">
-                          Won't appear in the shop while it's unavailable.
+                          Shows as “Out of stock” in the shop while it's unavailable.
                         </span>
                       ) : (
                         "List this product on the online shop."
@@ -765,6 +774,20 @@ export function ProductFormDialog({
                     }
                     checked={draft.showInShop}
                     onCheckedChange={(checked) => setDraft((prev) => ({ ...prev, showInShop: checked }))}
+                  />
+                  <SwitchRow
+                    id="product-made-to-order"
+                    label="Made to order"
+                    description={
+                      !draft.showInShop
+                        ? "Turn on “Show in online shop” to change this."
+                        : draft.madeToOrder
+                          ? "Buyers message you on Facebook to order it instead of adding it to the cart."
+                          : "Turn on for customized items (e.g. name keychains) that buyers order by messaging you."
+                    }
+                    checked={draft.madeToOrder}
+                    dimmed={!draft.showInShop}
+                    onCheckedChange={(checked) => setDraft((prev) => ({ ...prev, madeToOrder: checked }))}
                   />
                 </div>
               </div>
