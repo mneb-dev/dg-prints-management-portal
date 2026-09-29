@@ -1,52 +1,11 @@
 import type { ReactNode } from "react"
-import { CopyIcon, ReceiptTextIcon } from "lucide-react"
+import { ReceiptTextIcon } from "lucide-react"
 
 import { OrderFormSectionHeader } from "@/components/orders/order-form-section-header"
-import { Button } from "@/components/ui/button"
-import { Card, CardAction, CardContent, CardHeader } from "@/components/ui/card"
+import { itemInfoLines, type LineItemSummary } from "@/components/orders/order-summary-text"
+import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
-import { copyToClipboard } from "@/lib/clipboard"
-import type { OrderItem, OrderItemPricing } from "@/lib/orders"
-import type { Product } from "@/lib/products"
-import {
-  buildCopyableOrderText,
-  buildLineItemInfoLines,
-  buildStickerCopyLines,
-  formatOrderSummaryText,
-  usesCompactStickerCopyFormat,
-  type CopyableLineItem,
-} from "@/lib/quote-text"
 import { cn, formatCurrency } from "@/lib/utils"
-
-export type LineItemSummary = {
-  product: Product | null
-  optionValues: Record<string, string>
-  pricing: OrderItemPricing | null
-  quantity: number
-  lineTotal: number
-  stickerQuotation: OrderItem["stickerQuotation"]
-  notes: string
-}
-
-function toCopyableLineItem(item: LineItemSummary): CopyableLineItem {
-  return {
-    options: item.product!.options.map((option) => ({
-      name: option.name,
-      value: item.optionValues[option.id] ?? "",
-    })),
-    pricing: item.pricing,
-    stickerQuotation: item.stickerQuotation,
-    quantity: item.quantity,
-    lineTotal: item.lineTotal,
-    notes: item.notes,
-  }
-}
-
-function itemInfoLines(item: LineItemSummary): string[] {
-  if (!item.product) return []
-
-  return buildLineItemInfoLines(toCopyableLineItem(item))
-}
 
 function SummaryRow({
   label,
@@ -147,45 +106,11 @@ export function OrderSummaryPanel({
   const subtotal = items.reduce((sum, item) => sum + item.lineTotal, 0)
   const total = Math.max(subtotal + additionalFees + layoutFee + shippingFee - discount, 0)
   const hasAnyProduct = items.some((item) => item.product)
-  const copyableItems = items.filter((item) => item.product && item.pricing)
-
-  function handleCopy() {
-    if (copyableItems.length === 0) return
-
-    const infoLines = buildCopyableOrderText(
-      copyableItems.map((item) => ({
-        name: item.product!.name,
-        lines: usesCompactStickerCopyFormat(item.product!.category)
-          ? buildStickerCopyLines(toCopyableLineItem(item))
-          : itemInfoLines(item),
-      }))
-    )
-
-    copyToClipboard(
-      formatOrderSummaryText({
-        infoLines,
-        subtotal,
-        additionalFees,
-        layoutFee,
-        shippingFee,
-        discount,
-        total,
-        notes,
-      })
-    )
-  }
 
   return (
     <Card>
       <CardHeader>
         <OrderFormSectionHeader icon={ReceiptTextIcon} title="Order summary" description="Updates as you fill in the form" />
-        {copyableItems.length > 0 && (
-          <CardAction>
-            <Button type="button" variant="ghost" size="icon-sm" onClick={handleCopy} aria-label="Copy order summary">
-              <CopyIcon />
-            </Button>
-          </CardAction>
-        )}
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         {!hasAnyProduct ? (

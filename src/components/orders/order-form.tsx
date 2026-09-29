@@ -100,6 +100,7 @@ import { DiscardOrderChangesDialog } from "./discard-order-changes-dialog"
 import { OrderFormSectionNav, type OrderFormSection } from "./order-form-section-nav"
 import { OrderLineItemCard, type LineItemErrorKey } from "./order-line-item-card"
 import { OrderSummaryPanel } from "./order-summary-panel"
+import { buildOrderSummaryCopyText, type LineItemSummary } from "./order-summary-text"
 import { PaymentFields } from "./payment-fields"
 import { SaveOrderDraftDialog } from "./save-order-draft-dialog"
 import { ShippingAddressFields } from "./shipping-address-fields"
@@ -609,6 +610,28 @@ export function OrderForm({
     subtotal + additionalFeesNum + layoutFeeNum + shippingFeeNum - discountNum,
     0
   )
+
+  const summaryItems: LineItemSummary[] = resolvedItems.map((resolved) => ({
+    product: resolved.product,
+    optionValues: resolved.draft.optionValues,
+    pricing: resolved.computed.pricing,
+    quantity: Math.max(1, Math.round(Number(resolved.draft.quantity) || 1)),
+    lineTotal: resolved.lineTotal,
+    stickerQuotation: resolved.computed.stickerQuotationSnapshot,
+    notes: resolved.draft.notes,
+  }))
+  const summaryCopyText = buildOrderSummaryCopyText({
+    items: summaryItems,
+    discount: discountNum,
+    additionalFees: additionalFeesNum,
+    layoutFee: layoutFeeNum,
+    shippingFee: shippingFeeNum,
+    notes,
+  })
+
+  function handleCopySummary() {
+    if (summaryCopyText) copyToClipboard(summaryCopyText)
+  }
 
   // Keep the shipping fee in sync with the sticker-label promo threshold as line items change —
   // zero it out the moment the order crosses ≥1000, and revert to the configured default the
@@ -1462,15 +1485,7 @@ export function OrderForm({
       <div className="flex flex-col gap-4 xl:sticky xl:top-20 xl:self-start">
         <OrderFormSectionNav sections={sections} />
         <OrderSummaryPanel
-          items={resolvedItems.map((resolved) => ({
-            product: resolved.product,
-            optionValues: resolved.draft.optionValues,
-            pricing: resolved.computed.pricing,
-            quantity: Math.max(1, Math.round(Number(resolved.draft.quantity) || 1)),
-            lineTotal: resolved.lineTotal,
-            stickerQuotation: resolved.computed.stickerQuotationSnapshot,
-            notes: resolved.draft.notes,
-          }))}
+          items={summaryItems}
           discount={discountNum}
           additionalFees={additionalFeesNum}
           layoutFee={layoutFeeNum}
@@ -1493,6 +1508,16 @@ export function OrderForm({
                   first
                 </button>
               )}
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                onClick={handleCopySummary}
+                disabled={!summaryCopyText}
+              >
+                <CopyIcon data-icon="inline-start" />
+                Copy summary
+              </Button>
               <Button type="button" variant="ghost" className="w-full" onClick={handleCancel}>
                 Cancel
               </Button>
@@ -1519,6 +1544,16 @@ export function OrderForm({
             </button>
           )}
         </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          onClick={handleCopySummary}
+          disabled={!summaryCopyText}
+          aria-label="Copy order summary"
+        >
+          <CopyIcon />
+        </Button>
         <Button type="button" variant="outline" onClick={handleCancel}>
           Cancel
         </Button>
