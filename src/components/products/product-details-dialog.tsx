@@ -123,6 +123,11 @@ export function ProductDetailsDialog({
                       <span className="leading-none">Made to order</span>
                     </Badge>
                   )}
+                  {product.customQuotation && (
+                    <Badge variant="outline">
+                      <span className="leading-none">Custom quotation</span>
+                    </Badge>
+                  )}
                 </DialogDescription>
               </div>
             </DialogHeader>

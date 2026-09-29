@@ -72,6 +72,9 @@ export type Product = {
   showInShop: boolean
   /** Customized per buyer: the shop shows "Message us on Facebook" instead of options + "Add to cart". */
   madeToOrder: boolean
+  /** Orders quote it with its category's dedicated quotation calculator instead of the generic
+   *  options/pricing picker (see custom-quotation.ts). */
+  customQuotation: boolean
   deletedAt: string | null
   options: ProductOption[]
   pricing: PricingEntry[]

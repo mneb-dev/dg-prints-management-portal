@@ -778,7 +778,7 @@ export function OrderForm({
         nextErrors[`item-${index}-product`] = PRODUCT_INACTIVE_MESSAGE
       } else if (
         !resolved.computed.isManual &&
-        !(resolved.product.category === "Sintra" && resolved.draft.isCustomSize)
+        !(resolved.computed.quotationKey === "Sintra" && resolved.draft.isCustomSize)
       ) {
         const missingRequired = resolved.product.options.some(
           (option) => option.required && !resolved.draft.optionValues[option.id]

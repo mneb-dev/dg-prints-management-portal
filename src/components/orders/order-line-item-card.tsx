@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react"
+import { createElement, useEffect, useRef } from "react"
 import { ChevronDownIcon, FlameIcon, InfoIcon, PackageIcon, Trash2Icon } from "lucide-react"
 
 import { CharCount } from "@/components/char-count"
@@ -21,23 +21,15 @@ import { CurrencyInput } from "@/components/ui/currency-input"
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { QuantityInput } from "@/components/ui/quantity-input"
-import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
-import type { LengthUnit } from "@/lib/length-units"
 import type { LineItemComputed, LineItemDraft } from "@/lib/order-line-item"
 import { resetDraftForProduct } from "@/lib/order-line-item"
-import { valueForOption } from "@/lib/pricing-resolver"
-import { ALL_VARIANTS, type PricingEntry, type Product } from "@/lib/products"
-import type { SintraThickness } from "@/lib/sintra-board-pricing"
-import type { StickerUnit } from "@/lib/sticker-quotation"
+import type { Product } from "@/lib/products"
 import { useScrollIntoViewOnOpen } from "@/lib/use-scroll-into-view-on-open"
 import { formatCurrency } from "@/lib/utils"
 
-import { LaminatedStickerQuotationFields } from "./laminated-sticker-quotation-fields"
-import { PricingFields } from "./pricing-fields"
-import { ProductOptionsFields } from "./product-options-fields"
-import { SintraBoardCustomFields } from "./sintra-board-custom-fields"
-import { StickerQuotationFields } from "./sticker-quotation-fields"
+import { getQuotationComponent } from "./quotations"
+import { StandardPricingFields } from "./quotations/standard-pricing-fields"
 
 export type LineItemErrorKey = "product" | "options" | "pricing" | "notes"
 
@@ -121,67 +113,8 @@ export function OrderLineItemCard({
     onClearError("pricing")
   }
 
-  function handleCustomSizeToggle(value: boolean) {
-    onChange({ ...draft, isCustomSize: value, optionValues: value ? {} : draft.optionValues })
-    onClearError("pricing")
-    onClearError("options")
-  }
-
-  function handleCustomWidthChange(value: string) {
-    onChange({ ...draft, customWidth: value })
-    onClearError("pricing")
-  }
-
-  function handleCustomHeightChange(value: string) {
-    onChange({ ...draft, customHeight: value })
-    onClearError("pricing")
-  }
-
-  function handleCustomThicknessChange(value: SintraThickness) {
-    onChange({ ...draft, customThickness: value })
-    onClearError("pricing")
-  }
-
-  function handleCustomBackToBackChange(value: boolean) {
-    onChange({ ...draft, customBackToBack: value })
-    onClearError("pricing")
-  }
-
-  function handleWidthChange(value: string) {
-    onChange({ ...draft, width: value })
-    onClearError("pricing")
-  }
-
-  function handleHeightChange(value: string) {
-    onChange({ ...draft, height: value })
-    onClearError("pricing")
-  }
-
-  function handlePackageEntryIdChange(value: string) {
-    onChange({ ...draft, packageEntryId: value })
-    onClearError("pricing")
-  }
-
   function handleQuantityChange(value: string) {
     onChange({ ...draft, quantity: value })
-    onClearError("pricing")
-  }
-
-  function handleDimensionUnitChange(value: LengthUnit) {
-    onChange({ ...draft, dimensionUnit: value })
-    onClearError("pricing")
-  }
-
-  // Selecting a quotation card for a card-selectable (Sticker / Laminated Sticker)
-  // product writes into optionValues — the value resolvePricing()/buildOrderItem() actually
-  // read — since these products drive pricing off a "Package" product option, not a
-  // multi-candidate PricingEntry list.
-  function handleSelectPackageOption(entry: PricingEntry) {
-    if (!computed.packageOption) return
-    const value =
-      valueForOption(entry.appliesTo, computed.packageOption.id) ?? computed.packageOption.values[0] ?? ALL_VARIANTS
-    onChange({ ...draft, optionValues: { ...draft.optionValues, [computed.packageOption.id]: value } })
-    onClearError("options")
     onClearError("pricing")
   }
 
@@ -353,106 +286,19 @@ export function OrderLineItemCard({
             </>
           )}
 
-          {product && !isMissingProduct && !computed.isManual && (
-            <>
-              {!(product.category === "Sintra" && draft.isCustomSize) && (
-                <>
-                  <ProductOptionsFields
-                    product={product}
-                    values={draft.optionValues}
-                    onChange={(optionId, value) => {
-                      onChange({ ...draft, optionValues: { ...draft.optionValues, [optionId]: value } })
-                      onClearError("options")
-                    }}
-                    excludeOptionIds={computed.packageOption ? [computed.packageOption.id] : undefined}
-                    idPrefix={idPrefix}
-                  />
-                  <FieldError>{errors.options}</FieldError>
-                </>
-              )}
-              {product.category === "Sintra" && (
-                <label className="flex items-center gap-2 text-sm font-medium">
-                  <Switch
-                    checked={draft.isCustomSize}
-                    onCheckedChange={(checked) => handleCustomSizeToggle(!!checked)}
-                  />
-                  Custom size
-                </label>
-              )}
-              {product.category === "Sintra" && draft.isCustomSize ? (
-                <SintraBoardCustomFields
-                  width={draft.customWidth}
-                  onWidthChange={handleCustomWidthChange}
-                  height={draft.customHeight}
-                  onHeightChange={handleCustomHeightChange}
-                  thickness={draft.customThickness}
-                  onThicknessChange={handleCustomThicknessChange}
-                  backToBack={draft.customBackToBack}
-                  onBackToBackChange={handleCustomBackToBackChange}
-                  quantity={draft.quantity}
-                  onQuantityChange={handleQuantityChange}
-                  idPrefix={idPrefix}
-                />
-              ) : (
-                <PricingFields
-                  resolution={computed.resolution}
-                  packageEntryId={draft.packageEntryId}
-                  onPackageEntryIdChange={handlePackageEntryIdChange}
-                  width={draft.width}
-                  onWidthChange={handleWidthChange}
-                  height={draft.height}
-                  onHeightChange={handleHeightChange}
-                  dimensionUnit={draft.dimensionUnit}
-                  onDimensionUnitChange={handleDimensionUnitChange}
-                  quantity={draft.quantity}
-                  onQuantityChange={handleQuantityChange}
-                  hidePackageSelector={computed.isCardSelectablePackage}
-                  hideQuantity={computed.isCardSelectablePackage}
-                  idPrefix={idPrefix}
-                />
-              )}
-              <FieldError>{errors.pricing}</FieldError>
-            </>
-          )}
-
-          {product && !isMissingProduct && product.category === "Sticker" && (
-            <StickerQuotationFields
-              width={draft.stickerWidth}
-              onWidthChange={(value: string) => onChange({ ...draft, stickerWidth: value })}
-              height={draft.stickerHeight}
-              onHeightChange={(value: string) => onChange({ ...draft, stickerHeight: value })}
-              unit={draft.stickerUnit}
-              onUnitChange={(value: StickerUnit) => onChange({ ...draft, stickerUnit: value })}
-              candidates={computed.packageCandidates}
-              onSelectPackage={(entryId) => {
-                const entry = computed.packageCandidates.find((candidate) => candidate.id === entryId)
-                if (entry) handleSelectPackageOption(entry)
-              }}
-              selectedEntryId={computed.selectedPackageCandidateId}
-              quantity={draft.quantity}
-              onQuantityChange={handleQuantityChange}
-            />
-          )}
-
-          {product && !isMissingProduct && computed.isLaminatedSticker && (
-            <LaminatedStickerQuotationFields
-              width={draft.stickerWidth}
-              onWidthChange={(value: string) => onChange({ ...draft, stickerWidth: value })}
-              height={draft.stickerHeight}
-              onHeightChange={(value: string) => onChange({ ...draft, stickerHeight: value })}
-              unit={draft.stickerUnit}
-              onUnitChange={(value: StickerUnit) => onChange({ ...draft, stickerUnit: value })}
-              candidates={computed.packageCandidates}
-              selectedEntryId={computed.selectedPackageCandidateId}
-              onSelectPackage={(entryId) => {
-                const entry = computed.packageCandidates.find((candidate) => candidate.id === entryId)
-                if (entry) handleSelectPackageOption(entry)
-              }}
-              showAmount
-              quantity={draft.quantity}
-              onQuantityChange={handleQuantityChange}
-            />
-          )}
+          {/* The category quotation when custom quotation is on, otherwise plain options + pricing. */}
+          {product &&
+            !isMissingProduct &&
+            !computed.isManual &&
+            createElement(getQuotationComponent(product) ?? StandardPricingFields, {
+              product,
+              draft,
+              computed,
+              onChange,
+              onClearError,
+              errors,
+              idPrefix,
+            })}
 
           {product && !isMissingProduct && (
             <Field data-invalid={!!errors.notes}>

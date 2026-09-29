@@ -4,11 +4,7 @@ import {
   type AppliesTo,
   type PricingEntry,
   type Product,
-  type ProductCategory,
 } from "@/lib/products"
-
-/** Categories whose package tiers are picked via clickable quotation cards instead of a dropdown. */
-export const CARD_SELECTABLE_PACKAGE_CATEGORIES: ProductCategory[] = ["Sticker", "Laminated Sticker"]
 
 /** True for an option name that identifies the package-tier option for card-selectable categories
  *  (Sticker / Laminated Sticker) — tolerant of "Package" vs "Packages", since pluralizing it is
@@ -134,6 +130,30 @@ export function previewPackageCandidates(product: Product, packageOptionId: stri
     if (entry) candidates.push(entry)
   }
   return candidates
+}
+
+/** The rate for an area-priced (Tarpaulin) quotation, charged as width × height (sq.ft.) × price
+ *  whatever unit the entry is labelled with: the resolved entry for the selected options,
+ *  otherwise the cheapest Per Unit entry that doesn't conflict with the options picked so far —
+ *  so width × height can be priced before every option is chosen. */
+export function areaRateEntry(
+  product: Product,
+  selectedValues: Record<string, string>,
+  resolution: PricingResolution
+): PricingEntry | null {
+  if (resolution.kind === "auto") return resolution.entry
+  const compatible = product.pricing.filter(
+    (entry) =>
+      entry.pricingType === "Per Unit" &&
+      (entry.appliesTo === ALL_VARIANTS ||
+        (Array.isArray(entry.appliesTo) &&
+          entry.appliesTo.every((condition) => {
+            const selected = selectedValues[condition.optionId]
+            return selected === undefined || selected === condition.value
+          })))
+  )
+  if (compatible.length === 0) return null
+  return compatible.reduce((min, entry) => (entry.price < min.price ? entry : min))
 }
 
 export function showsDimensionInputs(resolution: PricingResolution): boolean {

@@ -1,8 +1,8 @@
+import { customQuotationKeyFor, type CustomQuotationKey } from "@/lib/custom-quotation"
 import { convertToFeet, type LengthUnit } from "@/lib/length-units"
 import { calculateLaminatedStickerQuotation } from "@/lib/laminated-sticker-quotation"
 import type { OrderItem, OrderItemPricing } from "@/lib/orders-slice"
 import {
-  CARD_SELECTABLE_PACKAGE_CATEGORIES,
   computeLineTotal,
   describeAppliesTo,
   isManualPricingProduct,
@@ -10,6 +10,7 @@ import {
   packageCandidatesForSelection,
   previewPackageCandidates,
   resolvePricingPreview,
+  areaRateEntry,
   valueForOption,
   type PricingResolution,
 } from "@/lib/pricing-resolver"
@@ -166,6 +167,8 @@ export function draftFromOrderItem(item: OrderItem): LineItemDraft {
 
 export type LineItemComputed = {
   isManual: boolean
+  /** The category quotation this item uses — null when the product's custom quotation is off. */
+  quotationKey: CustomQuotationKey | null
   resolution: PricingResolution
   isCardSelectablePackage: boolean
   packageOption: ProductOption | null
@@ -193,11 +196,17 @@ function findPackageOption(product: Product) {
  */
 export function computeLineItemPricing(draft: LineItemDraft, product: Product | null): LineItemComputed {
   const isManual = product ? isManualPricingProduct(product) : false
+  // Sticker / Laminated Sticker / Sintra-custom pricing only applies with custom quotation on.
+  const quotationKey = customQuotationKeyFor(product)
+  const isStickerLabel = quotationKey === "Sticker Label"
+  const isLaminatedSticker = quotationKey === "Laminated Sticker"
   const resolution: PricingResolution =
     product && !isManual ? resolvePricingPreview(product, draft.optionValues) : { kind: "none" }
 
-  const isCardSelectablePackage =
-    !!product && CARD_SELECTABLE_PACKAGE_CATEGORIES.includes(product.category)
+  const isCardSelectablePackage = isStickerLabel || isLaminatedSticker
+  // Tarpaulin is always width × height (sq.ft.) × price, even before every option is picked.
+  const tarpaulinRate =
+    product && quotationKey === "Tarpaulin" ? areaRateEntry(product, draft.optionValues, resolution) : null
   const packageOption = product && isCardSelectablePackage ? findPackageOption(product) : null
   const packageCandidates: PricingEntry[] =
     product && isCardSelectablePackage && packageOption
@@ -221,9 +230,6 @@ export function computeLineItemPricing(draft: LineItemDraft, product: Product | 
           (candidate) => valueForOption(candidate.appliesTo, packageOption.id) === selectedPackageValue
         )?.id ?? null)
       : null)
-  const isStickerLabel = product?.category === "Sticker"
-  const isLaminatedSticker = product?.category === "Laminated Sticker"
-
   const stickerWidthNum = Number(draft.stickerWidth)
   const stickerHeightNum = Number(draft.stickerHeight)
   const hasValidStickerSize = stickerWidthNum > 0 && stickerHeightNum > 0
@@ -281,7 +287,7 @@ export function computeLineItemPricing(draft: LineItemDraft, product: Product | 
       return { pricingType: "Manual", productName: draft.manualProductName.trim(), unitPrice: price }
     }
 
-    if (product.category === "Sintra" && draft.isCustomSize) {
+    if (quotationKey === "Sintra" && draft.isCustomSize) {
       const w = Number(draft.customWidth)
       const h = Number(draft.customHeight)
       if (!(w > 0) || !(h > 0)) return null
@@ -299,6 +305,26 @@ export function computeLineItemPricing(draft: LineItemDraft, product: Product | 
         packageName: describeSintraCustom(draft.customThickness, draft.customBackToBack),
       }
     }
+
+    // Charged per sq.ft. of width × height (converted to feet).
+    function sqftPricing(entry: PricingEntry): OrderItemPricing | null {
+      const rawW = Number(draft.width)
+      const rawH = Number(draft.height)
+      const w = convertToFeet(rawW, draft.dimensionUnit)
+      const h = convertToFeet(rawH, draft.dimensionUnit)
+      if (!(w > 0) || !(h > 0)) return null
+      return {
+        pricingType: "Per Unit",
+        pricingEntryId: entry.id,
+        unitPrice: entry.price,
+        unit: "sq.ft.",
+        width: w,
+        height: h,
+        displaySize: { width: rawW, height: rawH, unit: draft.dimensionUnit },
+      }
+    }
+
+    if (tarpaulinRate) return sqftPricing(tarpaulinRate)
 
     if (resolution.kind === "package") {
       const entry = resolution.candidates.find((candidate) => candidate.id === draft.packageEntryId)
@@ -332,22 +358,7 @@ export function computeLineItemPricing(draft: LineItemDraft, product: Product | 
         }
       }
       if (entry.pricingType === "Per Unit") {
-        if (entry.unit === "sq.ft.") {
-          const rawW = Number(draft.width)
-          const rawH = Number(draft.height)
-          const w = convertToFeet(rawW, draft.dimensionUnit)
-          const h = convertToFeet(rawH, draft.dimensionUnit)
-          if (!(w > 0) || !(h > 0)) return null
-          return {
-            pricingType: "Per Unit",
-            pricingEntryId: entry.id,
-            unitPrice: entry.price,
-            unit: entry.unit,
-            width: w,
-            height: h,
-            displaySize: { width: rawW, height: rawH, unit: draft.dimensionUnit },
-          }
-        }
+        if (entry.unit === "sq.ft.") return sqftPricing(entry)
         return { pricingType: "Per Unit", pricingEntryId: entry.id, unitPrice: entry.price, unit: entry.unit }
       }
       return { pricingType: "Fixed", pricingEntryId: entry.id, unitPrice: entry.price, unit: entry.unit }
@@ -362,6 +373,7 @@ export function computeLineItemPricing(draft: LineItemDraft, product: Product | 
 
   return {
     isManual,
+    quotationKey,
     resolution,
     isCardSelectablePackage,
     packageOption,

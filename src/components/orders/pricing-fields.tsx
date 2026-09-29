@@ -28,6 +28,7 @@ export function PricingFields({
   onQuantityChange,
   hidePackageSelector = false,
   hideQuantity = false,
+  alwaysShowDimensions = false,
   idPrefix = "",
 }: {
   resolution: PricingResolution
@@ -43,9 +44,11 @@ export function PricingFields({
   onQuantityChange: (value: string) => void
   hidePackageSelector?: boolean
   hideQuantity?: boolean
+  /** Show width/height even before pricing resolves to a sq.ft. rate (Tarpaulin custom quotation). */
+  alwaysShowDimensions?: boolean
   idPrefix?: string
 }) {
-  if (resolution.kind === "none") {
+  if (resolution.kind === "none" && !alwaysShowDimensions) {
     return (
       <p className="text-sm text-muted-foreground">
         Select all required options to see pricing.
@@ -53,7 +56,8 @@ export function PricingFields({
     )
   }
 
-  const showsDimensions = resolution.kind === "auto" && resolution.entry.unit === "sq.ft."
+  const showsDimensions =
+    alwaysShowDimensions || (resolution.kind === "auto" && resolution.entry.unit === "sq.ft.")
 
   return (
     <>

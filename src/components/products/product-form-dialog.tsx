@@ -41,6 +41,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { ToggleGroup } from "@/components/ui/toggle-group"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useActiveCategories } from "@/lib/categories"
+import { customQuotationKeyForCategory } from "@/lib/custom-quotation"
 import {
   ALL_VARIANTS,
   useProductActions,
@@ -69,6 +70,7 @@ function emptyDraft(): ProductInput {
     status: "Active",
     showInShop: false,
     madeToOrder: false,
+    customQuotation: false,
     options: [],
     pricing: [],
   }
@@ -82,6 +84,7 @@ function draftFromProduct(product: Product): ProductInput {
     status: product.status,
     showInShop: product.showInShop,
     madeToOrder: product.madeToOrder,
+    customQuotation: product.customQuotation,
     options: product.options,
     pricing: product.pricing,
   }
@@ -511,6 +514,7 @@ export function ProductFormDialog({
   const combinations = isSinglePrice ? [] : cartesianOptionCombinations(draft.options)
   const variantPrices = draft.pricing.map((entry) => entry.price).filter((price) => price > 0)
   const isActive = draft.status === "Active"
+  const quotationKey = customQuotationKeyForCategory(draft.category)
 
   const stepAnimation = cn(
     "flex animate-in flex-col gap-5 duration-200 fade-in-0 motion-reduce:animate-none",
@@ -788,6 +792,20 @@ export function ProductFormDialog({
                     checked={draft.madeToOrder}
                     dimmed={!draft.showInShop}
                     onCheckedChange={(checked) => setDraft((prev) => ({ ...prev, madeToOrder: checked }))}
+                  />
+                  <SwitchRow
+                    id="product-custom-quotation"
+                    label="Custom quotation"
+                    description={
+                      !quotationKey
+                        ? "No quotation calculator exists for this category."
+                        : draft.customQuotation
+                          ? `Orders use the ${quotationKey} quotation calculator instead of picking options and pricing.`
+                          : `Turn on to quote orders with the ${quotationKey} quotation calculator.`
+                    }
+                    checked={draft.customQuotation}
+                    dimmed={!quotationKey}
+                    onCheckedChange={(checked) => setDraft((prev) => ({ ...prev, customQuotation: checked }))}
                   />
                 </div>
               </div>
