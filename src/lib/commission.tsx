@@ -1,8 +1,10 @@
 import { useEffect } from "react"
+import { endOfMonth, format, parseISO } from "date-fns"
 
 import {
   fetchCommissionOrdersThunk,
   fetchCommissionSummaryThunk,
+  fetchIncentiveMonthSplitThunk,
   fetchMonthlyIncentiveHistoryThunk,
   fetchMonthlyIncentiveSummaryThunk,
   fetchPreviousMonthlyIncentiveSummaryThunk,
@@ -184,5 +186,39 @@ export function useMonthlyIncentiveHistory(year: number) {
     refetch: () => {
       dispatch(fetchMonthlyIncentiveHistoryThunk({ year }))
     },
+  }
+}
+
+/** Admin/superadmin-only: how one month's pool splits across staff, for the release history table's
+ * expandable rows and the release confirmation. `periodMonth` is the history row's "yyyy-MM-01"
+ * key; pass null to skip. Released months return the split locked at release, others the live one.
+ * Fetches once per month and reuses the cache (a release/undo drops that month's entry). */
+export function useIncentiveMonthSplit(periodMonth: string | null) {
+  const entry = useAppSelector((state) => (periodMonth ? state.commission.incentiveSplits[periodMonth] : undefined))
+  const dispatch = useAppDispatch()
+  const isMissing = entry === undefined
+
+  const fetchSplit = () => {
+    if (!periodMonth) return
+    const monthStart = parseISO(periodMonth)
+    dispatch(
+      fetchIncentiveMonthSplitThunk({
+        periodMonth,
+        dateFrom: format(monthStart, "yyyy-MM-dd"),
+        dateTo: format(endOfMonth(monthStart), "yyyy-MM-dd"),
+      })
+    )
+  }
+
+  useEffect(() => {
+    if (isMissing) fetchSplit()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- refetch only when the month/cache entry changes
+  }, [periodMonth, isMissing])
+
+  return {
+    rows: entry?.rows ?? [],
+    isLoading: !entry || entry.status === "loading",
+    isError: entry?.status === "failed",
+    refetch: fetchSplit,
   }
 }

@@ -204,6 +204,24 @@ export const fetchPreviousMonthlyIncentiveSummaryThunk = createAsyncThunk<
   }
 })
 
+// Per-month split for the release history table's expandable rows (and the release confirmation
+// preview). Same endpoint again, but its own action type and a cache keyed by month, so any number
+// of expanded months load independently without touching the current/previous-month slots.
+export const fetchIncentiveMonthSplitThunk = createAsyncThunk<
+  { periodMonth: string; perStaff: MonthlyIncentiveStaffShare[] },
+  { periodMonth: string; dateFrom: string; dateTo: string },
+  { rejectValue: string; state: RootState }
+>("commission/fetchIncentiveMonthSplit", async ({ dateFrom, dateTo, periodMonth }, { rejectWithValue }) => {
+  try {
+    const { data } = await apiClient.get<MonthlyIncentiveSummary>("/commissions/monthly-incentive-summary", {
+      params: { dateFrom, dateTo },
+    })
+    return { periodMonth, perStaff: data.perStaff }
+  } catch (err) {
+    return rejectWithValue(getErrorMessage(err))
+  }
+})
+
 export const releaseMonthlyIncentiveThunk = createAsyncThunk<
   { releaseId: string; periodMonth: string },
   { dateFrom: string; dateTo: string },
@@ -252,6 +270,16 @@ export const fetchMonthlyIncentiveHistoryThunk = createAsyncThunk<
   }
 })
 
+/** "yyyy-MM-dd" → the "yyyy-MM-01" periodMonth key the history RPC uses for that month. */
+const monthKey = (date: string) => `${date.slice(0, 7)}-01`
+
+export type IncentiveMonthSplitEntry = {
+  status: "loading" | "succeeded" | "failed"
+  rows: MonthlyIncentiveStaffShare[]
+  error: string | null
+  requestId: string
+}
+
 type CommissionState = {
   rows: CommissionSummaryRow[]
   status: "idle" | "loading" | "succeeded" | "failed"
@@ -275,6 +303,8 @@ type CommissionState = {
   incentiveHistoryStatus: "idle" | "loading" | "succeeded" | "failed"
   incentiveHistoryError: string | null
   latestIncentiveHistoryRequestId: string | null
+  /** Keyed by periodMonth ("yyyy-MM-01"). */
+  incentiveSplits: Record<string, IncentiveMonthSplitEntry>
 }
 
 const initialState: CommissionState = {
@@ -300,6 +330,7 @@ const initialState: CommissionState = {
   incentiveHistoryStatus: "idle",
   incentiveHistoryError: null,
   latestIncentiveHistoryRequestId: null,
+  incentiveSplits: {},
 }
 
 const commissionSlice = createSlice({
@@ -384,6 +415,35 @@ const commissionSlice = createSlice({
         if (action.meta.requestId !== state.latestIncentiveHistoryRequestId) return
         state.incentiveHistoryStatus = "failed"
         state.incentiveHistoryError = action.payload ?? "Failed to load the incentive release history."
+      })
+      .addCase(fetchIncentiveMonthSplitThunk.pending, (state, action) => {
+        const { periodMonth } = action.meta.arg
+        state.incentiveSplits[periodMonth] = {
+          status: "loading",
+          rows: state.incentiveSplits[periodMonth]?.rows ?? [],
+          error: null,
+          requestId: action.meta.requestId,
+        }
+      })
+      .addCase(fetchIncentiveMonthSplitThunk.fulfilled, (state, action) => {
+        const entry = state.incentiveSplits[action.meta.arg.periodMonth]
+        if (entry?.requestId !== action.meta.requestId) return
+        entry.status = "succeeded"
+        entry.rows = action.payload.perStaff
+      })
+      .addCase(fetchIncentiveMonthSplitThunk.rejected, (state, action) => {
+        const entry = state.incentiveSplits[action.meta.arg.periodMonth]
+        if (entry?.requestId !== action.meta.requestId) return
+        entry.status = "failed"
+        entry.error = action.payload ?? "Failed to load the incentive split."
+      })
+      // A release swaps a month's split from live to the locked snapshot (and undo swaps it back),
+      // so drop that month's cached split -- whoever is showing it refetches.
+      .addCase(releaseMonthlyIncentiveThunk.fulfilled, (state, action) => {
+        delete state.incentiveSplits[monthKey(action.meta.arg.dateFrom)]
+      })
+      .addCase(unreleaseMonthlyIncentiveThunk.fulfilled, (state, action) => {
+        delete state.incentiveSplits[monthKey(action.meta.arg.dateFrom)]
       })
   },
 })
