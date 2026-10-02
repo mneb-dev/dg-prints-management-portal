@@ -13,11 +13,15 @@ export type AppSettings = {
   shippingRates: ShippingRates
   /** Messenger link for the online shop's "Message us on Facebook" button; "" = not configured. */
   messengerUrl: string
+  /** Online shop convenience fee (% of items + shipping) added when the buyer pays online; 0 = off. */
+  convenienceFeePercent: number
   updatedAt: string
 }
 
 /** Partial: only the fields sent are updated. */
-export type AppSettingsInput = Partial<Pick<AppSettings, "shippingFee" | "shippingRates" | "messengerUrl">>
+export type AppSettingsInput = Partial<
+  Pick<AppSettings, "shippingFee" | "shippingRates" | "messengerUrl" | "convenienceFeePercent">
+>
 
 export const fetchSettingsThunk = createAsyncThunk<AppSettings, void, { rejectValue: string }>(
   "settings/fetch",

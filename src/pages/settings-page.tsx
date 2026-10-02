@@ -14,6 +14,7 @@ import { toast } from "sonner"
 import { IconBadge } from "@/components/icon-badge"
 import { PageHeader } from "@/components/page-header"
 import { CatalogList } from "@/components/settings/catalog-list"
+import { ConvenienceFeeCard } from "@/components/settings/convenience-fee-card"
 import { MessengerLinkCard } from "@/components/settings/messenger-link-card"
 import { ShippingRatesCard } from "@/components/settings/shipping-rates-card"
 import { IncentiveTierList } from "@/components/settings/incentive-tier-list"
@@ -255,10 +256,11 @@ export function SettingsPage() {
           id="online-shop"
           icon={MessageCircleIcon}
           title="Online shop"
-          description="Checkout shipping fees and how buyers reach you."
+          description="Checkout shipping and convenience fees, and how buyers reach you."
         >
           <div className="flex flex-col gap-4">
             <ShippingRatesCard />
+            <ConvenienceFeeCard />
             <MessengerLinkCard />
           </div>
         </SettingsSection>

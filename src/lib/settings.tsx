@@ -10,6 +10,7 @@ const FALLBACK_SETTINGS: AppSettings = {
   shippingFee: 0,
   shippingRates: { luzon: 0, visayas: 0, mindanao: 0 },
   messengerUrl: "",
+  convenienceFeePercent: 0,
   updatedAt: "",
 }
 
