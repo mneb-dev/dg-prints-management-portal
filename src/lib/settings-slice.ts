@@ -15,12 +15,15 @@ export type AppSettings = {
   messengerUrl: string
   /** Online shop convenience fee (% of items + shipping) added when the buyer pays online; 0 = off. */
   convenienceFeePercent: number
+  /** Online payment options the shop's checkout offers (PayMongo types, display order; first = default).
+   *  Separate from the payment methods staff pick on orders. */
+  shopPaymentMethods: string[]
   updatedAt: string
 }
 
 /** Partial: only the fields sent are updated. */
 export type AppSettingsInput = Partial<
-  Pick<AppSettings, "shippingFee" | "shippingRates" | "messengerUrl" | "convenienceFeePercent">
+  Pick<AppSettings, "shippingFee" | "shippingRates" | "messengerUrl" | "convenienceFeePercent" | "shopPaymentMethods">
 >
 
 export const fetchSettingsThunk = createAsyncThunk<AppSettings, void, { rejectValue: string }>(

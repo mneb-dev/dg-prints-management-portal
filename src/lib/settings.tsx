@@ -11,6 +11,7 @@ const FALLBACK_SETTINGS: AppSettings = {
   shippingRates: { luzon: 0, visayas: 0, mindanao: 0 },
   messengerUrl: "",
   convenienceFeePercent: 0,
+  shopPaymentMethods: ["gcash"],
   updatedAt: "",
 }
 
