@@ -560,7 +560,10 @@ export function OrderDetailsPage() {
                 {order.payment.status !== "unpaid" && order.payment.status !== "refunded" && (
                   <div className="flex flex-col gap-1.5">
                     <dt className="text-xs text-muted-foreground">Method</dt>
-                    <dd className="font-medium">{order.payment.method || "—"}</dd>
+                    <dd className="font-medium">
+                      {order.payment.method || "—"}
+                      {order.paidOnline && <span className="font-normal text-muted-foreground"> · paid online</span>}
+                    </dd>
                   </div>
                 )}
               </dl>

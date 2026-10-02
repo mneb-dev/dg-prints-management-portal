@@ -13,13 +13,17 @@ import { PAYMENT_STATUSES, usePaymentStatusUpdate } from "@/lib/orders"
 import type { Order, PaymentStatus } from "@/lib/orders"
 import { cn } from "@/lib/utils"
 
-import { PAYMENT_STATUS_LABELS, PaymentStatusDot } from "./payment-status-badge"
+import { PAYMENT_STATUS_LABELS, PaymentStatusBadge, PaymentStatusDot } from "./payment-status-badge"
 
 /** Compact, click-to-change payment control for the orders table row — same trigger/menu shape
  * as `OrderStatusMenu` (neutral chrome + status dot). `unpaid` commits instantly. `paid` and
  * `partially_paid` always hand off to `onRequestPayment` so the caller can open
  * `RecordPaymentDialog` and let the user confirm or change the method (and amount, for
- * `partially_paid`) first — never an instant, silent commit. */
+ * `partially_paid`) first — never an instant, silent commit.
+ *
+ * Orders paid online through PayMongo (`order.paidOnline`) keep the payment PayMongo recorded: the
+ * menu lists only the current status and Refunded (marked after refunding in PayMongo), and once
+ * refunded it's a plain badge. The server enforces the same rule. */
 export function PaymentStatusMenu({
   order,
   onRequestPayment,
@@ -34,6 +38,15 @@ export function PaymentStatusMenu({
   triggerClassName?: string
 }) {
   const { updatePayment, isUpdating } = usePaymentStatusUpdate()
+  const lockedToRefund = order.paidOnline
+
+  if (lockedToRefund && order.payment.status === "refunded") {
+    return <PaymentStatusBadge status={order.payment.status} />
+  }
+  // Paid online: only the current status and Refunded are offered.
+  const visibleStatuses = lockedToRefund
+    ? PAYMENT_STATUSES.filter((status) => status === order.payment.status || status === "refunded")
+    : PAYMENT_STATUSES
 
   async function handleSelect(status: PaymentStatus) {
     if (status === order.payment.status || isUpdating) return
@@ -76,7 +89,7 @@ export function PaymentStatusMenu({
         <ChevronDownIcon className={cn("ml-auto opacity-70", size === "lg" ? "size-4" : "size-3")} />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start">
-        {PAYMENT_STATUSES.map((status) => (
+        {visibleStatuses.map((status) => (
           <Fragment key={status}>
             {status === "refunded" && <DropdownMenuSeparator />}
             <DropdownMenuItem

@@ -102,6 +102,7 @@ import { OrderLineItemCard, type LineItemErrorKey } from "./order-line-item-card
 import { OrderSummaryPanel } from "./order-summary-panel"
 import { buildOrderSummaryCopyText, type LineItemSummary } from "./order-summary-text"
 import { PaymentFields } from "./payment-fields"
+import { PaymentStatusBadge } from "./payment-status-badge"
 import { SaveOrderDraftDialog } from "./save-order-draft-dialog"
 import { ShippingAddressFields } from "./shipping-address-fields"
 
@@ -295,6 +296,9 @@ export function OrderForm({
   const { settings } = useSettings()
   const { role } = useAuth()
   const canEditMetadata = !!order && canEditOrderMetadata(role)
+  // Paid online through PayMongo: the payment (and channel) stay exactly as PayMongo recorded them —
+  // shown read-only and sent back unchanged. Marking it refunded happens from the order page.
+  const paymentLocked = !!order?.paidOnline
   // Unconditionally enabled (unlike the admin-only Created By/Status Updated By fields below,
   // which reuse this same list) since Layout By is a normal field any role can set.
   const { users: userOptions } = useUserOptions(true)
@@ -780,7 +784,7 @@ export function OrderForm({
       }
     }
 
-    if (markPaid && paymentStatus !== "refunded") {
+    if (!paymentLocked && markPaid && paymentStatus !== "refunded") {
       const effectiveMethod = channel === "Shopee" ? "Bank Transfer" : paymentMethod
       const paymentErrors = validatePaymentAmount({
         effectiveMethod,
@@ -875,8 +879,8 @@ export function OrderForm({
           total,
           notes: notes.trim(),
           shippingAddress: resolveShippingAddress(),
-          channel: channel as OrderChannel,
-          payment: resolvePayment(total),
+          channel: paymentLocked ? order.channel : (channel as OrderChannel),
+          payment: paymentLocked ? order.payment : resolvePayment(total),
           ...buildAdminMetadataChanges(),
         })
         toast.success("Order updated.")
@@ -1367,34 +1371,61 @@ export function OrderForm({
             <OrderFormSectionHeader icon={WalletIcon} title="Payment" description="Channel and how much is paid" />
           </CardHeader>
           <CardContent>
-            <PaymentFields
-              channel={channel}
-              onChannelChange={(value) => {
-                setChannel(value)
-                clearError("channel")
-              }}
-              markPaid={markPaid}
-              onMarkPaidChange={setMarkPaid}
-              paymentStatus={paymentStatus}
-              onPaymentStatusChange={setPaymentStatus}
-              paymentMethod={paymentMethod}
-              onPaymentMethodChange={(value) => {
-                setPaymentMethod(value)
-                clearError("paymentMethod")
-              }}
-              downPayment={downPayment}
-              onDownPaymentChange={(value) => {
-                setDownPayment(value)
-                clearError("downPayment")
-              }}
-              total={previewTotal}
-              allowRefunded={!!order}
-              errors={{
-                channel: errors.channel,
-                paymentMethod: errors.paymentMethod,
-                downPayment: errors.downPayment,
-              }}
-            />
+            {paymentLocked && order ? (
+              <div className="flex flex-col gap-4">
+                <dl className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-3">
+                  <div className="flex flex-col gap-1.5">
+                    <dt className="text-xs text-muted-foreground">Channel</dt>
+                    <dd className="font-medium">{order.channel}</dd>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <dt className="text-xs text-muted-foreground">Status</dt>
+                    <dd>
+                      <PaymentStatusBadge status={order.payment.status} />
+                    </dd>
+                  </div>
+                  {order.payment.status !== "refunded" && (
+                    <div className="flex flex-col gap-1.5">
+                      <dt className="text-xs text-muted-foreground">Method</dt>
+                      <dd className="font-medium">{order.payment.method || "—"}</dd>
+                    </div>
+                  )}
+                </dl>
+                <p className="text-xs text-muted-foreground">
+                  Paid online via PayMongo, so the payment can't be edited here. To refund, refund it in PayMongo,
+                  then mark it Refunded from the order page.
+                </p>
+              </div>
+            ) : (
+              <PaymentFields
+                channel={channel}
+                onChannelChange={(value) => {
+                  setChannel(value)
+                  clearError("channel")
+                }}
+                markPaid={markPaid}
+                onMarkPaidChange={setMarkPaid}
+                paymentStatus={paymentStatus}
+                onPaymentStatusChange={setPaymentStatus}
+                paymentMethod={paymentMethod}
+                onPaymentMethodChange={(value) => {
+                  setPaymentMethod(value)
+                  clearError("paymentMethod")
+                }}
+                downPayment={downPayment}
+                onDownPaymentChange={(value) => {
+                  setDownPayment(value)
+                  clearError("downPayment")
+                }}
+                total={previewTotal}
+                allowRefunded={!!order}
+                errors={{
+                  channel: errors.channel,
+                  paymentMethod: errors.paymentMethod,
+                  downPayment: errors.downPayment,
+                }}
+              />
+            )}
           </CardContent>
         </Card>
 

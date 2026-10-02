@@ -158,6 +158,8 @@ export type Order = {
   statusUpdatedByName: string
   statusUpdatedAt: string | null
   orRequest: OrRequest | null
+  /** Paid through the online shop's PayMongo checkout: the payment can then only be marked refunded. */
+  paidOnline: boolean
 }
 
 export type OrderInput = Omit<
@@ -173,6 +175,7 @@ export type OrderInput = Omit<
   | "statusUpdatedByName"
   | "statusUpdatedAt"
   | "orRequest"
+  | "paidOnline"
 >
 
 // Fields only an admin/superadmin may include when updating an order (enforced
@@ -209,6 +212,7 @@ function normalizeOrder(order: Order): Order {
       ? { ...order.shippingAddress, fee: order.shippingAddress.fee ?? 0 }
       : null,
     orRequest: order.orRequest ?? null,
+    paidOnline: order.paidOnline ?? false,
     items: order.items.map((item) => ({
       ...item,
       stickerQuotation: item.stickerQuotation ?? null,
