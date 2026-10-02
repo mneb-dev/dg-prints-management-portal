@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react"
 import { format, parseISO } from "date-fns"
-import { ArrowUpDownIcon, PlusIcon, SlidersHorizontalIcon, UserXIcon } from "lucide-react"
+import { ArrowUpDownIcon, PlusIcon, SearchCheckIcon, SlidersHorizontalIcon, UserXIcon } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 import { toast } from "sonner"
 
 import { ArrangeOrderDialog } from "@/components/orders/arrange-order-dialog"
 import { CancelOrderDialog } from "@/components/orders/cancel-order-dialog"
+import { CheckOnlinePaymentDialog } from "@/components/orders/check-online-payment-dialog"
 import { DeleteOrderDialog } from "@/components/orders/delete-order-dialog"
 import { OrderTable } from "@/components/orders/order-table"
 import { PAYMENT_STATUS_LABELS, PaymentStatusDot } from "@/components/orders/payment-status-badge"
@@ -116,6 +117,7 @@ export function OrdersPage() {
   }
   const [searchInput, setSearchInput] = useState(params.search)
   const debouncedSearch = useDebouncedValue(searchInput, 400)
+  const [checkPaymentOpen, setCheckPaymentOpen] = useState(false)
   const [cancellingOrder, setCancellingOrder] = useState<Order | null>(null)
   const [arrangingOrder, setArrangingOrder] = useState<Order | null>(null)
   const [refundingOrder, setRefundingOrder] = useState<Order | null>(null)
@@ -305,6 +307,12 @@ export function OrdersPage() {
         actions={
           <>
             <RefreshButton onRefresh={refetch} isRefreshing={isFetching} />
+            {canManage ? (
+              <Button variant="outline" onClick={() => setCheckPaymentOpen(true)}>
+                <SearchCheckIcon data-icon="inline-start" />
+                Check payment
+              </Button>
+            ) : undefined}
             {canManage ? (
               <Button onClick={() => navigate("/orders/new")}>
                 <PlusIcon data-icon="inline-start" />
@@ -663,6 +671,10 @@ export function OrdersPage() {
         onOpenChange={(open) => !open && setRequestingOrOrder(null)}
         onConfirm={handleConfirmRequestOr}
       />
+
+      {canManage && (
+        <CheckOnlinePaymentDialog open={checkPaymentOpen} onOpenChange={setCheckPaymentOpen} onOrderCreated={refetch} />
+      )}
     </div>
   )
 }
