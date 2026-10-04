@@ -27,6 +27,7 @@ import { resetDraftForProduct } from "@/lib/order-line-item"
 import type { Product } from "@/lib/products"
 import { useScrollIntoViewOnOpen } from "@/lib/use-scroll-into-view-on-open"
 import { formatCurrency } from "@/lib/utils"
+import { NOTES_MAX_LENGTH } from "@/lib/validation"
 
 import { getQuotationComponent } from "./quotations"
 import { StandardPricingFields } from "./quotations/standard-pricing-fields"
@@ -311,7 +312,7 @@ export function OrderLineItemCard({
             <Field data-invalid={!!errors.notes}>
               <div className="flex items-baseline justify-between gap-2">
                 <FieldLabel htmlFor={`${idPrefix}order-notes`}>Notes</FieldLabel>
-                <CharCount value={draft.notes} max={60} />
+                <CharCount value={draft.notes} max={NOTES_MAX_LENGTH} />
               </div>
               <Textarea
                 id={`${idPrefix}order-notes`}
@@ -321,7 +322,7 @@ export function OrderLineItemCard({
                   onClearError("notes")
                 }}
                 placeholder="Please use the uploaded design."
-                maxLength={60}
+                maxLength={NOTES_MAX_LENGTH}
                 aria-invalid={!!errors.notes}
               />
               <FieldError>{errors.notes}</FieldError>

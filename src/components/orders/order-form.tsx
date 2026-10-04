@@ -100,6 +100,7 @@ import {
   isValidPhMobileNumber,
   LAYOUT_BY_REQUIRED_MESSAGE,
   maxLengthMessage,
+  NOTES_MAX_LENGTH,
   NOTES_REQUIRED_WHEN_FEES_MESSAGE,
   PHONE_FORMAT_MESSAGE,
   PRICING_INCOMPLETE_MESSAGE,
@@ -902,8 +903,8 @@ export function OrderForm({
       nextErrors.customerPhone = PHONE_FORMAT_MESSAGE
     }
 
-    if (notes.length > 20) {
-      nextErrors.notes = maxLengthMessage("Notes", 20)
+    if (notes.length > NOTES_MAX_LENGTH) {
+      nextErrors.notes = maxLengthMessage("Fee note", NOTES_MAX_LENGTH)
     } else if (additionalFeesNum > 0 && !notes.trim()) {
       nextErrors.notes = NOTES_REQUIRED_WHEN_FEES_MESSAGE
     }
@@ -971,8 +972,8 @@ export function OrderForm({
         nextErrors[`item-${index}-pricing`] = PRICING_INCOMPLETE_MESSAGE
       }
 
-      if (resolved.draft.notes.length > 60) {
-        nextErrors[`item-${index}-notes`] = maxLengthMessage("Notes", 60)
+      if (resolved.draft.notes.length > NOTES_MAX_LENGTH) {
+        nextErrors[`item-${index}-notes`] = maxLengthMessage("Notes", NOTES_MAX_LENGTH)
       }
     })
 
@@ -1432,7 +1433,7 @@ export function OrderForm({
                       Fee note
                       {additionalFeesNum > 0 && <RequiredMark />}
                     </FieldLabel>
-                    <CharCount value={notes} max={20} />
+                    <CharCount value={notes} max={NOTES_MAX_LENGTH} />
                   </div>
                   <Input
                     id="order-notes"
@@ -1442,7 +1443,7 @@ export function OrderForm({
                       clearError("notes")
                     }}
                     placeholder="e.g. Rush fee"
-                    maxLength={20}
+                    maxLength={NOTES_MAX_LENGTH}
                     aria-invalid={!!errors.notes}
                   />
                   {errors.notes ? (

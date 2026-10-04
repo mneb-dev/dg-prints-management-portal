@@ -14,6 +14,10 @@ export function maxLengthMessage(fieldLabel: string, max: number): string {
   return `${fieldLabel} must be ${max} characters or fewer.`
 }
 
+/** Max length of order notes — each item's notes and the order's fee note. Matches the server and
+ * the online shop's cart notes. */
+export const NOTES_MAX_LENGTH = 250
+
 /** "Enter a {fieldLabel} greater than ₱0." — says exactly what's wrong, unlike "Enter a valid
  *  price." */
 export function positiveAmountMessage(fieldLabel: string = "price"): string {

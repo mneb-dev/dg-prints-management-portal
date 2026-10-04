@@ -55,10 +55,13 @@ export function OrderTotals({
       <dl className="flex flex-col gap-1.5 text-sm">
         <SummaryRow label="Subtotal" value={formatCurrency(subtotal)} />
         {additionalFees > 0 && (
-          <SummaryRow
-            label={note ? `Additional fees (${note})` : "Additional fees"}
-            value={formatCurrency(additionalFees)}
-          />
+          // The fee note can run to 250 characters, so it wraps on its own line under the fee.
+          <div className="flex flex-col gap-0.5">
+            <SummaryRow label="Additional fees" value={formatCurrency(additionalFees)} />
+            {note ? (
+              <span className="text-xs break-words whitespace-pre-line text-muted-foreground">{note}</span>
+            ) : null}
+          </div>
         )}
         {layoutFee > 0 && (
           <div className="flex flex-col gap-0.5">

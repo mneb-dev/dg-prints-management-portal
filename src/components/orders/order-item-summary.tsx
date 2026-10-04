@@ -147,7 +147,7 @@ export function OrderItemSummary({
         {item.notes && (
           <div className="contents">
             <dt className="text-muted-foreground">Notes</dt>
-            <dd>{item.notes}</dd>
+            <dd className="min-w-0 break-words whitespace-pre-line">{item.notes}</dd>
           </div>
         )}
       </dl>
