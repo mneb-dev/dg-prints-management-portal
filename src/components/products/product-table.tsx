@@ -1,5 +1,6 @@
 import { useState, type MouseEvent, type ReactNode } from "react"
 import {
+  ExternalLinkIcon,
   ImagesIcon,
   Loader2Icon,
   MoreHorizontalIcon,
@@ -46,6 +47,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { isNewProduct } from "@/lib/new-products"
 import { cn, formatCurrency } from "@/lib/utils"
 import { summarizePricing, type Product } from "@/lib/products"
+import { SHOP_URL } from "@/lib/shop-url"
 import type { Role } from "@/lib/users-slice"
 
 /** Neutral chip + dot, like every other status chip in the app (docs/design-system.md). */
@@ -104,17 +106,41 @@ function ShopToggle({
     }
   }
 
+  // Only for a saved listing — the shop 404s on a product that isn't shown there yet.
+  const shopProductUrl = SHOP_URL && product.showInShop ? `${SHOP_URL}/shop/${product.id}` : null
+
   return (
-    <label className="inline-flex items-center gap-1.5 text-xs text-muted-foreground" onClick={stopRowClick}>
-      <Switch
-        size="sm"
-        checked={checked}
-        disabled={readOnly || !onToggle || pending !== null}
-        onCheckedChange={(next) => handleChange(!!next)}
-        aria-label={`Show ${product.name} in online shop`}
-      />
-      <span className="leading-none">{checked ? "Listed" : "Hidden"}</span>
-    </label>
+    <span className="inline-flex items-center gap-1">
+      <label className="inline-flex items-center gap-1.5 text-xs text-muted-foreground" onClick={stopRowClick}>
+        <Switch
+          size="sm"
+          checked={checked}
+          disabled={readOnly || !onToggle || pending !== null}
+          onCheckedChange={(next) => handleChange(!!next)}
+          aria-label={`Show ${product.name} in online shop`}
+        />
+        <span className="leading-none">{checked ? "Listed" : "Hidden"}</span>
+      </label>
+      {shopProductUrl && (
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <a
+                href={shopProductUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={stopRowClick}
+                aria-label={`View ${product.name} in the online shop (opens in a new tab)`}
+                className="inline-flex size-6 items-center justify-center rounded-md text-muted-foreground outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+              />
+            }
+          >
+            <ExternalLinkIcon className="size-3.5" />
+          </TooltipTrigger>
+          <TooltipContent>View in online shop</TooltipContent>
+        </Tooltip>
+      )}
+    </span>
   )
 }
 

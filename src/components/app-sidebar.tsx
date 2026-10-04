@@ -1,11 +1,13 @@
 import { useEffect, type ComponentProps, type MouseEvent } from "react"
 import {
   CalculatorIcon,
+  ExternalLinkIcon,
   LayoutDashboardIcon,
   LineChartIcon,
   PackageIcon,
   ReceiptTextIcon,
   ShoppingCartIcon,
+  StoreIcon,
   TrophyIcon,
   UsersIcon,
   type LucideIcon,
@@ -18,6 +20,7 @@ import { useAuth } from "@/lib/auth"
 import { useNavGuard } from "@/lib/nav-guard"
 import { DASHBOARD_EXCLUDED_STATUSES, ORDER_TERMINAL_STATUSES, useOrderStats } from "@/lib/orders"
 import { useNewProducts } from "@/lib/products"
+import { SHOP_URL } from "@/lib/shop-url"
 import { cn } from "@/lib/utils"
 import {
   Sidebar,
@@ -203,6 +206,25 @@ export function AppSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
       </SidebarContent>
       <SidebarSeparator />
       <SidebarFooter>
+        {SHOP_URL ? (
+          // External, so it opens in a new tab and skips the nav guard — an open order form stays as is.
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                tooltip="Open online shop"
+                render={<a href={SHOP_URL} target="_blank" rel="noopener noreferrer" />}
+              >
+                <StoreIcon />
+                <span>Online shop</span>
+                <ExternalLinkIcon
+                  aria-hidden
+                  className="ml-auto size-3.5! text-muted-foreground group-data-[collapsible=icon]:hidden"
+                />
+                <span className="sr-only">(opens in a new tab)</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        ) : null}
         <NavUser />
         <p className="px-2 pb-1 text-center text-[0.65rem] text-muted-foreground/70 group-data-[collapsible=icon]:hidden">
           &copy; <span className="tabular-nums">{new Date().getFullYear()}</span> DG Prints. All rights reserved.
