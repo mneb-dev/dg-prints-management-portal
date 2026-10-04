@@ -1,9 +1,21 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react"
 import { format, parseISO } from "date-fns"
+import {
+  type Announcements,
+  closestCenter,
+  DndContext,
+  type DragEndEvent,
+  type DragStartEvent,
+  MeasuringStrategy,
+  type UniqueIdentifier,
+} from "@dnd-kit/core"
+import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable"
+import { CSS } from "@dnd-kit/utilities"
 import {
   CircleAlertIcon,
   CopyIcon,
   ExternalLinkIcon,
+  GripVerticalIcon,
   PlusIcon,
   SettingsIcon,
   TagIcon,
@@ -46,6 +58,7 @@ import { Spinner } from "@/components/ui/spinner"
 import { Switch } from "@/components/ui/switch"
 import { useAuth } from "@/lib/auth"
 import { useCategories } from "@/lib/categories"
+import { restrictToVerticalAxis, useReorderSensors } from "@/lib/drag-reorder"
 import { SPX_ADMIN_CREATE_ORDER_URL, copyToClipboard } from "@/lib/clipboard"
 import type { LengthUnit } from "@/lib/length-units"
 import { useNavGuard } from "@/lib/nav-guard"
@@ -272,6 +285,75 @@ function sectionForErrorKey(key: string): (typeof SECTION_ORDER)[number] {
   return "order-section-payment"
 }
 
+/** One reorderable line item: the sortable wrapper plus the grip handed to the card's header.
+ * Exit: grid-rows 1fr→0fr collapses the height, -mb-4 closes the parent's gap-4, while the card
+ * fades and scales down. Enter (added items only): fade + slide down into place. */
+function SortableLineItem({
+  itemId,
+  index,
+  label,
+  isRemoving,
+  isAdded,
+  canReorder,
+  children,
+}: {
+  itemId: string
+  index: number
+  label: string
+  isRemoving: boolean
+  isAdded: boolean
+  canReorder: boolean
+  children: (dragHandle: ReactNode) => ReactNode
+}) {
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } =
+    useSortable({ id: itemId, disabled: isRemoving || !canReorder })
+
+  const dragHandle = canReorder ? (
+    <button
+      type="button"
+      ref={setActivatorNodeRef}
+      {...attributes}
+      {...listeners}
+      aria-label={`Drag to reorder ${label}`}
+      className={cn(
+        "-ml-2 flex size-7 shrink-0 touch-none items-center justify-center rounded-md text-muted-foreground/70 outline-none transition-colors hover:bg-accent/40 hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50",
+        isDragging ? "cursor-grabbing" : "cursor-grab"
+      )}
+    >
+      <GripVerticalIcon className="size-4" />
+    </button>
+  ) : null
+
+  return (
+    <div
+      ref={setNodeRef}
+      data-line-item={index}
+      data-item-id={itemId}
+      inert={isRemoving}
+      aria-hidden={isRemoving || undefined}
+      // dnd-kit's inline transition only exists while sorting, so it doesn't override the
+      // remove animation's class-based transition.
+      style={{ transform: CSS.Translate.toString(transform), transition: transition ?? undefined }}
+      className={cn(
+        "grid transition-[grid-template-rows,opacity,scale,margin] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
+        isRemoving ? "pointer-events-none -mb-4 grid-rows-[0fr] scale-[0.98] opacity-0" : "grid-rows-[1fr]",
+        isAdded && "animate-in fade-in-0 slide-in-from-top-2 zoom-in-[0.98] duration-300 motion-reduce:animate-none",
+        isDragging && "relative z-20"
+      )}
+    >
+      <div
+        className={cn(
+          "min-h-0 rounded-xl transition-shadow duration-200",
+          isRemoving && "overflow-hidden",
+          isDragging && "shadow-lg ring-1 ring-primary/30"
+        )}
+      >
+        {children(dragHandle)}
+      </div>
+    </div>
+  )
+}
+
 export function OrderForm({
   order,
   initialValues,
@@ -470,6 +552,77 @@ export function OrderForm({
     )
   }
 
+  // Drag-to-reorder. The grip is the only activator, so the card's inputs never start a drag.
+  const dragSensors = useReorderSensors()
+  const canReorderItems = items.length - removingItemIds.size > 1
+  // The dragged card collapses to its header row while it's lifted (a tall open card is awkward to
+  // move) and reopens on drop if it was open before.
+  const dragReopenIdRef = useRef<string | null>(null)
+
+  function itemDragLabel(id: UniqueIdentifier) {
+    const index = items.findIndex((item) => item.id === id)
+    const product = products.find((candidate) => candidate.id === items[index]?.productId)
+    return product?.name ?? `Item ${index + 1}`
+  }
+
+  const dragAnnouncements: Announcements = {
+    onDragStart: ({ active }) => `Picked up ${itemDragLabel(active.id)}.`,
+    onDragOver: ({ active, over }) =>
+      over
+        ? `${itemDragLabel(active.id)} is over position ${items.findIndex((item) => item.id === over.id) + 1} of ${items.length}.`
+        : undefined,
+    onDragEnd: ({ active, over }) =>
+      over
+        ? `Moved ${itemDragLabel(active.id)} to position ${items.findIndex((item) => item.id === over.id) + 1} of ${items.length}.`
+        : `Dropped ${itemDragLabel(active.id)}.`,
+    onDragCancel: ({ active }) => `Cancelled moving ${itemDragLabel(active.id)}.`,
+  }
+
+  function handleItemDragStart({ active }: DragStartEvent) {
+    const id = String(active.id)
+    dragReopenIdRef.current = openItemIds.has(id) ? id : null
+    if (dragReopenIdRef.current) {
+      setOpenItemIds((prev) => {
+        const next = new Set(prev)
+        next.delete(id)
+        return next
+      })
+    }
+  }
+
+  function reopenDraggedItem() {
+    const id = dragReopenIdRef.current
+    dragReopenIdRef.current = null
+    if (id) setOpenItemIds((prev) => new Set(prev).add(id))
+  }
+
+  function handleItemDragEnd({ active, over }: DragEndEvent) {
+    reopenDraggedItem()
+    if (!over || active.id === over.id) return
+    const from = items.findIndex((item) => item.id === active.id)
+    const to = items.findIndex((item) => item.id === over.id)
+    if (from < 0 || to < 0) return
+    setItems((prev) => arrayMove(prev, from, to))
+    // Item errors are keyed by position ("item-2-product"), so carry each one along with its item.
+    const oldIndexAt = arrayMove(
+      items.map((_, i) => i),
+      from,
+      to
+    )
+    setErrors((prev) => {
+      const next: Record<string, string> = {}
+      for (const [key, value] of Object.entries(prev)) {
+        const match = /^item-(\d+)-(.+)$/.exec(key)
+        next[match ? `item-${oldIndexAt.indexOf(Number(match[1]))}-${match[2]}` : key] = value
+      }
+      return next
+    })
+  }
+
+  function handleItemDragCancel() {
+    reopenDraggedItem()
+  }
+
   useEffect(() => {
     if (!order) return
     setCustomerName(order.customerName)
@@ -616,6 +769,7 @@ export function OrderForm({
   )
 
   const summaryItems: LineItemSummary[] = resolvedItems.map((resolved) => ({
+    id: resolved.draft.id,
     product: resolved.product,
     optionValues: resolved.draft.optionValues,
     pricing: resolved.computed.pricing,
@@ -1097,27 +1251,35 @@ export function OrderForm({
           </CardContent>
         </Card>
 
+        <DndContext
+          sensors={dragSensors}
+          collisionDetection={closestCenter}
+          modifiers={[restrictToVerticalAxis]}
+          // The dragged card collapses as it lifts, so sibling positions change mid-drag — keep
+          // re-measuring instead of trusting the rects taken at drag start.
+          measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
+          accessibility={{ announcements: dragAnnouncements }}
+          onDragStart={handleItemDragStart}
+          onDragEnd={handleItemDragEnd}
+          onDragCancel={handleItemDragCancel}
+        >
+        <SortableContext items={items.map((item) => item.id)} strategy={verticalListSortingStrategy}>
         {resolvedItems.map((resolved, index) => {
           const itemId = resolved.draft.id
           const isRemoving = removingItemIds.has(itemId)
           return (
-          // Exit: grid-rows 1fr→0fr collapses the height, -mb-4 closes the parent's gap-4, while
-          // the card fades and scales down. Enter (added items only): fade + slide down into place.
-          <div
+          <SortableLineItem
             key={itemId}
-            data-line-item={index}
-            data-item-id={itemId}
-            inert={isRemoving}
-            aria-hidden={isRemoving || undefined}
-            className={cn(
-              "grid transition-[grid-template-rows,opacity,scale,margin] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
-              isRemoving ? "pointer-events-none -mb-4 grid-rows-[0fr] scale-[0.98] opacity-0" : "grid-rows-[1fr]",
-              addedItemIdsRef.current.has(itemId) &&
-                "animate-in fade-in-0 slide-in-from-top-2 zoom-in-[0.98] duration-300 motion-reduce:animate-none"
-            )}
+            itemId={itemId}
+            index={index}
+            label={resolved.product?.name ?? `Item ${index + 1}`}
+            isRemoving={isRemoving}
+            isAdded={addedItemIdsRef.current.has(itemId)}
+            canReorder={canReorderItems}
           >
-          <div className={cn("min-h-0", isRemoving && "overflow-hidden")}>
+          {(dragHandle) => (
           <OrderLineItemCard
+            dragHandle={dragHandle}
             id={index === 0 ? "order-section-products" : undefined}
             index={index}
             products={products}
@@ -1147,10 +1309,12 @@ export function OrderForm({
             }
             canCollapse={!!resolved.product}
           />
-          </div>
-          </div>
+          )}
+          </SortableLineItem>
           )
         })}
+        </SortableContext>
+        </DndContext>
 
         <Button
           type="button"
@@ -1513,9 +1677,14 @@ export function OrderForm({
 
       </div>
 
-      <div className="flex flex-col gap-4 xl:sticky xl:top-20 xl:self-start">
-        <OrderFormSectionNav sections={sections} />
+      {/* Capped to the viewport on desktop so the summary's totals and actions never scroll out of
+          reach — with many items, the summary's item list scrolls inside the panel instead. */}
+      <div className="flex flex-col gap-4 xl:sticky xl:top-20 xl:max-h-[calc(100svh-6.5rem)] xl:self-start">
+        <div className="shrink-0">
+          <OrderFormSectionNav sections={sections} />
+        </div>
         <OrderSummaryPanel
+          className="xl:min-h-0"
           items={summaryItems}
           discount={discountNum}
           additionalFees={additionalFeesNum}

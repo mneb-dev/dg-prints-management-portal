@@ -1,14 +1,14 @@
 import { useEffect, useState } from "react"
-import { GripVerticalIcon, PlusIcon, Trash2Icon } from "lucide-react"
+import { PlusIcon, Trash2Icon } from "lucide-react"
 import { toast } from "sonner"
 
 import { ConfirmDialog, Name } from "@/components/confirm-dialog"
+import { SortableList, type SortableRowProps } from "@/components/sortable-list"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Spinner } from "@/components/ui/spinner"
 import { Switch } from "@/components/ui/switch"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 
 export type CatalogListItem = {
@@ -19,8 +19,8 @@ export type CatalogListItem = {
 
 /** Compact, drag-reorderable CRUD list — shared by Payment methods and Order channels on the
  * Settings page, since both are the exact same shape (name, enabled, order). Rows follow the Order
- * statuses list (categories/order-status-list.tsx): grip with a hint, a drop-target line while
- * dragging, a Shown/Hidden switch, and dimmed hidden rows. */
+ * statuses list (categories/order-status-list.tsx): a grip that drags the row (SortableList), a
+ * Shown/Hidden switch, and dimmed hidden rows. */
 export function CatalogList({
   items,
   isLoading,
@@ -43,38 +43,10 @@ export function CatalogList({
   onDelete: (id: string) => Promise<void>
   onReorder: (order: string[]) => Promise<void>
 }) {
-  const [dragId, setDragId] = useState<string | null>(null)
-  const [dropTargetId, setDropTargetId] = useState<string | null>(null)
-  const [isReordering, setIsReordering] = useState(false)
   const [pendingDelete, setPendingDelete] = useState<CatalogListItem | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
 
   const shownCount = items.filter((item) => item.enabled).length
-
-  function endDrag() {
-    setDragId(null)
-    setDropTargetId(null)
-  }
-
-  async function handleDrop(targetId: string) {
-    const draggedId = dragId
-    endDrag()
-    if (!draggedId || draggedId === targetId) return
-
-    const ids = items.map((item) => item.id)
-    const fromIndex = ids.indexOf(draggedId)
-    const toIndex = ids.indexOf(targetId)
-    ids.splice(toIndex, 0, ids.splice(fromIndex, 1)[0])
-
-    setIsReordering(true)
-    try {
-      await onReorder(ids)
-    } catch (err) {
-      toast.error(typeof err === "string" ? err : "Failed to reorder.")
-    } finally {
-      setIsReordering(false)
-    }
-  }
 
   async function handleConfirmDelete() {
     if (!pendingDelete) return
@@ -110,22 +82,20 @@ export function CatalogList({
             No {noun} yet. Add the first one below.
           </p>
         ) : (
-          items.map((item) => (
-            <CatalogRow
-              key={item.id}
-              item={item}
-              isDragging={dragId === item.id}
-              isDropTarget={dropTargetId === item.id && dragId !== item.id}
-              isReordering={isReordering}
-              onDragStart={() => setDragId(item.id)}
-              onDragEnter={() => dragId && setDropTargetId(item.id)}
-              onDragEnd={endDrag}
-              onDrop={() => handleDrop(item.id)}
-              onRename={(name) => onRename(item.id, name)}
-              onToggle={(enabled) => onToggle(item.id, enabled)}
-              onDeleteRequest={() => setPendingDelete(item)}
-            />
-          ))
+          <SortableList
+            items={items}
+            getLabel={(item) => item.name}
+            onReorder={onReorder}
+            renderItem={(item, sortable) => (
+              <CatalogRow
+                item={item}
+                sortable={sortable}
+                onRename={(name) => onRename(item.id, name)}
+                onToggle={(enabled) => onToggle(item.id, enabled)}
+                onDeleteRequest={() => setPendingDelete(item)}
+              />
+            )}
+          />
         )}
         <AddRow placeholder={addPlaceholder} onAdd={onAdd} />
       </div>
@@ -148,55 +118,28 @@ export function CatalogList({
 
 function CatalogRow({
   item,
-  isDragging,
-  isDropTarget,
-  isReordering,
-  onDragStart,
-  onDragEnter,
-  onDragEnd,
-  onDrop,
+  sortable: { attachRow, rowStyle, dragHandle, isDragging },
   onRename,
   onToggle,
   onDeleteRequest,
 }: {
   item: CatalogListItem
-  isDragging: boolean
-  isDropTarget: boolean
-  isReordering: boolean
-  onDragStart: () => void
-  onDragEnter: () => void
-  onDragEnd: () => void
-  onDrop: () => void
+  sortable: SortableRowProps
   onRename: (name: string) => Promise<void>
   onToggle: (enabled: boolean) => Promise<void>
   onDeleteRequest: () => void
 }) {
   return (
     <div
-      draggable={!isReordering}
-      onDragStart={onDragStart}
-      onDragEnter={onDragEnter}
-      onDragEnd={onDragEnd}
-      onDragOver={(event) => event.preventDefault()}
-      onDrop={onDrop}
+      ref={attachRow}
+      style={rowStyle}
       className={cn(
-        "group/row flex min-h-11 items-center gap-2 border-b px-3 py-1.5 transition-[opacity,box-shadow,background-color] duration-150 hover:bg-muted/30",
-        isDragging && "opacity-40",
-        isDropTarget && "shadow-[inset_0_2px_0_var(--color-primary)]",
-        !item.enabled && "bg-muted/20"
+        "group/row flex min-h-11 items-center gap-2 border-b bg-card px-3 py-1.5 transition-[background-color,box-shadow] duration-150 hover:bg-muted/30",
+        isDragging && "bg-card shadow-lg ring-1 ring-primary/30 hover:bg-card",
+        !item.enabled && !isDragging && "bg-muted/20"
       )}
     >
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <span className="flex shrink-0 cursor-grab text-muted-foreground/70 transition-colors group-hover/row:text-muted-foreground active:cursor-grabbing" />
-          }
-        >
-          <GripVerticalIcon className="size-4" />
-          <span className="sr-only">Drag to reorder</span>
-        </TooltipTrigger>
-        <TooltipContent>Drag to reorder</TooltipContent>
-      </Tooltip>
+      {dragHandle}
       <EditableName value={item.name} dimmed={!item.enabled} onCommit={onRename} />
       <label className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
         <Switch size="sm" checked={item.enabled} onCheckedChange={(checked) => onToggle(!!checked)} />

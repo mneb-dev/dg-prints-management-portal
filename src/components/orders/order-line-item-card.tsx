@@ -1,4 +1,4 @@
-import { createElement, useEffect, useRef } from "react"
+import { createElement, type ReactNode, useEffect, useRef } from "react"
 import { ChevronDownIcon, FlameIcon, InfoIcon, PackageIcon, Trash2Icon } from "lucide-react"
 
 import { CharCount } from "@/components/char-count"
@@ -75,6 +75,7 @@ export function OrderLineItemCard({
   isOpen,
   onOpenChange,
   canCollapse,
+  dragHandle,
 }: {
   id?: string
   index: number
@@ -92,6 +93,9 @@ export function OrderLineItemCard({
   isOpen: boolean
   onOpenChange: (open: boolean) => void
   canCollapse: boolean
+  /** Rendered before the title — the form passes its drag-to-reorder grip here when there's more
+   * than one item, keeping the drag library out of this component. */
+  dragHandle?: ReactNode
 }) {
   const idPrefix = `item-${index}-`
   const itemLabel = product?.name ?? `Item ${index + 1}`
@@ -131,10 +135,12 @@ export function OrderLineItemCard({
     <Card ref={cardRef} id={id} className="scroll-mt-24 scroll-mb-6">
       <Collapsible open={canCollapse ? isOpen : true} onOpenChange={onOpenChange}>
         <CardHeader>
+          <div className="flex min-w-0 items-center gap-1">
+          {dragHandle}
           {canCollapse ? (
             // The whole header row is the toggle: a soft wash on hover, and the chevron sits in a
             // round chip that tints and flips as the panel opens.
-            <CollapsibleTrigger className="group/toggle -mx-2 -my-1 flex min-w-0 items-center gap-2 rounded-lg px-2 py-1 text-left outline-none transition-colors duration-200 hover:bg-accent/40 focus-visible:ring-3 focus-visible:ring-ring/50">
+            <CollapsibleTrigger className="group/toggle -mx-2 -my-1 flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2 py-1 text-left outline-none transition-colors duration-200 hover:bg-accent/40 focus-visible:ring-3 focus-visible:ring-ring/50">
               <OrderFormSectionHeader
                 icon={PackageIcon}
                 title={itemLabel}
@@ -169,11 +175,12 @@ export function OrderLineItemCard({
           ) : (
             <OrderFormSectionHeader
               icon={PackageIcon}
-              title={index === 0 ? "Item 1" : itemLabel}
+              title={itemLabel}
               description="Product, options and quantity"
             />
           )}
-          {index > 0 && onRemove && (
+          </div>
+          {onRemove && (
             <CardAction>
               <Button
                 type="button"

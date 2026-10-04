@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react"
-import { GripVerticalIcon, LockIcon, PlusIcon, Trash2Icon } from "lucide-react"
+import { LockIcon, PlusIcon, Trash2Icon } from "lucide-react"
 import { toast } from "sonner"
 
 import { ColorPicker } from "@/components/categories/color-picker"
 import { IconPicker } from "@/components/categories/icon-picker"
 import { ConfirmDialog, Name } from "@/components/confirm-dialog"
+import { SortableList, type SortableRowProps } from "@/components/sortable-list"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -24,8 +25,8 @@ function slugify(label: string): string {
 }
 
 /** Drag-reorderable order-status list — the "Order Statuses" tab of Manage Categories.
- * Adapted from the Settings page's CatalogList (same native-HTML5-drag pattern, no DnD
- * library), but diverges where order statuses differ from payment methods/order channels:
+ * Adapted from the Settings page's CatalogList (same SortableList drag-to-reorder), but
+ * diverges where order statuses differ from payment methods/order channels:
  * a status can't be deleted while an order references it (CatalogList's items can), the
  * 5 built-in statuses can't be deleted at all, and each row carries an icon picker. The
  * internal `name` (the literal stored on orders) is set once at creation from the typed
@@ -50,34 +51,8 @@ export function OrderStatusList({
   onDelete: (id: string) => Promise<void>
   onReorder: (order: string[]) => Promise<void>
 }) {
-  const [dragId, setDragId] = useState<string | null>(null)
-  // The row currently under the dragged one — gets a primary drop line so it's clear where the
-  // status will land.
-  const [dragOverId, setDragOverId] = useState<string | null>(null)
-  const [isReordering, setIsReordering] = useState(false)
   const [pendingDelete, setPendingDelete] = useState<OrderStatusItem | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
-
-  async function handleDrop(targetId: string) {
-    const draggedId = dragId
-    setDragId(null)
-    setDragOverId(null)
-    if (!draggedId || draggedId === targetId) return
-
-    const ids = statuses.map((item) => item.id)
-    const fromIndex = ids.indexOf(draggedId)
-    const toIndex = ids.indexOf(targetId)
-    ids.splice(toIndex, 0, ids.splice(fromIndex, 1)[0])
-
-    setIsReordering(true)
-    try {
-      await onReorder(ids)
-    } catch (err) {
-      toast.error(typeof err === "string" ? err : "Failed to reorder.")
-    } finally {
-      setIsReordering(false)
-    }
-  }
 
   async function handleConfirmDelete() {
     if (!pendingDelete) return
@@ -111,24 +86,19 @@ export function OrderStatusList({
         ) : statuses.length === 0 ? (
           <p className="px-3 py-6 text-center text-sm text-muted-foreground">No statuses yet — add one below.</p>
         ) : (
-          statuses.map((item) => (
-            <StatusRow
-              key={item.id}
-              item={item}
-              isDragging={dragId === item.id}
-              isDropTarget={dragId !== null && dragOverId === item.id && dragId !== item.id}
-              isReordering={isReordering}
-              onDragStart={() => setDragId(item.id)}
-              onDragEnter={() => setDragOverId(item.id)}
-              onDragEnd={() => {
-                setDragId(null)
-                setDragOverId(null)
-              }}
-              onDrop={() => handleDrop(item.id)}
-              onUpdate={(input) => onUpdate(item.id, input)}
-              onDeleteRequest={() => setPendingDelete(item)}
-            />
-          ))
+          <SortableList
+            items={statuses}
+            getLabel={(item) => item.label}
+            onReorder={onReorder}
+            renderItem={(item, sortable) => (
+              <StatusRow
+                item={item}
+                sortable={sortable}
+                onUpdate={(input) => onUpdate(item.id, input)}
+                onDeleteRequest={() => setPendingDelete(item)}
+              />
+            )}
+          />
         )}
         <AddRow onAdd={onAdd} />
       </div>
@@ -151,24 +121,12 @@ export function OrderStatusList({
 
 function StatusRow({
   item,
-  isDragging,
-  isDropTarget,
-  isReordering,
-  onDragStart,
-  onDragEnter,
-  onDragEnd,
-  onDrop,
+  sortable: { attachRow, rowStyle, dragHandle, isDragging },
   onUpdate,
   onDeleteRequest,
 }: {
   item: OrderStatusItem
-  isDragging: boolean
-  isDropTarget: boolean
-  isReordering: boolean
-  onDragStart: () => void
-  onDragEnter: () => void
-  onDragEnd: () => void
-  onDrop: () => void
+  sortable: SortableRowProps
   onUpdate: (input: { label?: string; icon?: string; color?: string; enabled?: boolean }) => Promise<void>
   onDeleteRequest: () => void
 }) {
@@ -211,30 +169,15 @@ function StatusRow({
 
   return (
     <div
-      draggable={!isReordering}
-      onDragStart={onDragStart}
-      onDragEnter={onDragEnter}
-      onDragEnd={onDragEnd}
-      onDragOver={(event) => event.preventDefault()}
-      onDrop={onDrop}
+      ref={attachRow}
+      style={rowStyle}
       className={cn(
-        "group/status flex min-h-11 items-center gap-2 border-b px-3 py-1.5 transition-[opacity,box-shadow,background-color] duration-150 last:border-b-0 hover:bg-muted/30",
-        isDragging && "opacity-40",
-        isDropTarget && "shadow-[inset_0_2px_0_var(--color-primary)]",
-        !item.enabled && "bg-muted/20"
+        "group/status flex min-h-11 items-center gap-2 border-b bg-card px-3 py-1.5 transition-[background-color,box-shadow] duration-150 last:border-b-0 hover:bg-muted/30",
+        isDragging && "bg-card shadow-lg ring-1 ring-primary/30 hover:bg-card",
+        !item.enabled && !isDragging && "bg-muted/20"
       )}
     >
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <span className="flex shrink-0 cursor-grab text-muted-foreground/70 transition-colors group-hover/status:text-muted-foreground active:cursor-grabbing" />
-          }
-        >
-          <GripVerticalIcon className="size-4" />
-          <span className="sr-only">Drag to reorder</span>
-        </TooltipTrigger>
-        <TooltipContent>Drag to reorder</TooltipContent>
-      </Tooltip>
+      {dragHandle}
       <IconPicker value={item.icon} onSelect={handleIconSelect} />
       <ColorPicker value={item.color} onSelect={handleColorSelect} />
       <EditableLabel value={item.label} dimmed={!item.enabled} onCommit={(label) => onUpdate({ label })} />

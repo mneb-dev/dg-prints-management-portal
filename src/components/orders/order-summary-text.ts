@@ -10,6 +10,8 @@ import {
 } from "@/lib/quote-text"
 
 export type LineItemSummary = {
+  /** The line item's draft id — lets the summary panel key rows so they animate when reordered. */
+  id?: string
   product: Product | null
   optionValues: Record<string, string>
   pricing: OrderItemPricing | null
