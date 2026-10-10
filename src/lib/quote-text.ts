@@ -1,5 +1,5 @@
 import type { OrderItem, OrderItemPricing } from "@/lib/orders"
-import { isStickerLabelCategory } from "@/lib/order-line-item"
+import { isStickerLabelCategory, perUnitDisplayDimensions } from "@/lib/order-line-item"
 import { scaleQuotation } from "@/lib/sticker-quotation"
 import { formatCurrency } from "@/lib/utils"
 
@@ -10,6 +10,7 @@ export type CopyableLineItem = {
   quantity: number
   lineTotal: number
   notes?: string
+  category?: string | null
 }
 
 /** True for both sticker product lines ("Sticker"/"Sticker Label" and "Laminated Sticker") —
@@ -78,6 +79,7 @@ export function buildStickerCopyLines(item: CopyableLineItem): string[] {
 
   const packageOption = item.options.find((option) => option.name === "Package" && option.value)
   if (packageOption) lines.push(`Package: ${packageOption.value}`)
+  if (item.pricing) lines.push(`Qty: ${item.quantity}`)
 
   const totalQuotation = item.stickerQuotation ? scaleQuotation(item.stickerQuotation, item.quantity) : null
   if (item.pricing && totalQuotation) {
@@ -87,6 +89,23 @@ export function buildStickerCopyLines(item: CopyableLineItem): string[] {
     )
   } else if (item.pricing) {
     lines.push(`Amount: ${formatCurrency(item.lineTotal)}`)
+  }
+
+  return lines
+}
+
+/** Per-item copy-text lines — picks the compact sticker layout or the default one, and leads
+ * Tarpaulin items with their entered size. Shared by the order form and View Order page. */
+export function buildCopyLines(item: CopyableLineItem): string[] {
+  if (usesCompactStickerCopyFormat(item.category)) return buildStickerCopyLines(item)
+
+  const lines = buildLineItemInfoLines(item)
+  const dimensions =
+    item.pricing && item.category?.trim().toLowerCase() === "tarpaulin"
+      ? perUnitDisplayDimensions(item.pricing)
+      : null
+  if (dimensions) {
+    lines.unshift(`Tarpaulin Size: ${dimensions.width} × ${dimensions.height} ${dimensions.unit}`)
   }
 
   return lines

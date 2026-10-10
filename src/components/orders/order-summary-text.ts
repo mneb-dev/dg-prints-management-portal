@@ -2,10 +2,9 @@ import type { OrderItem, OrderItemPricing } from "@/lib/orders"
 import type { Product } from "@/lib/products"
 import {
   buildCopyableOrderText,
+  buildCopyLines,
   buildLineItemInfoLines,
-  buildStickerCopyLines,
   formatOrderSummaryText,
-  usesCompactStickerCopyFormat,
   type CopyableLineItem,
 } from "@/lib/quote-text"
 
@@ -32,6 +31,7 @@ function toCopyableLineItem(item: LineItemSummary): CopyableLineItem {
     quantity: item.quantity,
     lineTotal: item.lineTotal,
     notes: item.notes,
+    category: item.product!.category,
   }
 }
 
@@ -66,9 +66,7 @@ export function buildOrderSummaryCopyText({
   const infoLines = buildCopyableOrderText(
     copyableItems.map((item) => ({
       name: item.product!.name,
-      lines: usesCompactStickerCopyFormat(item.product!.category)
-        ? buildStickerCopyLines(toCopyableLineItem(item))
-        : itemInfoLines(item),
+      lines: buildCopyLines(toCopyableLineItem(item)),
     }))
   )
 

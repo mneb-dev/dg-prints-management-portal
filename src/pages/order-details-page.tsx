@@ -59,10 +59,8 @@ import { copyToClipboard, SPX_ADMIN_CREATE_ORDER_URL } from "@/lib/clipboard"
 import { useActiveOrderStatuses } from "@/lib/order-statuses"
 import {
   buildCopyableOrderText,
-  buildLineItemInfoLines,
-  buildStickerCopyLines,
+  buildCopyLines,
   formatOrderSummaryText,
-  usesCompactStickerCopyFormat,
   type CopyableLineItem,
 } from "@/lib/quote-text"
 import {
@@ -260,14 +258,10 @@ export function OrderDetailsPage() {
           quantity: item.quantity,
           lineTotal: item.lineTotal,
           notes: item.notes,
+          category: item.productCategory,
         }
 
-        return {
-          name: item.productName,
-          lines: usesCompactStickerCopyFormat(item.productCategory)
-            ? buildStickerCopyLines(copyable)
-            : buildLineItemInfoLines(copyable),
-        }
+        return { name: item.productName, lines: buildCopyLines(copyable) }
       })
     )
 
