@@ -15,6 +15,7 @@ export const ROLE_LABELS: Record<Role, string> = {
 
 export const PERMISSION_KEYS = [
   "manage_products",
+  "manage_categories",
   "manage_orders",
   "manage_users",
   "manage_expenses",
@@ -25,6 +26,7 @@ export type PermissionKey = (typeof PERMISSION_KEYS)[number]
 
 export const PERMISSION_LABELS: Record<PermissionKey, string> = {
   manage_products: "Manage Products",
+  manage_categories: "Manage Categories",
   manage_orders: "Manage Orders",
   manage_users: "Manage Users",
   manage_expenses: "Manage Expenses",
