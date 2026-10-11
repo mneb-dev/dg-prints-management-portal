@@ -60,7 +60,7 @@ const SORT_OPTIONS = [
 export function ProductsPage() {
   const { hasPermission, role } = useAuth()
   const canManage = hasPermission("manage_products")
-  const canManageImages = role === "admin" || role === "superadmin"
+  const canManageImages = role === "admin" || role === "superadmin" || canManage
   const { products, total, params, setParams, refetch, isLoading, isFetching, isError, error } = useProducts()
   useClampPage(params.page, params.pageSize, total, isFetching, (page) => setParams({ page }))
   const { deleteProduct, updateProduct } = useProductActions()
