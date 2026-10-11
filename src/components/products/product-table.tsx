@@ -230,6 +230,31 @@ function RowActions({
   )
 }
 
+/** The only row action for staff with manage_products — they view products read-only but can manage images. */
+function ImagesAction({ product, onManageImages }: { product: Product; onManageImages: (product: Product) => void }) {
+  return (
+    <div className="flex justify-end">
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label={`Manage images for ${product.name}`}
+              onClick={() => onManageImages(product)}
+            />
+          }
+        >
+          <ImagesIcon />
+        </TooltipTrigger>
+        <TooltipContent>
+          Manage images{product.images.length > 0 && ` · ${product.images.length}`}
+        </TooltipContent>
+      </Tooltip>
+    </div>
+  )
+}
+
 function Columns({ showActions }: { showActions: boolean }) {
   return (
     <TableHeader className={TABLE_HEADER_CLASS}>
@@ -284,12 +309,15 @@ export function ProductTable({
   /** Read-only details, for people who can't edit (staff). */
   onView?: (product: Product) => void
   onDelete: (product: Product) => void
-  /** Admin/superadmin only — omit to hide the "Manage images" action. */
+  /** Admin/superadmin or manage_products — omit to hide the "Manage images" action. */
   onManageImages?: (product: Product) => void
   /** Saves the online-shop flag; should reject on failure so the switch reverts. */
   onToggleShop?: (product: Product, showInShop: boolean) => Promise<void>
 }) {
   const showActions = role !== "staff" && !!canManage
+  // Staff who can manage images get just that one action in an otherwise read-only row.
+  const imagesOnly = !showActions && !!onManageImages
+  const showActionsColumn = showActions || imagesOnly
   // Same fixed "now" approach as useNewProducts (the sidebar count): "new" is measured in days.
   const [now] = useState(() => Date.now())
 
@@ -298,7 +326,7 @@ export function ProductTable({
       <div className={TABLE_SURFACE_CLASS}>
         <DataCardListSkeleton />
         <Table className="max-md:hidden">
-          <Columns showActions={showActions} />
+          <Columns showActions={showActionsColumn} />
           <TableBody>
             {Array.from({ length: 10 }).map((_, index) => (
               <TableRow key={index}>
@@ -321,11 +349,11 @@ export function ProductTable({
                 <TableCell className="px-4">
                   <Skeleton className="h-4 w-16" />
                 </TableCell>
-                {showActions && (
+                {showActionsColumn && (
                   <TableCell className="px-4">
                     <div className="flex justify-end gap-1">
                       <Skeleton className="size-7 rounded-md" />
-                      <Skeleton className="size-7 rounded-md" />
+                      {showActions && <Skeleton className="size-7 rounded-md" />}
                     </div>
                   </TableCell>
                 )}
@@ -401,7 +429,7 @@ export function ProductTable({
       <div className={cn(TABLE_SURFACE_CLASS, isFetching && "opacity-60 transition-opacity duration-150")}>
         <div className="hidden md:block">
           <Table>
-            <Columns showActions={showActions} />
+            <Columns showActions={showActionsColumn} />
             <TableBody>
               {products.map((product) => {
                 const isInactive = product.status !== "Active"
@@ -455,6 +483,11 @@ export function ProductTable({
                         <RowActions product={product} onEdit={onEdit} onDelete={onDelete} onManageImages={onManageImages} />
                       </TableCell>
                     )}
+                    {imagesOnly && (
+                      <TableCell className="px-4" onClick={stopRowClick}>
+                        <ImagesAction product={product} onManageImages={onManageImages} />
+                      </TableCell>
+                    )}
                   </TableRow>
                 )
               })}
@@ -490,6 +523,11 @@ export function ProductTable({
                   {showActions && (
                     <div className="-mt-1 -mr-2 shrink-0" onClick={stopRowClick}>
                       <RowActions product={product} onEdit={onEdit} onDelete={onDelete} onManageImages={onManageImages} />
+                    </div>
+                  )}
+                  {imagesOnly && (
+                    <div className="-mt-1 -mr-2 shrink-0" onClick={stopRowClick}>
+                      <ImagesAction product={product} onManageImages={onManageImages} />
                     </div>
                   )}
                 </div>

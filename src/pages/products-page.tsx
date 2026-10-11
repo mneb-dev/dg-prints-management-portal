@@ -60,7 +60,8 @@ const SORT_OPTIONS = [
 export function ProductsPage() {
   const { hasPermission, role } = useAuth()
   const canManage = hasPermission("manage_products")
-  const canManageImages = role === "admin" || role === "superadmin"
+  const canManageCategories = hasPermission("manage_categories")
+  const canManageImages = role === "admin" || role === "superadmin" || canManage
   const { products, total, params, setParams, refetch, isLoading, isFetching, isError, error } = useProducts()
   useClampPage(params.page, params.pageSize, total, isFetching, (page) => setParams({ page }))
   const { deleteProduct, updateProduct } = useProductActions()
@@ -182,20 +183,24 @@ export function ProductsPage() {
         title="Products"
         description={isLoading ? "Your catalog and pricing" : `${total.toLocaleString()} ${total === 1 ? "product" : "products"}`}
         actions={
-          canManage ? (
+          canManage || canManageCategories ? (
             <>
-              <Button
-                variant="outline"
-                aria-label="Manage categories"
-                onClick={() => setManageCategoriesOpen(true)}
-              >
-                <TagIcon data-icon="inline-start" />
-                <span className="hidden sm:inline">Manage categories</span>
-              </Button>
-              <Button onClick={handleAdd}>
-                <PlusIcon data-icon="inline-start" />
-                Add product
-              </Button>
+              {canManageCategories && (
+                <Button
+                  variant="outline"
+                  aria-label="Manage categories"
+                  onClick={() => setManageCategoriesOpen(true)}
+                >
+                  <TagIcon data-icon="inline-start" />
+                  <span className="hidden sm:inline">Manage categories</span>
+                </Button>
+              )}
+              {canManage && (
+                <Button onClick={handleAdd}>
+                  <PlusIcon data-icon="inline-start" />
+                  Add product
+                </Button>
+              )}
             </>
           ) : undefined
         }

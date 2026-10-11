@@ -33,7 +33,7 @@ export function ManageCategoriesDialog({
   onOpenChange: (open: boolean) => void
 }) {
   const { hasPermission } = useAuth()
-  const canManage = hasPermission("manage_products")
+  const canManage = hasPermission("manage_categories")
   const { categories, isLoading, isError, error } = useCategories()
   const { deleteCategory } = useCategoryActions()
   const { statuses, isLoading: isLoadingStatuses } = useOrderStatuses()
