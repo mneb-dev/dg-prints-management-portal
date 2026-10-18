@@ -69,6 +69,7 @@ const SORT_OPTIONS = [
   { value: "order_number", label: "Order #" },
   { value: "customer_name", label: "Customer" },
   { value: "total", label: "Total" },
+  { value: "status_updated_at", label: "Status Updated" },
 ]
 
 function StatusDot({ className }: { className?: string }) {
@@ -327,7 +328,7 @@ export function OrdersPage() {
         <FilterSearchInput
           value={searchInput}
           onChange={setSearchInput}
-          placeholder="Search order #, customer, notes..."
+          placeholder="Search order #, customer, shipping, notes..."
           disabled={isLoading || isError}
           className="sm:min-w-56"
         />
