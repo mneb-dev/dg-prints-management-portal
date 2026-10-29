@@ -10,7 +10,6 @@ import {
   fetchPreviousMonthlyIncentiveSummaryThunk,
   releaseCommissionOrdersThunk,
   releaseMonthlyIncentiveThunk,
-  STAFF_COMMISSION_PRESETS,
   unreleaseCommissionOrdersThunk,
   unreleaseMonthlyIncentiveThunk,
 } from "@/lib/commission-slice"
@@ -28,23 +27,20 @@ export type {
   MonthlyIncentiveSummary,
   MonthlyIncentiveTier,
 } from "@/lib/commission-slice"
-export { STAFF_COMMISSION_PRESETS }
 
-/** Per-staff commission breakdown (paid / unpaid+partial / total, plus released / pending-release
- * within paid) for an explicit [dateFrom, dateTo] window (both inclusive, "yyyy-MM-dd"),
- * optionally scoped to one staff member via `layoutBy`. The server forces staff callers to their
- * own id regardless of what's passed. Refetches whenever the range or layoutBy changes. Pass ""
- * for both dates to skip fetching (e.g. an incomplete custom range). */
-export function useCommissionSummary(dateFrom: string, dateTo: string, layoutBy?: string) {
+/** All-time per-staff commission breakdown (paid / unpaid+partial / total, plus released /
+ * pending-release within paid), optionally scoped to one staff member via `layoutBy`. The server
+ * forces staff callers to their own id regardless of what's passed. Refetches whenever layoutBy
+ * changes. */
+export function useCommissionSummary(layoutBy?: string) {
   const rows = useAppSelector((state) => state.commission.rows)
   const status = useAppSelector((state) => state.commission.status)
   const error = useAppSelector((state) => state.commission.error)
   const dispatch = useAppDispatch()
 
   useEffect(() => {
-    if (!dateFrom || !dateTo) return
-    dispatch(fetchCommissionSummaryThunk({ dateFrom, dateTo, layoutBy }))
-  }, [dispatch, dateFrom, dateTo, layoutBy])
+    dispatch(fetchCommissionSummaryThunk({ layoutBy }))
+  }, [dispatch, layoutBy])
 
   return {
     rows,
@@ -52,14 +48,13 @@ export function useCommissionSummary(dateFrom: string, dateTo: string, layoutBy?
     isError: status === "failed",
     error,
     refetch: () => {
-      if (!dateFrom || !dateTo) return
-      dispatch(fetchCommissionSummaryThunk({ dateFrom, dateTo, layoutBy }))
+      dispatch(fetchCommissionSummaryThunk({ layoutBy }))
     },
   }
 }
 
-/** One page of commission-eligible orders (one row per order, not aggregated) for the same window
- * and scoping rules as useCommissionSummary, filtered by release state server-side — backs the
+/** One page of all-time commission-eligible orders (one row per order, not aggregated) with the
+ * same scoping rules as useCommissionSummary, filtered by release state server-side — backs the
  * release/unrelease order table. `pendingReleaseIds` spans every page. */
 export function useCommissionOrders(query: CommissionOrdersQuery) {
   const rows = useAppSelector((state) => state.commission.orderRows)
@@ -68,17 +63,16 @@ export function useCommissionOrders(query: CommissionOrdersQuery) {
   const status = useAppSelector((state) => state.commission.orderStatus)
   const error = useAppSelector((state) => state.commission.orderError)
   const dispatch = useAppDispatch()
-  const { dateFrom, dateTo, layoutBy, release, page, pageSize } = query
+  const { layoutBy, release, page, pageSize } = query
 
   function refetch() {
-    if (!dateFrom || !dateTo) return
-    dispatch(fetchCommissionOrdersThunk({ dateFrom, dateTo, layoutBy, release, page, pageSize }))
+    dispatch(fetchCommissionOrdersThunk({ layoutBy, release, page, pageSize }))
   }
 
   useEffect(() => {
     refetch()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dispatch, dateFrom, dateTo, layoutBy, release, page, pageSize])
+  }, [dispatch, layoutBy, release, page, pageSize])
 
   return {
     rows,

@@ -16,14 +16,13 @@ import { PaginationBar } from "@/components/pagination-bar"
 import { Tabs, TabsContent, TabsIndicator, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useAuth } from "@/lib/auth"
 import {
-  STAFF_COMMISSION_PRESETS,
   useCommissionOrders,
   useCommissionReleaseActions,
   useCommissionSummary,
   useMonthlyIncentiveSummary,
   usePreviousMonthlyIncentiveSummary,
 } from "@/lib/commission"
-import { computePeriodRange, PERIOD_PRESETS, type PeriodPreset } from "@/lib/finance-period"
+import { computePeriodRange } from "@/lib/finance-period"
 import { useClampPage } from "@/lib/pagination"
 import { useUserOptions } from "@/lib/users"
 
@@ -41,22 +40,13 @@ const TAB_CLASS =
 export function IncentivesPage() {
   const { role } = useAuth()
   const isStaffView = role === "staff"
-  const presets = isStaffView ? STAFF_COMMISSION_PRESETS : PERIOD_PRESETS
 
-  const [preset, setPreset] = useState<PeriodPreset>("this_week")
-  const [customFrom, setCustomFrom] = useState("")
-  const [customTo, setCustomTo] = useState("")
   const [selectedStaffId, setSelectedStaffId] = useState("")
   const [releaseFilter, setReleaseFilter] = useState<CommissionReleaseFilter>("all")
   const [isMutating, setIsMutating] = useState(false)
   const [tab, setTab] = useState<IncentivesTab>("incentives")
 
-  const range = useMemo(
-    () => computePeriodRange(preset, customFrom, customTo, new Date()),
-    [preset, customFrom, customTo]
-  )
-  const dateFrom = range ? format(range.start, "yyyy-MM-dd") : ""
-  const dateTo = range ? format(range.end, "yyyy-MM-dd") : ""
+  // Layout commission has no date filter -- it always covers all time.
   const layoutBy = isStaffView ? undefined : selectedStaffId || undefined
 
   // Admin/superadmin only: roster for the "filter by staff member" picker. Restricted to role
@@ -96,10 +86,10 @@ export function IncentivesPage() {
         100
       : null
 
-  const { rows, isLoading, isError, refetch: refetchSummary } = useCommissionSummary(dateFrom, dateTo, layoutBy)
+  const { rows, isLoading, isError, refetch: refetchSummary } = useCommissionSummary(layoutBy)
   // Any filter change sends the orders table back to page 1: the stored page only counts while the
   // filters it was picked under are still the current ones.
-  const ordersFilterKey = `${dateFrom}|${dateTo}|${layoutBy ?? ""}|${releaseFilter}`
+  const ordersFilterKey = `${layoutBy ?? ""}|${releaseFilter}`
   const [ordersPageState, setOrdersPageState] = useState({ filterKey: ordersFilterKey, page: 1 })
   const ordersPage = ordersPageState.filterKey === ordersFilterKey ? ordersPageState.page : 1
   const setOrdersPage = (page: number) => setOrdersPageState({ filterKey: ordersFilterKey, page })
@@ -114,8 +104,6 @@ export function IncentivesPage() {
     isError: isOrdersError,
     refetch: refetchOrders,
   } = useCommissionOrders({
-    dateFrom,
-    dateTo,
     layoutBy,
     release: releaseFilter,
     page: ordersPage,
@@ -130,7 +118,7 @@ export function IncentivesPage() {
   const showOrdersSkeleton = isOrdersLoading && orderRows.length === 0
 
   const own = rows[0]
-  const sum = (key: "paidCommission" | "unpaidCommission" | "totalCommission" | "paidOrderCount" | "unpaidOrderCount" | "totalOrderCount" | "releasedCommission" | "releasedOrderCount" | "pendingReleaseCommission" | "pendingReleaseOrderCount") =>
+  const sum = (key: "totalCommission" | "totalOrderCount" | "unpaidCommission" | "unpaidOrderCount" | "pendingReleaseCommission" | "pendingReleaseOrderCount" | "releasedCommission" | "releasedOrderCount") =>
     isStaffView ? (own?.[key] ?? 0) : rows.reduce((total, row) => total + row[key], 0)
 
   async function handleRelease(orderIds: string[]) {
@@ -235,15 +223,6 @@ export function IncentivesPage() {
         >
 
           <CommissionFilterBar
-            presets={presets}
-            preset={preset}
-            onPresetChange={setPreset}
-            customFrom={customFrom}
-            customTo={customTo}
-            onCustomRangeChange={(from, to) => {
-              setCustomFrom(from)
-              setCustomTo(to)
-            }}
             staffOptions={isStaffView ? undefined : staffOptions}
             selectedStaffId={isStaffView ? undefined : selectedStaffId}
             onSelectedStaffIdChange={isStaffView ? undefined : setSelectedStaffId}
@@ -252,24 +231,25 @@ export function IncentivesPage() {
           />
 
           <CommissionSummaryCards
+            showTotals={!isStaffView}
             totalCommission={sum("totalCommission")}
             totalOrderCount={sum("totalOrderCount")}
-            unpaidCommission={sum("unpaidCommission")}
-            unpaidOrderCount={sum("unpaidOrderCount")}
-            paidCommission={sum("paidCommission")}
-            paidOrderCount={sum("paidOrderCount")}
             releasedCommission={sum("releasedCommission")}
             releasedOrderCount={sum("releasedOrderCount")}
+            unpaidCommission={sum("unpaidCommission")}
+            unpaidOrderCount={sum("unpaidOrderCount")}
             pendingReleaseCommission={sum("pendingReleaseCommission")}
             pendingReleaseOrderCount={sum("pendingReleaseOrderCount")}
             isLoading={showSkeleton}
           />
 
-          {!isStaffView ? <CommissionByStaffTable rows={rows} isLoading={showSkeleton} isError={isError} /> : null}
+          {/* With one staff member picked, the table would only repeat the cards above. */}
+          {!isStaffView && !selectedStaffId ? (
+            <CommissionByStaffTable rows={rows} isLoading={showSkeleton} isError={isError} />
+          ) : null}
 
           <CommissionOrdersTable
             rows={orderRows}
-            total={orderTotal}
             pendingReleaseIds={pendingReleaseIds}
             isLoading={showOrdersSkeleton}
             isError={isOrdersError}

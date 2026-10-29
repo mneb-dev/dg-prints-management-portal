@@ -5,6 +5,7 @@ import { ConfirmDialog, Name } from "@/components/confirm-dialog"
 import {
   CommissionReleaseBadge,
   getCommissionReleaseStatus,
+  type CommissionReleaseStatus,
 } from "@/components/commission/commission-release-badge"
 import { DataCardItem, DataCardList } from "@/components/data-card-list"
 import { OrderFormSectionHeader } from "@/components/orders/order-form-section-header"
@@ -24,6 +25,16 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import type { CommissionOrderRow } from "@/lib/commission"
 import { cn, formatCurrency, formatDate } from "@/lib/utils"
 
+/** One status chip per order: until the customer pays in full, the payment status (Unpaid / Partial)
+ * is what matters; once paid, the release status takes over. */
+function CommissionStatus({ row, status }: { row: CommissionOrderRow; status: CommissionReleaseStatus }) {
+  return status === "awaiting_payment" ? (
+    <PaymentStatusBadge status={row.paymentStatus} />
+  ) : (
+    <CommissionReleaseBadge status={status} />
+  )
+}
+
 /** Per-order release control — the same in a table row and a phone card. */
 function ReleaseAction({
   row,
@@ -33,7 +44,7 @@ function ReleaseAction({
   onUndo,
 }: {
   row: CommissionOrderRow
-  status: ReturnType<typeof getCommissionReleaseStatus>
+  status: CommissionReleaseStatus
   isMutating: boolean
   onRelease: (orderIds: string[]) => void
   onUndo: (row: CommissionOrderRow) => void
@@ -73,7 +84,6 @@ function ReleaseAction({
 
 export function CommissionOrdersTable({
   rows,
-  total,
   pendingReleaseIds,
   footer,
   isLoading,
@@ -85,9 +95,7 @@ export function CommissionOrdersTable({
   isMutating,
 }: {
   rows: CommissionOrderRow[]
-  /** Rows matching the release filter across every page. */
-  total: number
-  /** Every pending-release order in the period, across pages — what "Release all pending" acts on. */
+  /** Every pending-release order, across pages — what "Release all pending" acts on. */
   pendingReleaseIds: string[]
   /** Rendered below the rows (the pager). */
   footer?: ReactNode
@@ -111,11 +119,7 @@ export function CommissionOrdersTable({
         <OrderFormSectionHeader
           icon={HandCoinsIcon}
           title="Layout orders"
-          description={
-            isLoading
-              ? "Orders with layout work in this period"
-              : `${total.toLocaleString()} ${total === 1 ? "order" : "orders"} in this period`
-          }
+          description="Each order with layout work and its commission"
         />
         {!isStaffView ? (
           <CardAction>
@@ -155,7 +159,7 @@ export function CommissionOrdersTable({
                 <HandCoinsIcon />
               </EmptyMedia>
               <EmptyTitle>No commission activity</EmptyTitle>
-              <EmptyDescription>No eligible layout orders in this period yet.</EmptyDescription>
+              <EmptyDescription>No eligible layout orders yet.</EmptyDescription>
             </Empty>
           </div>
         ) : (
@@ -166,11 +170,9 @@ export function CommissionOrdersTable({
                   <TableRow className="hover:bg-transparent">
                     <TableHead className={TABLE_HEAD_CLASS}>Order</TableHead>
                     {showStaffColumn ? <TableHead className={TABLE_HEAD_CLASS}>Staff</TableHead> : null}
-                    <TableHead className={cn(TABLE_HEAD_CLASS, "text-right")}>Layout fee</TableHead>
-                    <TableHead className={cn(TABLE_HEAD_CLASS, "text-right")}>Commission</TableHead>
                     <TableHead className={TABLE_HEAD_CLASS}>Created</TableHead>
-                    <TableHead className={TABLE_HEAD_CLASS}>Payment</TableHead>
-                    <TableHead className={TABLE_HEAD_CLASS}>Release</TableHead>
+                    <TableHead className={TABLE_HEAD_CLASS}>Status</TableHead>
+                    <TableHead className={cn(TABLE_HEAD_CLASS, "text-right")}>Commission</TableHead>
                     {!isStaffView ? (
                       <TableHead className={cn(TABLE_HEAD_CLASS, "w-0 text-right")}>
                         <span className="sr-only">Actions</span>
@@ -188,20 +190,15 @@ export function CommissionOrdersTable({
                           <div className="max-w-48 truncate text-xs text-muted-foreground">{row.customerName}</div>
                         </TableCell>
                         {showStaffColumn ? <TableCell className="px-4">{row.layoutByName}</TableCell> : null}
-                        <TableCell className="px-4 text-right text-muted-foreground tabular-nums">
-                          {formatCurrency(row.layoutFee)}
-                        </TableCell>
-                        <TableCell className="px-4 text-right font-semibold tabular-nums">
-                          {formatCurrency(row.commissionAmount)}
-                        </TableCell>
                         <TableCell className="px-4 whitespace-nowrap text-muted-foreground">
                           {formatDate(row.createdAt)}
                         </TableCell>
                         <TableCell className="px-4">
-                          <PaymentStatusBadge status={row.paymentStatus} />
+                          <CommissionStatus row={row} status={releaseStatus} />
                         </TableCell>
-                        <TableCell className="px-4">
-                          <CommissionReleaseBadge status={releaseStatus} />
+                        <TableCell className="px-4 text-right tabular-nums">
+                          <div className="font-semibold">{formatCurrency(row.commissionAmount)}</div>
+                          <div className="text-xs text-muted-foreground">of {formatCurrency(row.layoutFee)} fee</div>
                         </TableCell>
                         {!isStaffView ? (
                           <TableCell className="px-4">
@@ -238,9 +235,8 @@ export function CommissionOrdersTable({
                       <div className="text-xs text-muted-foreground">Layout by {row.layoutByName}</div>
                     ) : null}
                     <div className="flex items-center justify-between gap-2">
-                      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-                        <PaymentStatusBadge status={row.paymentStatus} />
-                        <CommissionReleaseBadge status={releaseStatus} />
+                      <div className="min-w-0">
+                        <CommissionStatus row={row} status={releaseStatus} />
                       </div>
                       {!isStaffView ? (
                         <div className="shrink-0">
