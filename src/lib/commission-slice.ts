@@ -2,7 +2,6 @@ import { createAsyncThunk, createSlice } from "@reduxjs/toolkit"
 
 import { apiClient } from "@/lib/api-client"
 import { getErrorMessage } from "@/lib/api-error"
-import type { PeriodPreset } from "@/lib/finance-period"
 import type { PaymentStatus } from "@/lib/orders-slice"
 import type { RootState } from "@/lib/store"
 
@@ -82,18 +81,15 @@ export type MonthlyIncentiveHistoryEntry = {
   isCurrentMonth: boolean
 }
 
-// Staff are restricted to short, coarse windows -- no custom range and no multi-month lookback --
-// same restriction (and same reasoning) as the Sales Overview chart's STAFF_PRESETS.
-export const STAFF_COMMISSION_PRESETS: PeriodPreset[] = ["this_week", "this_month"]
-
+// No dates sent: the server treats that as all time.
 export const fetchCommissionSummaryThunk = createAsyncThunk<
   CommissionSummaryRow[],
-  { dateFrom: string; dateTo: string; layoutBy?: string },
+  { layoutBy?: string },
   { rejectValue: string; state: RootState }
->("commission/fetchSummary", async ({ dateFrom, dateTo, layoutBy }, { rejectWithValue }) => {
+>("commission/fetchSummary", async ({ layoutBy }, { rejectWithValue }) => {
   try {
     const { data } = await apiClient.get<{ rows: CommissionSummaryRow[] }>("/commissions/summary", {
-      params: { dateFrom, dateTo, layoutBy: layoutBy || undefined },
+      params: { layoutBy: layoutBy || undefined },
     })
     return data.rows
   } catch (err) {
@@ -101,11 +97,10 @@ export const fetchCommissionSummaryThunk = createAsyncThunk<
   }
 })
 
-export type CommissionReleaseFilter = "all" | "released" | "unreleased"
+// Mutually exclusive besides "all": unreleased = paid but not yet released; awaiting_payment = not paid.
+export type CommissionReleaseFilter = "all" | "released" | "unreleased" | "awaiting_payment"
 
 export type CommissionOrdersQuery = {
-  dateFrom: string
-  dateTo: string
   layoutBy?: string
   release: CommissionReleaseFilter
   page: number
@@ -125,10 +120,10 @@ export const fetchCommissionOrdersThunk = createAsyncThunk<
   CommissionOrdersPage,
   CommissionOrdersQuery,
   { rejectValue: string; state: RootState }
->("commission/fetchOrders", async ({ dateFrom, dateTo, layoutBy, release, page, pageSize }, { rejectWithValue }) => {
+>("commission/fetchOrders", async ({ layoutBy, release, page, pageSize }, { rejectWithValue }) => {
   try {
     const { data } = await apiClient.get<CommissionOrdersPage>("/commissions/orders", {
-      params: { dateFrom, dateTo, layoutBy: layoutBy || undefined, release, page, pageSize },
+      params: { layoutBy: layoutBy || undefined, release, page, pageSize },
     })
     return data
   } catch (err) {

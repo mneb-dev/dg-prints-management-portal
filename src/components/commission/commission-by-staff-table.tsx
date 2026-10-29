@@ -24,7 +24,7 @@ export function CommissionByStaffTable({
         <OrderFormSectionHeader
           icon={UsersIcon}
           title="Commission by staff"
-          description="Collected vs. still awaiting customer payment"
+          description="Each person's share, split the same way as the totals above"
         />
       </CardHeader>
       <CardContent className="px-0">
@@ -49,7 +49,7 @@ export function CommissionByStaffTable({
                 <UsersIcon />
               </EmptyMedia>
               <EmptyTitle>No commission activity</EmptyTitle>
-              <EmptyDescription>No eligible layout orders in this period yet.</EmptyDescription>
+              <EmptyDescription>No eligible layout orders yet.</EmptyDescription>
             </Empty>
           </div>
         ) : (
@@ -57,28 +57,28 @@ export function CommissionByStaffTable({
             <TableHeader className={TABLE_HEADER_CLASS}>
               <TableRow className="hover:bg-transparent">
                 <TableHead className={TABLE_HEAD_CLASS}>Staff</TableHead>
-                <TableHead className={cn(TABLE_HEAD_CLASS, "text-right")}>Collected</TableHead>
                 <TableHead className={cn(TABLE_HEAD_CLASS, "text-right")}>Awaiting payment</TableHead>
-                <TableHead className={cn(TABLE_HEAD_CLASS, "text-right")}>Total commission</TableHead>
-                <TableHead className={cn(TABLE_HEAD_CLASS, "text-right")}>Orders</TableHead>
+                <TableHead className={cn(TABLE_HEAD_CLASS, "text-right")}>Pending release</TableHead>
+                <TableHead className={cn(TABLE_HEAD_CLASS, "text-right")}>Released</TableHead>
+                <TableHead className={cn(TABLE_HEAD_CLASS, "text-right")}>Total</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {rows.map((row) => (
                 <TableRow key={row.layoutBy} className="hover:bg-transparent">
                   <TableCell className="px-4 font-medium">{row.layoutByName}</TableCell>
-                  <TableCell className="px-4 text-right tabular-nums">
-                    <div>{formatCurrency(row.paidCommission)}</div>
-                    <div className="text-xs font-normal text-muted-foreground">
-                      {row.releasedOrderCount} released · {row.pendingReleaseOrderCount} pending
-                    </div>
-                  </TableCell>
-                  <TableCell className="px-4 text-right tabular-nums">{formatCurrency(row.unpaidCommission)}</TableCell>
-                  <TableCell className="px-4 text-right font-semibold tabular-nums">
-                    {formatCurrency(row.totalCommission)}
-                  </TableCell>
                   <TableCell className="px-4 text-right text-muted-foreground tabular-nums">
-                    {row.totalOrderCount}
+                    {formatCurrency(row.unpaidCommission)}
+                  </TableCell>
+                  <TableCell className="px-4 text-right tabular-nums">
+                    {formatCurrency(row.pendingReleaseCommission)}
+                  </TableCell>
+                  <TableCell className="px-4 text-right tabular-nums">{formatCurrency(row.releasedCommission)}</TableCell>
+                  <TableCell className="px-4 text-right tabular-nums">
+                    <div className="font-semibold">{formatCurrency(row.totalCommission)}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {row.totalOrderCount} {row.totalOrderCount === 1 ? "order" : "orders"}
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
