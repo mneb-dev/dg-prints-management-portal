@@ -617,10 +617,11 @@ export function OrderDetailsPage() {
                   </div>
                   <div className="flex flex-col gap-1">
                     <dt className="text-xs text-muted-foreground">Phone</dt>
-                    <dd>
+                    <dd className="flex items-center gap-1">
                       <a href={`tel:${order.shippingAddress.phone}`} className="tabular-nums hover:underline">
                         {order.shippingAddress.phone}
                       </a>
+                      {order.shippingAddress.phone && <CopyPhoneButton phone={order.shippingAddress.phone} />}
                     </dd>
                   </div>
                   <div className="flex flex-col gap-1 sm:col-span-2">
@@ -685,9 +686,12 @@ export function OrderDetailsPage() {
             <CardContent className="flex flex-col gap-1.5 text-sm">
               <p className="font-medium">{order.customerName}</p>
               {order.customerPhone && (
-                <a href={`tel:${order.customerPhone}`} className="w-fit text-muted-foreground tabular-nums hover:underline">
-                  {order.customerPhone}
-                </a>
+                <div className="flex items-center gap-1">
+                  <a href={`tel:${order.customerPhone}`} className="w-fit text-muted-foreground tabular-nums hover:underline">
+                    {order.customerPhone}
+                  </a>
+                  <CopyPhoneButton phone={order.customerPhone} />
+                </div>
               )}
               {returningCustomer && (
                 <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -743,6 +747,28 @@ export function OrderDetailsPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+/** Small inline copy button that sits next to a phone number. */
+function CopyPhoneButton({ phone }: { phone: string }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-xs"
+            aria-label="Copy phone number"
+            onClick={() => copyToClipboard(phone)}
+          />
+        }
+      >
+        <CopyIcon />
+      </TooltipTrigger>
+      <TooltipContent>Copy phone</TooltipContent>
+    </Tooltip>
   )
 }
 
