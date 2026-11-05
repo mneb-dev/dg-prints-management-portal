@@ -8,6 +8,7 @@ import {
   ReceiptTextIcon,
   Trash2Icon,
   TriangleAlertIcon,
+  TruckIcon,
   XIcon,
 } from "lucide-react"
 import { type MouseEvent, type ReactNode } from "react"
@@ -277,6 +278,7 @@ export function OrderTable({
                           {order.orderNumber}
                         </Link>
                         {order.orRequest ? <OrChip orRequest={order.orRequest} /> : null}
+                        {order.arranged ? <ArrangedChip arrangedAt={order.arrangedAt} /> : null}
                       </div>
                       <div className="mt-0.5 text-xs text-muted-foreground">{formatDate(order.createdAt)}</div>
                     </TableCell>
@@ -386,6 +388,7 @@ export function OrderTable({
                         {order.orderNumber}
                       </Link>
                       {order.orRequest ? <OrChip orRequest={order.orRequest} expanded /> : null}
+                      {order.arranged ? <ArrangedChip arrangedAt={order.arrangedAt} expanded /> : null}
                     </div>
                     <div className="mt-0.5 truncate">
                       {order.customerName}
@@ -622,6 +625,31 @@ function OrChip({ orRequest, expanded }: { orRequest: NonNullable<Order["orReque
       </TooltipTrigger>
       <TooltipContent>
         {isIssued ? `OR issued · #${orRequest.invoiceNumber}` : "OR requested — missing invoice number"}
+      </TooltipContent>
+    </Tooltip>
+  )
+}
+
+/** Shipment booked in SPX (set from the Arrange shipment dialog) — independent of order status.
+ * Same neutral chip chrome as OrChip; `expanded` spells it out for touch screens. */
+function ArrangedChip({ arrangedAt, expanded }: { arrangedAt: string | null; expanded?: boolean }) {
+  if (expanded) {
+    return (
+      <Badge variant="secondary" className="h-5 gap-1 px-1.5 text-xs">
+        <TruckIcon aria-hidden className="size-3 shrink-0 text-status-success" />
+        Arranged
+      </Badge>
+    )
+  }
+  return (
+    <Tooltip>
+      <TooltipTrigger render={<span onClick={stopRowClick} />} className="inline-flex cursor-default">
+        <Badge variant="secondary" className="h-4.5 px-1.5" aria-label="Shipment arranged">
+          <TruckIcon aria-hidden className="size-3 shrink-0 text-status-success" />
+        </Badge>
+      </TooltipTrigger>
+      <TooltipContent>
+        {arrangedAt ? `Shipment arranged · ${formatDateTime(arrangedAt)}` : "Shipment arranged"}
       </TooltipContent>
     </Tooltip>
   )

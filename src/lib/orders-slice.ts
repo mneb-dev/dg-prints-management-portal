@@ -158,6 +158,9 @@ export type Order = {
   statusUpdatedByName: string
   statusUpdatedAt: string | null
   orRequest: OrRequest | null
+  /** Shipment arranged (booked in SPX). Independent of status; set from the Arrange shipment dialog. */
+  arranged: boolean
+  arrangedAt: string | null
   /** Paid through the online shop's PayMongo checkout: the payment can then only be marked refunded. */
   paidOnline: boolean
 }
@@ -175,6 +178,8 @@ export type OrderInput = Omit<
   | "statusUpdatedByName"
   | "statusUpdatedAt"
   | "orRequest"
+  | "arranged"
+  | "arrangedAt"
   | "paidOnline"
 >
 
@@ -212,6 +217,8 @@ function normalizeOrder(order: Order): Order {
       ? { ...order.shippingAddress, fee: order.shippingAddress.fee ?? 0 }
       : null,
     orRequest: order.orRequest ?? null,
+    arranged: order.arranged ?? false,
+    arrangedAt: order.arrangedAt ?? null,
     paidOnline: order.paidOnline ?? false,
     items: order.items.map((item) => ({
       ...item,
@@ -234,6 +241,8 @@ export type OrdersQueryParams = {
   sortDir: "asc" | "desc"
   channel: string
   hasOr: string
+  /** "" (any) | "true" | "false" */
+  arranged: string
 }
 
 export const DEFAULT_ORDERS_PARAMS: OrdersQueryParams = {
@@ -250,6 +259,7 @@ export const DEFAULT_ORDERS_PARAMS: OrdersQueryParams = {
   sortDir: "desc",
   channel: "",
   hasOr: "",
+  arranged: "",
 }
 
 export type OrdersListResponse = {
@@ -296,6 +306,7 @@ export const fetchOrdersThunk = createAsyncThunk<
         sortDir: params.sortDir,
         channel: params.channel || undefined,
         hasOr: params.hasOr || undefined,
+        arranged: params.arranged || undefined,
       },
     })
     return data
@@ -509,6 +520,19 @@ export const saveOrRequestThunk = createAsyncThunk<
   }
 })
 
+export const setOrderArrangedThunk = createAsyncThunk<
+  Order,
+  { id: string; arranged: boolean },
+  { rejectValue: string }
+>("orders/setArranged", async ({ id, arranged }, { rejectWithValue }) => {
+  try {
+    const { data } = await apiClient.put<Order>(`/orders/${id}/arranged`, { arranged })
+    return data
+  } catch (err) {
+    return rejectWithValue(getErrorMessage(err))
+  }
+})
+
 export const deleteOrderThunk = createAsyncThunk<string, string, { rejectValue: string }>(
   "orders/delete",
   async (id, { rejectWithValue }) => {
@@ -637,6 +661,16 @@ const ordersSlice = createSlice({
         }
       })
       .addCase(saveOrRequestThunk.fulfilled, (state, action: PayloadAction<Order>) => {
+        const normalized = normalizeOrder(action.payload)
+        if (state.current?.id === action.payload.id) {
+          state.current = normalized
+        }
+        const idx = state.items.findIndex((order) => order.id === action.payload.id)
+        if (idx !== -1) {
+          state.items[idx] = normalized
+        }
+      })
+      .addCase(setOrderArrangedThunk.fulfilled, (state, action: PayloadAction<Order>) => {
         const normalized = normalizeOrder(action.payload)
         if (state.current?.id === action.payload.id) {
           state.current = normalized

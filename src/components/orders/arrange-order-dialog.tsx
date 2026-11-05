@@ -1,11 +1,11 @@
-import { CopyIcon, TruckIcon } from "lucide-react"
+import { CircleCheckIcon, CopyIcon, TruckIcon } from "lucide-react"
 
 import { ConfirmDialog, Name } from "@/components/confirm-dialog"
 import { Button } from "@/components/ui/button"
 import { copyToClipboard } from "@/lib/clipboard"
 import { describeOrderItemFull, notedItems } from "@/lib/order-item-description"
 import type { Order } from "@/lib/orders"
-import { formatCurrency } from "@/lib/utils"
+import { formatCurrency, formatDateTime } from "@/lib/utils"
 
 function CopyButton({ label, value }: { label: string; value: string }) {
   return (
@@ -24,12 +24,18 @@ function CopyButton({ label, value }: { label: string; value: string }) {
 
 export function ArrangeOrderDialog({
   order,
+  isPending = false,
   onOpenChange,
   onConfirm,
+  onToggleArranged,
 }: {
   order: Order | null
+  /** True while the arranged flag is being saved. */
+  isPending?: boolean
   onOpenChange: (open: boolean) => void
   onConfirm: (order: Order) => void
+  /** Marks/unmarks the shipment as arranged — independent of the order's status. */
+  onToggleArranged: (order: Order, arranged: boolean) => void
 }) {
   const shipping = order?.shippingAddress ?? null
   // Same lines as the orders table's Product-column notes tooltip, shown inline.
@@ -50,8 +56,29 @@ export function ArrangeOrderDialog({
       confirmLabel="Open SPX"
       cancelLabel="Later"
       confirmDisabled={!shipping}
+      isPending={isPending}
+      secondaryAction={
+        order
+          ? {
+              label: order.arranged ? "Unmark arranged" : "Mark as arranged",
+              onClick: () => onToggleArranged(order, !order.arranged),
+            }
+          : undefined
+      }
       onConfirm={() => order && onConfirm(order)}
     >
+      {order?.arranged && (
+        <div className="flex items-center gap-2 rounded-md bg-muted/50 px-3 py-2 text-sm">
+          <CircleCheckIcon aria-hidden className="size-4 shrink-0 text-status-success" />
+          <span>
+            Shipment arranged
+            {order.arrangedAt && (
+              <span className="text-muted-foreground"> · {formatDateTime(order.arrangedAt)}</span>
+            )}
+          </span>
+        </div>
+      )}
+
       {shipping && (
         <div className="flex flex-col gap-2 text-sm">
           <div className="grid grid-cols-[auto_1fr_auto] items-start gap-x-3 gap-y-1">

@@ -63,6 +63,7 @@ const ANY_CATEGORY = "All Categories"
 const ANY_CREATED_BY = "All Creators"
 const ANY_CHANNEL = "All Channels"
 const ANY_OR = "Any OR Status"
+const ANY_ARRANGED = "Any Shipment"
 
 const SORT_OPTIONS = [
   { value: "created_at", label: "Date Created" },
@@ -96,7 +97,7 @@ export function OrdersPage() {
   const { statuses } = useActiveOrderStatuses()
   const { getLabel, getColors } = useOrderStatusLookup()
   const { orderChannels } = useOrderChannels()
-  const { setOrderStatus, updateOrder, deleteOrder, saveOrRequest } = useOrderActions()
+  const { setOrderStatus, updateOrder, deleteOrder, saveOrRequest, setOrderArranged } = useOrderActions()
   // Fetched with includeInactive so a filter already applied to a former staff member's id still
   // resolves to their name (chip label, dropdown value) instead of falling back to the raw id.
   const { users: creatorOptionsRaw } = useUserOptions(true, true)
@@ -133,6 +134,7 @@ export function OrdersPage() {
   const [isDeleting, setIsDeleting] = useState(false)
   const [isPaying, setIsPaying] = useState(false)
   const [isSavingOrRequest, setIsSavingOrRequest] = useState(false)
+  const [isSavingArranged, setIsSavingArranged] = useState(false)
 
   useEffect(() => {
     if (debouncedSearch !== params.search) {
@@ -158,6 +160,20 @@ export function OrdersPage() {
   function handleConfirmArrange(_order: Order) {
     window.open(SPX_ADMIN_CREATE_ORDER_URL, "_blank", "noopener,noreferrer")
     setArrangingOrder(null)
+  }
+
+  async function handleToggleArranged(order: Order, arranged: boolean) {
+    setIsSavingArranged(true)
+    try {
+      await setOrderArranged(order.id, arranged)
+      toast.success(arranged ? "Marked as arranged." : "Marked as not arranged.")
+      setArrangingOrder(null)
+      refetch()
+    } catch (err) {
+      toast.error(typeof err === "string" ? err : "Failed to update shipment.")
+    } finally {
+      setIsSavingArranged(false)
+    }
   }
 
   async function handleConfirmRefund(order: Order) {
@@ -232,7 +248,13 @@ export function OrdersPage() {
   }
 
   // Filters tucked into the "More filters" popover — counted on its trigger so they're never hidden.
-  const moreFilterCount = [params.category, params.createdBy, params.channel, params.hasOr].filter(Boolean).length
+  const moreFilterCount = [
+    params.category,
+    params.createdBy,
+    params.channel,
+    params.hasOr,
+    params.arranged,
+  ].filter(Boolean).length
 
   const hasActiveFilters =
     params.search !== "" ||
@@ -244,6 +266,7 @@ export function OrdersPage() {
     params.dateTo !== "" ||
     params.channel !== "" ||
     params.hasOr !== "" ||
+    params.arranged !== "" ||
     params.sortBy !== "created_at" ||
     params.sortDir !== "desc"
 
@@ -295,6 +318,11 @@ export function OrdersPage() {
       key: "hasOr",
       label: params.hasOr === "true" ? "With OR" : "Without OR",
       onRemove: () => setParams({ hasOr: "", page: 1 }),
+    },
+    params.arranged && {
+      key: "arranged",
+      label: params.arranged === "true" ? "Arranged" : "Not arranged",
+      onRemove: () => setParams({ arranged: "", page: 1 }),
     },
   ].filter((filter): filter is ActiveFilter => Boolean(filter))
   // What the phone "Filters" button badges: everything except the always-visible search.
@@ -527,7 +555,7 @@ export function OrdersPage() {
                 <Field>
                   <FieldLabel htmlFor="orders-filter-or">OR status</FieldLabel>
                   <Select
-                    value={params.hasOr === "true" ? "With OR" : params.hasOr === "false" ? "Without OR" : ANY_OR}
+                    value={params.hasOr === "true" ? "with" : params.hasOr === "false" ? "without" : ANY_OR}
                     onValueChange={(value) =>
                       setParams({ hasOr: value === "with" ? "true" : value === "without" ? "false" : "", page: 1 })
                     }
@@ -545,13 +573,42 @@ export function OrdersPage() {
                     </SelectContent>
                   </Select>
                 </Field>
+
+                <Field>
+                  <FieldLabel htmlFor="orders-filter-arranged">Shipment</FieldLabel>
+                  <Select
+                    value={
+                      params.arranged === "true" ? "arranged" : params.arranged === "false" ? "not-arranged" : ANY_ARRANGED
+                    }
+                    onValueChange={(value) =>
+                      setParams({
+                        arranged: value === "arranged" ? "true" : value === "not-arranged" ? "false" : "",
+                        page: 1,
+                      })
+                    }
+                  >
+                    <SelectTrigger
+                      id="orders-filter-arranged"
+                      className={cn("w-full", params.arranged && ACTIVE_FILTER_TRIGGER_CLASS)}
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={ANY_ARRANGED}>{ANY_ARRANGED}</SelectItem>
+                      <SelectItem value="arranged">Arranged</SelectItem>
+                      <SelectItem value="not-arranged">Not arranged</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </Field>
               </div>
               <div className="flex justify-end border-t bg-muted/30 px-3 py-2">
                 <Button
                   variant="ghost"
                   size="sm"
                   disabled={moreFilterCount === 0}
-                  onClick={() => setParams({ category: "", createdBy: "", channel: "", hasOr: "", page: 1 })}
+                  onClick={() =>
+                    setParams({ category: "", createdBy: "", channel: "", hasOr: "", arranged: "", page: 1 })
+                  }
                 >
                   Reset
                 </Button>
@@ -628,8 +685,10 @@ export function OrdersPage() {
 
       <ArrangeOrderDialog
         order={arrangingOrder}
+        isPending={isSavingArranged}
         onOpenChange={(open) => !open && setArrangingOrder(null)}
         onConfirm={handleConfirmArrange}
+        onToggleArranged={handleToggleArranged}
       />
 
       <RefundOrderDialog
