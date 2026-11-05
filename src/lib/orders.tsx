@@ -15,6 +15,7 @@ import {
   fetchTopCustomersThunk,
   markDashboardStale,
   saveOrRequestThunk,
+  setOrderArrangedThunk,
   SALES_ORDERS_LIMIT,
   setOrdersParams,
   updateOrderThunk,
@@ -117,6 +118,7 @@ export function useOrders() {
     params.sortDir,
     params.channel,
     params.hasOr,
+    params.arranged,
   ])
 
   function setParams(patch: Partial<OrdersQueryParams>) {
@@ -327,13 +329,17 @@ export function useOrderActions() {
     return dispatch(saveOrRequestThunk({ id, input })).unwrap()
   }
 
+  async function setOrderArranged(id: string, arranged: boolean): Promise<Order> {
+    return dispatch(setOrderArrangedThunk({ id, arranged })).unwrap()
+  }
+
   /** Sets the Orders list page's filter params ahead of navigating there — e.g. a dashboard
    * widget linking to "unpaid orders" first primes the filter, then the caller navigates to /orders. */
   function setOrdersFilter(patch: Partial<OrdersQueryParams>) {
     dispatch(setOrdersParams({ ...DEFAULT_ORDERS_PARAMS, ...patch }))
   }
 
-  return { addOrder, updateOrder, setOrderStatus, deleteOrder, saveOrRequest, setOrdersFilter }
+  return { addOrder, updateOrder, setOrderStatus, deleteOrder, saveOrRequest, setOrderArranged, setOrdersFilter }
 }
 
 /** Shared optimistic-update + toast behavior for changing an order's status — used by the
