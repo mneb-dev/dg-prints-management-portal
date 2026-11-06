@@ -285,6 +285,17 @@ type CustomerRankingResponse = {
   windowDays: number
 }
 
+/** Customers matching `query` across all order history (any status, any date) — for the order
+ * form's Customer Name suggestions. Not cached in Redux: each keystroke (debounced) asks the
+ * server so customers created moments ago are included. Totals are all-time. */
+export async function searchCustomers(query: string, signal?: AbortSignal): Promise<CustomerRanking[]> {
+  const { data } = await apiClient.get<{ customers: CustomerRanking[] }>("/orders/customers/search", {
+    params: { q: query },
+    signal,
+  })
+  return data.customers
+}
+
 export const fetchOrdersThunk = createAsyncThunk<
   OrdersListResponse,
   OrdersQueryParams,

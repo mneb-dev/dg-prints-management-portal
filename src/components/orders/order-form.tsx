@@ -79,6 +79,7 @@ import {
   canEditOrderMetadata,
   getStatusFlowForCategory,
   useCustomerRankings,
+  useCustomerSearch,
   useHotProductIds,
   useOrderActions,
 } from "@/lib/orders"
@@ -368,12 +369,9 @@ export function OrderForm({
   const { products } = useProductCatalog()
   const { hotProductIds: hotProductIdList } = useHotProductIds()
   const hotProductIds = useMemo(() => new Set(hotProductIdList), [hotProductIdList])
-  const {
-    customerNames,
-    topCustomerNames,
-    customerDetailsByName,
-    windowDays: customerWindowDays,
-  } = useCustomerRankings()
+  // Suggestions come from an all-history server search (any status, any date); the 30-day paid
+  // ranking is only used for the "Top" badge.
+  const { topCustomerNames } = useCustomerRankings()
   const { addOrder, updateOrder } = useOrderActions()
   const { categories } = useCategories()
   const { settings } = useSettings()
@@ -390,6 +388,11 @@ export function OrderForm({
 
   const [customerName, setCustomerName] = useState("")
   const [customerPhone, setCustomerPhone] = useState("")
+  const {
+    customerNames,
+    findCustomer,
+    isLoading: isSearchingCustomers,
+  } = useCustomerSearch(customerName)
   const [items, setItems] = useState<LineItemDraft[]>([createEmptyLineItemDraft()])
   // Which line-item cards render expanded vs collapsed to a summary row — mirrors the same
   // "single item starts open, multiple start collapsed" rule the read-only order details page
@@ -490,7 +493,7 @@ export function OrderForm({
   // whatever is currently in Phone/shipping fields — same "picking resets dependent fields"
   // convention as picking a product elsewhere in this form.
   function applyCustomerSelection(name: string) {
-    const details = customerDetailsByName.get(name)
+    const details = findCustomer(name)
     if (!details) return
     setCustomerPhone(details.customerPhone)
     if (details.shippingAddress) {
@@ -749,9 +752,11 @@ export function OrderForm({
   })
 
   const subtotal = resolvedItems.reduce((sum, resolved) => sum + resolved.lineTotal, 0)
-  // A typed name that matches a known customer (case-sensitive, same lookup the suggestion pick
-  // uses) — drives the "Returning customer · N orders" hint under the name field.
-  const returningCustomer = customerDetailsByName.get(customerName.trim()) ?? null
+  // A typed name that matches a known customer (case-insensitive, same lookup the suggestion pick
+  // uses) — drives the "Returning customer · N orders" hint under the name field. While a search
+  // is still settling, "New customer" is held back so it doesn't flash for a returning one.
+  const returningCustomer = findCustomer(customerName)
+  const showCustomerHint = !!customerName.trim() && (!!returningCustomer || !isSearchingCustomers)
   const stickerLabelSubtotal = resolvedItems.reduce((sum, resolved) => {
     const category = resolved.product?.category ?? resolved.frozenOriginal?.productCategory
     return isStickerLabelCategory(category) ? sum + resolved.lineTotal : sum
@@ -1153,6 +1158,8 @@ export function OrderForm({
                   <FieldLabel htmlFor="order-customer-name">Customer Name</FieldLabel>
                   <Autocomplete
                     items={customerNames}
+                    // The server already matched these against the typed text.
+                    filter={null}
                     value={customerName}
                     openOnInputClick
                     onValueChange={(text, eventDetails) => {
@@ -1172,7 +1179,15 @@ export function OrderForm({
                       <AutocompleteIcon />
                     </AutocompleteInputGroup>
                     <AutocompletePopup>
-                      <AutocompleteEmpty>No matching customers — this will be added as a new customer.</AutocompleteEmpty>
+                      <AutocompleteEmpty>
+                        {isSearchingCustomers ? (
+                          <span className="inline-flex items-center gap-2">
+                            <Spinner /> Searching customers…
+                          </span>
+                        ) : (
+                          "No matching customers — this will be added as a new customer."
+                        )}
+                      </AutocompleteEmpty>
                       <AutocompletePrimitive.List>
                         {(name: string) => (
                           <AutocompleteItem key={name} value={name}>
@@ -1192,7 +1207,7 @@ export function OrderForm({
                   </Autocomplete>
                   {errors.customerName ? (
                     <FieldError>{errors.customerName}</FieldError>
-                  ) : customerName.trim() ? (
+                  ) : showCustomerHint ? (
                     <FieldDescription
                       key={returningCustomer ? "returning" : "new"}
                       className="flex animate-in items-center gap-1.5 text-xs duration-200 fade-in-0 motion-reduce:animate-none"
@@ -1204,7 +1219,6 @@ export function OrderForm({
                             Returning customer · {returningCustomer.orderCount}{" "}
                             {returningCustomer.orderCount === 1 ? "order" : "orders"} ·{" "}
                             {formatCurrency(returningCustomer.totalSpent)}
-                            {customerWindowDays ? ` in the last ${customerWindowDays} days` : ""}
                           </span>
                         </>
                       ) : (

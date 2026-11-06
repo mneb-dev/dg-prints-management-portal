@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
 
 import { useAppDispatch, useAppSelector } from "@/lib/hooks"
+import { useDebouncedValue } from "@/lib/use-debounced-value"
 import {
   createOrderThunk,
   DEFAULT_ORDERS_PARAMS,
@@ -14,6 +15,7 @@ import {
   fetchSalesOrdersThunk,
   fetchTopCustomersThunk,
   markDashboardStale,
+  searchCustomers,
   saveOrRequestThunk,
   setOrderArrangedThunk,
   SALES_ORDERS_LIMIT,
@@ -21,6 +23,7 @@ import {
   updateOrderThunk,
 } from "@/lib/orders-slice"
 import type {
+  CustomerRanking,
   Order,
   OrderInput,
   OrderStatus,
@@ -248,6 +251,48 @@ export function useCustomerRankings() {
     /** Days the ranking covers (server's CUSTOMER_RANKING_WINDOW_DAYS); null until loaded. */
     windowDays,
     isLoading: status === "loading" || status === "idle",
+  }
+}
+
+function customerKey(name: string) {
+  return name.trim().toLowerCase()
+}
+
+/** Server-side customer search over all order history (any status, any date) for the order
+ * form's Customer Name suggestions — unlike `useCustomerRankings`, which only covers paid orders
+ * in the ranking window. Debounced; stale responses are dropped. `findCustomer` feeds the
+ * auto-fill of Phone/shipping on pick and the "Returning customer" hint. */
+export function useCustomerSearch(query: string) {
+  const debouncedQuery = useDebouncedValue(query.trim(), 250)
+  const [customers, setCustomers] = useState<CustomerRanking[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    const controller = new AbortController()
+    setIsLoading(true)
+    searchCustomers(debouncedQuery, controller.signal)
+      .then((items) => setCustomers(items))
+      .catch(() => {
+        // Aborted or failed — keep the previous suggestions; the field still accepts free text.
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setIsLoading(false)
+      })
+    return () => controller.abort()
+  }, [debouncedQuery])
+
+  const customerNames = useMemo(() => customers.map((customer) => customer.customerName), [customers])
+  // Keyed case-insensitively, matching how the server groups names (lower(trim(name))).
+  const customerDetailsByKey = useMemo(
+    () => new Map(customers.map((customer) => [customerKey(customer.customerName), customer])),
+    [customers]
+  )
+
+  return {
+    customerNames,
+    findCustomer: (name: string) => customerDetailsByKey.get(customerKey(name)) ?? null,
+    /** True while typing hasn't settled yet or a request is in flight. */
+    isLoading: isLoading || debouncedQuery !== query.trim(),
   }
 }
 
