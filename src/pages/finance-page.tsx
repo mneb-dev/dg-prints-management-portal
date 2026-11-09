@@ -62,6 +62,7 @@ export function FinancePage() {
   const netProfit = summary?.netProfit ?? 0
   const outstandingBalance = summary?.outstandingBalance ?? 0
   const orderCount = summary?.revenueOrderCount ?? 0
+  const partialOrderCount = summary?.partialOrderCount ?? 0
   const expenseCount = summary?.expenseCount ?? 0
 
   const expensesPct = formatSharePercent(totalExpenses, totalRevenue)
@@ -119,7 +120,10 @@ export function FinancePage() {
               icon={TrendingUpIcon}
               label="Revenue"
               value={money(totalRevenue)}
-              description={`From ${orderCount.toLocaleString()} fully paid ${orderCount === 1 ? "order" : "orders"}`}
+              description={
+                `Collected from ${orderCount.toLocaleString()} ${orderCount === 1 ? "order" : "orders"}` +
+                (partialOrderCount > 0 ? ` · ${partialOrderCount.toLocaleString()} partially paid` : "")
+              }
             />
             <StatCard
               icon={ReceiptTextIcon}
@@ -172,14 +176,14 @@ export function FinancePage() {
         <BreakdownCard
           icon={Share2Icon}
           title="Revenue by channel"
-          description="Where paid orders came from"
+          description="Where collected money came from"
           data={summary?.revenueByChannel ?? {}}
           masked={!isVisible}
           isLoading={showSkeleton}
           isError={isError}
           emptyIcon={Share2Icon}
           emptyTitle="No revenue in this period"
-          emptyDescription="The channel breakdown appears once orders are paid."
+          emptyDescription="The channel breakdown appears once payments are collected."
         />
         <BreakdownCard
           icon={CreditCardIcon}
@@ -191,7 +195,7 @@ export function FinancePage() {
           isError={isError}
           emptyIcon={CreditCardIcon}
           emptyTitle="No revenue in this period"
-          emptyDescription="The payment method breakdown appears once orders are paid."
+          emptyDescription="The payment method breakdown appears once payments are collected."
         />
       </div>
     </div>
