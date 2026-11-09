@@ -10,6 +10,8 @@ export type FinanceSummary = {
   range: { from: string; to: string }
   totalRevenue: number
   revenueOrderCount: number
+  // Absent until migration 20261109090000 is applied.
+  partialOrderCount?: number
   totalExpenses: number
   expenseCount: number
   netProfit: number
