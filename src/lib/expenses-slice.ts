@@ -71,6 +71,8 @@ export type RecurringExpense = {
   notes: string
   frequency: RecurrenceFrequency
   startDate: string
+  /** Inclusive last run date; null = runs until paused. */
+  endDate: string | null
   nextRunDate: string
   active: boolean
   createdBy: string | null
@@ -86,6 +88,7 @@ export type RecurringExpenseInput = {
   notes: string
   frequency: RecurrenceFrequency
   startDate: string
+  endDate: string | null
 }
 
 export type ExpensesQueryParams = {
