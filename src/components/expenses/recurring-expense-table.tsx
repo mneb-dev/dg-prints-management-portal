@@ -59,6 +59,20 @@ function Columns() {
   )
 }
 
+/** Past its end date: the cron has stopped it for good (until the end date is moved or cleared). */
+function isEnded(item: RecurringExpense) {
+  // yyyy-MM-dd strings compare correctly as plain strings.
+  return !!item.endDate && item.nextRunDate > item.endDate
+}
+
+/** Second line of the Schedule cell: next run / end date / paused / ended. */
+function scheduleDetail(item: RecurringExpense) {
+  if (isEnded(item)) return `Ended ${formatDate(item.endDate!)}`
+  if (!item.active) return item.endDate ? `Paused · Ends ${formatDate(item.endDate)}` : "Paused"
+  const next = `Next run ${formatDate(item.nextRunDate)}`
+  return item.endDate ? `${next} · Ends ${formatDate(item.endDate)}` : next
+}
+
 function stopRowClick(event: MouseEvent) {
   event.stopPropagation()
 }
@@ -108,7 +122,7 @@ function RowActions({
           {isToggling ? <Loader2Icon className="animate-spin" /> : <MoreHorizontalIcon />}
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="min-w-44">
-          <DropdownMenuItem disabled={isToggling} onClick={() => onToggleActive(item)}>
+          <DropdownMenuItem disabled={isToggling || isEnded(item)} onClick={() => onToggleActive(item)}>
             {item.active ? <PauseIcon /> : <PlayIcon />}
             <span className="leading-none">{item.active ? "Pause schedule" : "Resume schedule"}</span>
           </DropdownMenuItem>
@@ -124,7 +138,9 @@ function RowActions({
 }
 
 /** Neutral chip + dot, like every other status chip in the app (docs/design-system.md). */
-function ScheduleStatusBadge({ active }: { active: boolean }) {
+function ScheduleStatusBadge({ item }: { item: RecurringExpense }) {
+  const ended = isEnded(item)
+  const active = item.active && !ended
   return (
     <Badge variant="secondary" className="gap-1.5">
       <span
@@ -134,7 +150,7 @@ function ScheduleStatusBadge({ active }: { active: boolean }) {
           active ? "bg-order-status-teal" : "bg-muted-foreground/40"
         )}
       />
-      <span className="leading-none">{active ? "Active" : "Paused"}</span>
+      <span className="leading-none">{ended ? "Ended" : active ? "Active" : "Paused"}</span>
     </Badge>
   )
 }
@@ -263,7 +279,7 @@ export function RecurringExpenseTable({
                 >
                   <TableCell className="max-w-80 px-4">
                     <div className="flex min-w-0 flex-col gap-0.5">
-                      <span className={cn("truncate font-medium", !item.active && "text-muted-foreground")}>
+                      <span className={cn("truncate font-medium", (!item.active || isEnded(item)) && "text-muted-foreground")}>
                         {item.category}
                       </span>
                       <span className="truncate text-xs text-muted-foreground">
@@ -274,7 +290,7 @@ export function RecurringExpenseTable({
                   <TableCell className="px-4">
                     <div>{RECURRENCE_FREQUENCY_LABELS[item.frequency]}</div>
                     <div className="text-xs whitespace-nowrap text-muted-foreground">
-                      {item.active ? `Next run ${formatDate(item.nextRunDate)}` : "Paused"}
+                      {scheduleDetail(item)}
                     </div>
                   </TableCell>
                   <TableCell className="px-4 text-right">
@@ -282,7 +298,7 @@ export function RecurringExpenseTable({
                     <div className="text-xs text-muted-foreground">{item.paymentMethod}</div>
                   </TableCell>
                   <TableCell className="px-4">
-                    <ScheduleStatusBadge active={item.active} />
+                    <ScheduleStatusBadge item={item} />
                   </TableCell>
                   <TableCell className="px-4" onClick={stopRowClick}>
                     <RowActions item={item} isToggling={isToggling} {...actionHandlers} />
@@ -301,7 +317,7 @@ export function RecurringExpenseTable({
             <DataCardItem key={item.id} aria-label={`${item.category} schedule`} onOpen={() => onEdit(item)}>
               <div className="flex items-start justify-between gap-3">
                 <div className="flex min-w-0 flex-col gap-0.5">
-                  <span className={cn("font-medium", !item.active && "text-muted-foreground")}>{item.category}</span>
+                  <span className={cn("font-medium", (!item.active || isEnded(item)) && "text-muted-foreground")}>{item.category}</span>
                   <span className="text-xs text-muted-foreground">
                     {RECURRENCE_FREQUENCY_LABELS[item.frequency]} · {item.paymentMethod}
                   </span>
@@ -311,9 +327,9 @@ export function RecurringExpenseTable({
               {item.notes ? <p className="line-clamp-2 text-muted-foreground">{item.notes}</p> : null}
               <div className="flex items-center justify-between gap-3">
                 <div className="flex min-w-0 flex-wrap items-center gap-2">
-                  <ScheduleStatusBadge active={item.active} />
-                  {item.active ? (
-                    <span className="text-xs text-muted-foreground">Next run {formatDate(item.nextRunDate)}</span>
+                  <ScheduleStatusBadge item={item} />
+                  {item.active || item.endDate ? (
+                    <span className="text-xs text-muted-foreground">{scheduleDetail(item)}</span>
                   ) : null}
                 </div>
                 <div className="-mr-2 shrink-0" onClick={stopRowClick}>

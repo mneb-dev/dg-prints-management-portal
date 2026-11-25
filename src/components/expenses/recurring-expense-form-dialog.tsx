@@ -1,4 +1,4 @@
-import { CalendarIcon, RepeatIcon } from "lucide-react"
+import { CalendarIcon, RepeatIcon, XIcon } from "lucide-react"
 import { useEffect, useState } from "react"
 import { addDays, addMonths, addWeeks, format, parseISO } from "date-fns"
 import { toast } from "sonner"
@@ -42,10 +42,14 @@ const STEP_BY_FREQUENCY: Record<RecurrenceFrequency, (date: Date, amount: number
   monthly: addMonths,
 }
 
-/** The next few run dates, starting at `first` — a preview only; the server owns the schedule. */
-function upcomingRuns(first: string, frequency: RecurrenceFrequency): Date[] {
+/** The next few run dates, starting at `first` and stopping at the (inclusive) end date — a
+ * preview only; the server owns the schedule. */
+function upcomingRuns(first: string, frequency: RecurrenceFrequency, endDate: string | null): Date[] {
   const start = parseISO(first)
-  return Array.from({ length: UPCOMING_RUN_COUNT }, (_, index) => STEP_BY_FREQUENCY[frequency](start, index))
+  const end = endDate ? parseISO(endDate) : null
+  return Array.from({ length: UPCOMING_RUN_COUNT }, (_, index) => STEP_BY_FREQUENCY[frequency](start, index)).filter(
+    (date) => !end || date <= end
+  )
 }
 
 function emptyDraft(): RecurringExpenseInput {
@@ -56,6 +60,7 @@ function emptyDraft(): RecurringExpenseInput {
     notes: "",
     frequency: "monthly",
     startDate: format(new Date(), "yyyy-MM-dd"),
+    endDate: null,
   }
 }
 
@@ -67,6 +72,7 @@ function draftFromRecurringExpense(recurring: RecurringExpense): RecurringExpens
     notes: recurring.notes,
     frequency: recurring.frequency,
     startDate: recurring.startDate,
+    endDate: recurring.endDate,
   }
 }
 
@@ -89,8 +95,10 @@ export function RecurringExpenseFormDialog({
   const [categoryError, setCategoryError] = useState<string | null>(null)
   const [paymentMethodError, setPaymentMethodError] = useState<string | null>(null)
   const [startDateError, setStartDateError] = useState<string | null>(null)
+  const [endDateError, setEndDateError] = useState<string | null>(null)
   const [notesError, setNotesError] = useState<string | null>(null)
   const [datePickerOpen, setDatePickerOpen] = useState(false)
+  const [endDatePickerOpen, setEndDatePickerOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   useEffect(() => {
@@ -102,6 +110,7 @@ export function RecurringExpenseFormDialog({
     setCategoryError(null)
     setPaymentMethodError(null)
     setStartDateError(null)
+    setEndDateError(null)
     setNotesError(null)
   }, [open, recurringExpense])
 
@@ -112,7 +121,8 @@ export function RecurringExpenseFormDialog({
     recurringExpense && draft.startDate === recurringExpense.startDate
       ? recurringExpense.nextRunDate
       : draft.startDate
-  const runs = previewAmount !== null && firstRun ? upcomingRuns(firstRun, draft.frequency) : null
+  const runs =
+    previewAmount !== null && firstRun ? upcomingRuns(firstRun, draft.frequency, draft.endDate) : null
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -132,6 +142,11 @@ export function RecurringExpenseFormDialog({
     }
     if (!draft.startDate) {
       setStartDateError(requiredMessage("Start date"))
+      return
+    }
+    // yyyy-MM-dd strings compare correctly as plain strings.
+    if (draft.endDate && draft.endDate < draft.startDate) {
+      setEndDateError("End date must be on or after the start date.")
       return
     }
     if (draft.notes.length > EXPENSE_NOTES_MAX_LENGTH) {
@@ -217,28 +232,28 @@ export function RecurringExpenseFormDialog({
               </FieldGroup>
             </FormSection>
 
-            <FormSection step={2} title="Schedule" description="How often it repeats and when it starts.">
+            <FormSection step={2} title="Schedule" description="How often it repeats, when it starts and, optionally, when it ends.">
               <FieldGroup>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <Field>
-                    <FieldLabel id="recurring-expense-frequency-label">Frequency</FieldLabel>
-                    <ToggleGroup
-                      aria-labelledby="recurring-expense-frequency-label"
-                      value={[draft.frequency]}
-                      onValueChange={(next) => {
-                        const value = next[0] as RecurrenceFrequency | undefined
-                        if (value) setDraft((prev) => ({ ...prev, frequency: value }))
-                      }}
-                      className={cn(SEGMENT_TRACK_CLASS, "w-full")}
-                    >
-                      {RECURRENCE_FREQUENCIES.map((frequency) => (
-                        <Toggle key={frequency} value={frequency} className={cn(SEGMENT_CLASS, "flex-1")}>
-                          {RECURRENCE_FREQUENCY_LABELS[frequency]}
-                        </Toggle>
-                      ))}
-                    </ToggleGroup>
-                  </Field>
+                <Field>
+                  <FieldLabel id="recurring-expense-frequency-label">Frequency</FieldLabel>
+                  <ToggleGroup
+                    aria-labelledby="recurring-expense-frequency-label"
+                    value={[draft.frequency]}
+                    onValueChange={(next) => {
+                      const value = next[0] as RecurrenceFrequency | undefined
+                      if (value) setDraft((prev) => ({ ...prev, frequency: value }))
+                    }}
+                    className={cn(SEGMENT_TRACK_CLASS, "w-full")}
+                  >
+                    {RECURRENCE_FREQUENCIES.map((frequency) => (
+                      <Toggle key={frequency} value={frequency} className={cn(SEGMENT_CLASS, "flex-1")}>
+                        {RECURRENCE_FREQUENCY_LABELS[frequency]}
+                      </Toggle>
+                    ))}
+                  </ToggleGroup>
+                </Field>
 
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <Field data-invalid={!!startDateError}>
                     <FieldLabel htmlFor="recurring-expense-start-date">Start date</FieldLabel>
                     <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
@@ -266,6 +281,7 @@ export function RecurringExpenseFormDialog({
                               startDate: date ? format(date, "yyyy-MM-dd") : "",
                             }))
                             setStartDateError(null)
+                            setEndDateError(null)
                             setDatePickerOpen(false)
                           }}
                           autoFocus
@@ -274,11 +290,70 @@ export function RecurringExpenseFormDialog({
                     </Popover>
                     <FieldError>{startDateError ?? undefined}</FieldError>
                   </Field>
+
+                  <Field data-invalid={!!endDateError}>
+                    <FieldLabel htmlFor="recurring-expense-end-date">
+                      End date <span className="font-normal text-muted-foreground">(optional)</span>
+                    </FieldLabel>
+                    <div className="flex gap-1">
+                      <Popover open={endDatePickerOpen} onOpenChange={setEndDatePickerOpen}>
+                        <PopoverTrigger
+                          id="recurring-expense-end-date"
+                          render={
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className={cn("min-w-0 flex-1 justify-start font-normal", !draft.endDate && "text-muted-foreground")}
+                              aria-invalid={!!endDateError}
+                            />
+                          }
+                        >
+                          <CalendarIcon data-icon="inline-start" className="text-muted-foreground" />
+                          {draft.endDate ? format(parseISO(draft.endDate), "MMM d, yyyy") : "No end date"}
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={draft.endDate ? parseISO(draft.endDate) : undefined}
+                            defaultMonth={
+                              draft.endDate ? parseISO(draft.endDate) : draft.startDate ? parseISO(draft.startDate) : undefined
+                            }
+                            disabled={draft.startDate ? { before: parseISO(draft.startDate) } : undefined}
+                            onSelect={(date) => {
+                              setDraft((prev) => ({ ...prev, endDate: date ? format(date, "yyyy-MM-dd") : null }))
+                              setEndDateError(null)
+                              setEndDatePickerOpen(false)
+                            }}
+                            autoFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
+                      {draft.endDate ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          aria-label="Clear end date"
+                          onClick={() => {
+                            setDraft((prev) => ({ ...prev, endDate: null }))
+                            setEndDateError(null)
+                          }}
+                        >
+                          <XIcon />
+                        </Button>
+                      ) : null}
+                    </div>
+                    <FieldError>{endDateError ?? undefined}</FieldError>
+                  </Field>
                 </div>
 
-                {runs && previewAmount !== null ? (
+                {runs && runs.length === 0 && previewAmount !== null ? (
+                  <p className="rounded-lg border border-dashed px-4 py-3 text-center text-sm text-muted-foreground">
+                    No runs left before the end date.
+                  </p>
+                ) : runs && previewAmount !== null ? (
                   <RecapStrip
-                    key={`${draft.frequency}-${firstRun}`}
+                    key={`${draft.frequency}-${firstRun}-${draft.endDate ?? ""}`}
                     items={[
                       { label: "Each run", value: formatCurrency(previewAmount), emphasis: true },
                       { label: "Repeats", value: RECURRENCE_FREQUENCY_LABELS[draft.frequency] },
@@ -290,6 +365,9 @@ export function RecurringExpenseFormDialog({
                           </span>
                         ),
                       },
+                      ...(draft.endDate
+                        ? [{ label: "Ends", value: format(parseISO(draft.endDate), "MMM d, yyyy") }]
+                        : []),
                     ]}
                   />
                 ) : (
