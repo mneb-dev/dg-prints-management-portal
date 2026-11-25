@@ -1,16 +1,19 @@
 import { useEffect, useState } from "react"
 import { addDays, eachDayOfInterval, format, isSameDay, min, startOfWeek, subWeeks } from "date-fns"
-import { CheckIcon, HandCoinsIcon, UsersIcon } from "lucide-react"
+import { CheckIcon, HandCoinsIcon, PlusIcon, UsersIcon, XIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { ChoiceTile } from "@/components/choice-tile"
 import { ConfirmDialog, Name } from "@/components/confirm-dialog"
+import { EXPENSE_NOTES_MAX_LENGTH } from "@/components/expenses/expense-fields"
 import { FormDialogHeader } from "@/components/form-dialog-header"
 import { FormSection } from "@/components/form-section"
 import { RecapStrip } from "@/components/recap-strip"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
+import { CurrencyInput } from "@/components/ui/currency-input"
+import { Input } from "@/components/ui/input"
 import { Dialog, DialogBody, DialogContent, DialogFooter } from "@/components/ui/dialog"
 import { Empty, EmptyDescription, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -84,6 +87,31 @@ function formatDays(total: number): string {
   return Number.isInteger(total) ? String(total) : total.toFixed(1)
 }
 
+const DEDUCTION_REMARKS_MAX_LENGTH = 60
+
+/** One line taken off a staff member's pay for this run (cash advance, late, damages...). Amount is
+ * kept as the raw input string so a half-typed value doesn't get coerced while editing. */
+type Deduction = { id: string; amount: string; remarks: string }
+
+function newDeduction(): Deduction {
+  return { id: crypto.randomUUID(), amount: "", remarks: "" }
+}
+
+function deductionAmount(deduction: Deduction): number {
+  const value = Number(deduction.amount)
+  return Number.isFinite(value) && value > 0 ? value : 0
+}
+
+/** Untouched rows (no amount, no remarks) are ignored rather than blocking the run -- opening the
+ * deductions popover adds one for convenience. */
+function filledDeductions(list: Deduction[] | undefined): Deduction[] {
+  return (list ?? []).filter((deduction) => deduction.amount.trim() !== "" || deduction.remarks.trim() !== "")
+}
+
+function roundMoney(value: number): number {
+  return Math.round(value * 100) / 100
+}
+
 export function RunPayrollDialog({
   open,
   onOpenChange,
@@ -99,6 +127,7 @@ export function RunPayrollDialog({
   const [selectedStaffIds, setSelectedStaffIds] = useState<Set<string>>(new Set())
   const [selectedDates, setSelectedDates] = useState<Date[]>([])
   const [halfDayOverrides, setHalfDayOverrides] = useState<Record<string, Set<string>>>({})
+  const [deductions, setDeductions] = useState<Record<string, Deduction[]>>({})
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -107,6 +136,7 @@ export function RunPayrollDialog({
     setSelectedStaffIds(new Set())
     setSelectedDates(defaultWorkedDates())
     setHalfDayOverrides({})
+    setDeductions({})
   }, [open])
 
   function toggleStaff(id: string) {
@@ -123,6 +153,12 @@ export function RunPayrollDialog({
       delete next[id]
       return next
     })
+    setDeductions((prev) => {
+      if (!(id in prev)) return prev
+      const next = { ...prev }
+      delete next[id]
+      return next
+    })
   }
 
   const allSelected = staff.length > 0 && staff.every((person) => selectedStaffIds.has(person.id))
@@ -132,6 +168,7 @@ export function RunPayrollDialog({
       setSelectedStaffIds(new Set())
       // Same as toggleStaff: half-day marks go with the people removed from the run.
       setHalfDayOverrides({})
+      setDeductions({})
     } else {
       setSelectedStaffIds(new Set(staff.map((person) => person.id)))
     }
@@ -167,14 +204,90 @@ export function RunPayrollDialog({
     })
   }
 
+  function addDeduction(personId: string) {
+    setDeductions((prev) => ({ ...prev, [personId]: [...(prev[personId] ?? []), newDeduction()] }))
+  }
+
+  function updateDeduction(personId: string, deductionId: string, patch: Partial<Omit<Deduction, "id">>) {
+    setDeductions((prev) => ({
+      ...prev,
+      [personId]: (prev[personId] ?? []).map((deduction) =>
+        deduction.id === deductionId ? { ...deduction, ...patch } : deduction
+      ),
+    }))
+  }
+
+  function removeDeduction(personId: string, deductionId: string) {
+    setDeductions((prev) => {
+      const remaining = (prev[personId] ?? []).filter((deduction) => deduction.id !== deductionId)
+      const next = { ...prev }
+      if (remaining.length > 0) next[personId] = remaining
+      else delete next[personId]
+      return next
+    })
+  }
+
+  /** Opening a person's deductions popover with nothing in it starts them on an empty row; closing
+   * it drops rows left untouched so the badge count only reflects real deductions. */
+  function handleDeductionsOpenChange(personId: string, isOpen: boolean) {
+    setDeductions((prev) => {
+      const current = prev[personId] ?? []
+      if (isOpen) {
+        return current.length === 0 ? { ...prev, [personId]: [newDeduction()] } : prev
+      }
+      const filled = filledDeductions(current)
+      if (filled.length === current.length) return prev
+      const next = { ...prev }
+      if (filled.length > 0) next[personId] = filled
+      else delete next[personId]
+      return next
+    })
+  }
+
   const includedStaff = staff.filter((person) => selectedStaffIds.has(person.id))
   const dayCount = selectedDates.length
-  const totalAmount = includedStaff.reduce(
-    (sum, person) =>
-      sum + (person.dailyRate ?? 0) * staffDayTotal(person.id, selectedDates, halfDayOverrides),
-    0
-  )
-  const canSubmit = includedStaff.length > 0 && dayCount > 0
+  const dateLabel = formatDateRanges(selectedDates)
+
+  // Everything the review table, totals, validation, and submit need per person, computed once.
+  const payLines = includedStaff.map((person) => {
+    const days = staffDayTotal(person.id, selectedDates, halfDayOverrides)
+    const gross = roundMoney((person.dailyRate ?? 0) * days)
+    const items = filledDeductions(deductions[person.id])
+    const deductionTotal = roundMoney(items.reduce((sum, deduction) => sum + deductionAmount(deduction), 0))
+    const net = roundMoney(gross - deductionTotal)
+    const name = `${person.firstName} ${person.lastName}`
+
+    const halfDates = selectedDates
+      .filter((date) => halfDayOverrides[person.id]?.has(format(date, "yyyy-MM-dd")))
+      .sort((a, b) => a.getTime() - b.getTime())
+    const halfLabel =
+      halfDates.length > 0 ? `, half day: ${halfDates.map((date) => format(date, "MMM d")).join(", ")}` : ""
+    let notes = `Payroll — ${name} (${formatDays(days)} day${days === 1 ? "" : "s"}: ${dateLabel}${halfLabel})`
+    if (items.length > 0) {
+      const itemized = items
+        .map((deduction) => `${deduction.remarks.trim()} ${formatCurrency(deductionAmount(deduction))}`)
+        .join("; ")
+      notes += ` · Gross ${formatCurrency(gross)} · Less ${formatCurrency(deductionTotal)}: ${itemized}`
+    }
+
+    let error: string | null = null
+    if (items.some((deduction) => deductionAmount(deduction) === 0)) {
+      error = `Enter an amount for each of ${person.firstName}'s deductions.`
+    } else if (items.some((deduction) => deduction.remarks.trim() === "")) {
+      error = `Add a remark for each of ${person.firstName}'s deductions.`
+    } else if (items.length > 0 && net <= 0) {
+      error = `${person.firstName}'s deductions (${formatCurrency(deductionTotal)}) can't reach or exceed their pay (${formatCurrency(gross)}).`
+    } else if (notes.length > EXPENSE_NOTES_MAX_LENGTH) {
+      error = `${person.firstName}'s deduction remarks are too long to fit in the expense notes — shorten or combine them.`
+    }
+
+    return { person, days, gross, items, deductionTotal, net, notes, error }
+  })
+
+  const totalAmount = roundMoney(payLines.reduce((sum, line) => sum + line.net, 0))
+  const totalDeductions = roundMoney(payLines.reduce((sum, line) => sum + line.deductionTotal, 0))
+  const errors = payLines.flatMap((line) => (line.error ? [line.error] : []))
+  const canSubmit = includedStaff.length > 0 && dayCount > 0 && errors.length === 0
 
   // Quick picks for the days calendar; the matching one shows pressed.
   const quickRanges = [
@@ -187,27 +300,15 @@ export function RunPayrollDialog({
     setIsSubmitting(true)
     try {
       const today = format(new Date(), "yyyy-MM-dd")
-      const dateLabel = formatDateRanges(selectedDates)
 
       await addExpenses(
-        includedStaff.map((person) => {
-          const personTotal = staffDayTotal(person.id, selectedDates, halfDayOverrides)
-          const halfDates = selectedDates
-            .filter((date) => halfDayOverrides[person.id]?.has(format(date, "yyyy-MM-dd")))
-            .sort((a, b) => a.getTime() - b.getTime())
-          const halfLabel =
-            halfDates.length > 0
-              ? `, half day: ${halfDates.map((date) => format(date, "MMM d")).join(", ")}`
-              : ""
-
-          return {
-            date: today,
-            amount: (person.dailyRate ?? 0) * personTotal,
-            category: "Payroll and Employee Costs",
-            paymentMethod: "Cash",
-            notes: `Payroll — ${person.firstName} ${person.lastName} (${formatDays(personTotal)} day${personTotal === 1 ? "" : "s"}: ${dateLabel}${halfLabel})`,
-          }
-        })
+        payLines.map((line) => ({
+          date: today,
+          amount: line.net,
+          category: "Payroll and Employee Costs",
+          paymentMethod: "Cash",
+          notes: line.notes,
+        }))
       )
       toast.success(`Payroll recorded for ${includedStaff.length} staff member${includedStaff.length === 1 ? "" : "s"}.`)
       setConfirmOpen(false)
@@ -349,21 +450,25 @@ export function RunPayrollDialog({
                 </FormSection>
               </div>
 
-              <FormSection step={3} title="Review" description="Click a day count to mark half days.">
-                {canSubmit ? (
+              <FormSection
+                step={3}
+                title="Review"
+                description="Click a day count to mark half days, or a deduction to take something off pay."
+              >
+                {includedStaff.length > 0 && dayCount > 0 ? (
                   <div className="flex flex-col gap-3">
-                    <div className="overflow-hidden rounded-lg border">
+                    <div className="overflow-x-auto rounded-lg border">
                       <Table>
                         <TableHeader className="bg-muted/40">
                           <TableRow className="hover:bg-transparent">
                             <TableHead className="px-3 text-xs font-medium text-muted-foreground">Staff</TableHead>
                             <TableHead className="px-3 text-right text-xs font-medium text-muted-foreground">Days</TableHead>
-                            <TableHead className="px-3 text-right text-xs font-medium text-muted-foreground">Amount</TableHead>
+                            <TableHead className="px-3 text-right text-xs font-medium text-muted-foreground">Deductions</TableHead>
+                            <TableHead className="px-3 text-right text-xs font-medium text-muted-foreground">Net pay</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {includedStaff.map((person) => {
-                            const personTotal = staffDayTotal(person.id, selectedDates, halfDayOverrides)
+                          {payLines.map(({ person, days: personTotal, gross, items, deductionTotal, net, error }) => {
                             const halfCount = halfDayOverrides[person.id]?.size ?? 0
                             return (
                               <TableRow key={person.id} className="hover:bg-transparent">
@@ -408,8 +513,80 @@ export function RunPayrollDialog({
                                     </PopoverContent>
                                   </Popover>
                                 </TableCell>
+                                <TableCell className="px-3 text-right tabular-nums text-muted-foreground">
+                                  <Popover onOpenChange={(isOpen) => handleDeductionsOpenChange(person.id, isOpen)}>
+                                    <PopoverTrigger
+                                      className={cn(
+                                        "inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 underline decoration-dotted underline-offset-4 hover:bg-muted hover:text-foreground",
+                                        error && "text-destructive"
+                                      )}
+                                    >
+                                      {deductionTotal > 0 ? `−${formatCurrency(deductionTotal)}` : items.length > 0 ? "—" : "Add"}
+                                      {items.length > 1 && (
+                                        <Badge variant="secondary" className="px-1.5 text-[10px]">
+                                          {items.length}
+                                        </Badge>
+                                      )}
+                                    </PopoverTrigger>
+                                    <PopoverContent align="end" className="w-80 p-3">
+                                      <p className="mb-2 text-xs font-medium text-muted-foreground">
+                                        Deductions for {person.firstName} · pay {formatCurrency(gross)}
+                                      </p>
+                                      <div className="flex flex-col gap-2">
+                                        {(deductions[person.id] ?? []).map((deduction, index) => (
+                                          <div key={deduction.id} className="flex items-center gap-1.5">
+                                            <CurrencyInput
+                                              aria-label={`Deduction ${index + 1} amount`}
+                                              placeholder="0"
+                                              wrapperClassName="w-24 shrink-0"
+                                              value={deduction.amount}
+                                              autoFocus={index === 0 && deduction.amount === "" && deduction.remarks === ""}
+                                              onChange={(event) =>
+                                                updateDeduction(person.id, deduction.id, { amount: event.target.value })
+                                              }
+                                            />
+                                            <Input
+                                              aria-label={`Deduction ${index + 1} remarks`}
+                                              placeholder="Remarks, e.g. Cash advance"
+                                              maxLength={DEDUCTION_REMARKS_MAX_LENGTH}
+                                              value={deduction.remarks}
+                                              onChange={(event) =>
+                                                updateDeduction(person.id, deduction.id, { remarks: event.target.value })
+                                              }
+                                            />
+                                            <Button
+                                              type="button"
+                                              variant="ghost"
+                                              size="icon-sm"
+                                              aria-label={`Remove deduction ${index + 1}`}
+                                              onClick={() => removeDeduction(person.id, deduction.id)}
+                                            >
+                                              <XIcon />
+                                            </Button>
+                                          </div>
+                                        ))}
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="sm"
+                                          className="self-start"
+                                          onClick={() => addDeduction(person.id)}
+                                        >
+                                          <PlusIcon data-icon="inline-start" />
+                                          Add deduction
+                                        </Button>
+                                        {error && <p className="text-xs text-destructive">{error}</p>}
+                                      </div>
+                                    </PopoverContent>
+                                  </Popover>
+                                </TableCell>
                                 <TableCell className="px-3 text-right font-medium tabular-nums">
-                                  {formatCurrency((person.dailyRate ?? 0) * personTotal)}
+                                  {formatCurrency(net)}
+                                  {deductionTotal > 0 && (
+                                    <span className="block text-xs font-normal text-muted-foreground line-through">
+                                      {formatCurrency(gross)}
+                                    </span>
+                                  )}
                                 </TableCell>
                               </TableRow>
                             )
@@ -417,10 +594,20 @@ export function RunPayrollDialog({
                         </TableBody>
                       </Table>
                     </div>
+                    {errors.length > 0 && (
+                      <ul className="flex flex-col gap-1 text-sm text-destructive">
+                        {errors.map((message) => (
+                          <li key={message}>{message}</li>
+                        ))}
+                      </ul>
+                    )}
                     <RecapStrip
                       items={[
                         { label: "Staff", value: includedStaff.length.toLocaleString() },
                         { label: "Days", value: dayCount.toLocaleString() },
+                        ...(totalDeductions > 0
+                          ? [{ label: "Deductions", value: `−${formatCurrency(totalDeductions)}` }]
+                          : []),
                         { label: "Total payout", value: formatCurrency(totalAmount), emphasis: true },
                       ]}
                     />
@@ -462,7 +649,8 @@ export function RunPayrollDialog({
         description={
           <>
             Creates <Name>{formatCurrency(totalAmount)}</Name> in payroll expenses, based on days worked out of{" "}
-            {dayCount} selected {dayCount === 1 ? "day" : "days"} (half-days applied). To undo, each expense
+            {dayCount} selected {dayCount === 1 ? "day" : "days"} (half-days applied
+            {totalDeductions > 0 ? <>, less <Name>{formatCurrency(totalDeductions)}</Name> in deductions</> : null}). To undo, each expense
             must be edited or deleted one by one.
           </>
         }
