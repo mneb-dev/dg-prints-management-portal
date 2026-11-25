@@ -37,6 +37,27 @@ export function describeOrderItemFull(item: OrderItem): { notes: string; size: s
   return { notes: item.notes.trim(), size: sizeToken(item) }
 }
 
+export type OrderItemOption = { label: string; value: string }
+
+/** The item's picked options (e.g. a sticker's Type) plus its package / custom-size choice, as
+ * label/value pairs — same labels the order details page uses (order-item-summary.tsx). */
+export function describeOrderItemOptions(item: OrderItem): OrderItemOption[] {
+  const options: OrderItemOption[] = item.selectedOptions
+    .filter((option) => option.optionName.trim() && option.value.trim())
+    .map((option) => ({ label: option.optionName.trim(), value: option.value.trim() }))
+
+  const pricing = item.pricing
+  if (pricing.pricingType === "Package") {
+    const packageName = pricing.packageName.trim() || item.stickerQuotation?.package?.trim()
+    const hasPackageOption = options.some((option) => option.label.toLowerCase() === "package")
+    if (packageName && !hasPackageOption) options.push({ label: "Package", value: packageName })
+  }
+  if (pricing.pricingType === "Custom" && pricing.packageName.trim()) {
+    options.push({ label: "Custom size", value: pricing.packageName.trim() })
+  }
+  return options
+}
+
 export type OrderItemDescriptionParts = {
   /** Whitespace-stripped notes, capped at 6 characters — null when the item has no notes. */
   notes: string | null
