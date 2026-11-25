@@ -46,6 +46,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { TickingText } from "@/components/ticking-text"
 import {
   describeOrderItemFull,
+  describeOrderItemOptions,
   describeOrderItemParts,
   notedItems,
 } from "@/lib/order-item-description"
@@ -66,6 +67,12 @@ const STICKY_CELL_CLASS = "sticky left-0 z-10 bg-card"
  * items and dialogs rendered from inside these cells too. */
 function stopRowClick(event: MouseEvent) {
   event.stopPropagation()
+}
+
+/** "Type: Vinyl · Package: 100 pcs" for one item, or null when it has no options. */
+function formatOptions(item: Order["items"][number]): string | null {
+  const options = describeOrderItemOptions(item)
+  return options.length ? options.map((option) => `${option.label}: ${option.value}`).join(" · ") : null
 }
 
 function TableColumns() {
@@ -316,14 +323,19 @@ export function OrderTable({
                               </span>
                             </TooltipTrigger>
                             <TooltipContent className="max-w-sm text-[11px]">
-                              <div className="flex flex-col gap-0.5">
+                              {/* Items are separated by whitespace alone. */}
+                              <div className="flex flex-col gap-2.5">
                                 {withNotes.map((noted) => {
                                   const full = describeOrderItemFull(noted)
+                                  const options = formatOptions(noted)
                                   return (
                                     <div key={noted.id}>
-                                      <span className="font-medium">{noted.productName}:</span>{" "}
-                                      {full.notes}
-                                      {full.size && ` (${full.size})`}
+                                      <div>
+                                        <span className="font-medium">{noted.productName}:</span>{" "}
+                                        {full.notes}
+                                        {full.size && ` (${full.size})`}
+                                      </div>
+                                      {options && <div className="opacity-70">{options}</div>}
                                     </div>
                                   )
                                 })}
@@ -413,6 +425,9 @@ export function OrderTable({
                       {firstNotes.size && ` (${firstNotes.size})`}
                       {withNotes.length > 1 && ` · ${withNotes.length - 1} more with notes`}
                     </p>
+                  ) : null}
+                  {firstNotes?.notes && withNotes[0] && formatOptions(withNotes[0]) ? (
+                    <p className="mt-0.5 line-clamp-1 text-xs">{formatOptions(withNotes[0])}</p>
                   ) : null}
                 </div>
 
