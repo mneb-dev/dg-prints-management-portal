@@ -75,6 +75,12 @@ function formatOptions(item: Order["items"][number]): string | null {
   return options.length ? options.map((option) => `${option.label}: ${option.value}`).join(" · ") : null
 }
 
+/** The dimmed second line under an item's notes: quantity first, then its options. */
+function formatQtyAndOptions(item: Order["items"][number]): string {
+  const options = formatOptions(item)
+  return options ? `Qty ${item.quantity} · ${options}` : `Qty ${item.quantity}`
+}
+
 function TableColumns() {
   return (
     <TableHeader className={TABLE_HEADER_CLASS}>
@@ -327,7 +333,6 @@ export function OrderTable({
                               <div className="flex flex-col gap-2.5">
                                 {withNotes.map((noted) => {
                                   const full = describeOrderItemFull(noted)
-                                  const options = formatOptions(noted)
                                   return (
                                     <div key={noted.id}>
                                       <div>
@@ -335,7 +340,7 @@ export function OrderTable({
                                         {full.notes}
                                         {full.size && ` (${full.size})`}
                                       </div>
-                                      {options && <div className="opacity-70">{options}</div>}
+                                      <div className="opacity-70">{formatQtyAndOptions(noted)}</div>
                                     </div>
                                   )
                                 })}
@@ -426,8 +431,8 @@ export function OrderTable({
                       {withNotes.length > 1 && ` · ${withNotes.length - 1} more with notes`}
                     </p>
                   ) : null}
-                  {firstNotes?.notes && withNotes[0] && formatOptions(withNotes[0]) ? (
-                    <p className="mt-0.5 line-clamp-1 text-xs">{formatOptions(withNotes[0])}</p>
+                  {firstNotes?.notes && withNotes[0] ? (
+                    <p className="mt-0.5 line-clamp-1 text-xs">{formatQtyAndOptions(withNotes[0])}</p>
                   ) : null}
                 </div>
 
