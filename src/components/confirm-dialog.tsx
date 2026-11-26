@@ -31,7 +31,7 @@ export function Name({ children }: { children: ReactNode }) {
 /**
  * The app's one confirmation modal. Every "are you sure?" follows the same pattern
  * (docs/design-system.md → Modals):
- *  - the title is a **question** ("Cancel order ORD-042?"),
+ *  - the title is a **question** ("Cancel order DGP-00042?"),
  *  - the buttons **answer** it: confirm is the verb ("Delete"), dismiss "Keep" (default),
  *  - `tone` sets the icon tile and the confirm button: danger = solid red, and focus starts on
  *    the safe dismiss button so Enter never destroys anything by accident.

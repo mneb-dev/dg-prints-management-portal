@@ -148,7 +148,7 @@ Every modal in the app follows one pattern. Two shapes share the same surface.
 
 Never hand-build an `AlertDialog`. Every "are you sure?" goes through `ConfirmDialog`.
 
-- **The title is a question** that names the thing: "Cancel order ORD-042?". Wrap the name in
+- **The title is a question** that names the thing: "Cancel order DGP-00042?". Wrap the name in
   `<Name>`.
 - **The buttons answer it, briefly**: confirm is the **verb** ("Delete", "Refund", "Save"), dismiss
   is **"Keep"** (the default). Where "Keep" doesn't fit, use "Back", "Stay", "Later" or "Keep
