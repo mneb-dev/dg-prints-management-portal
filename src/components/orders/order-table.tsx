@@ -58,6 +58,8 @@ import { cn, formatCurrency, formatDate, formatDateTime, formatTimeAgo } from "@
 import { OrderStatusBadge } from "./order-status-badge"
 import { OrderStatusMenu } from "./order-status-menu"
 import { PaymentStatusBadge } from "./payment-status-badge"
+import { TrackingNumber } from "@/components/orders/tracking-number"
+import { spxTrackingUrl } from "@/lib/spx-tracking"
 import { PaymentStatusMenu } from "./payment-status-menu"
 
 const STICKY_CELL_CLASS = "sticky left-0 z-10 bg-card"
@@ -73,6 +75,12 @@ function stopRowClick(event: MouseEvent) {
 function formatOptions(item: Order["items"][number]): string | null {
   const options = describeOrderItemOptions(item)
   return options.length ? options.map((option) => `${option.label}: ${option.value}`).join(" · ") : null
+}
+
+/** The dimmed second line under an item's notes: quantity first, then its options. */
+function formatQtyAndOptions(item: Order["items"][number]): string {
+  const options = formatOptions(item)
+  return options ? `Qty ${item.quantity} · ${options}` : `Qty ${item.quantity}`
 }
 
 function TableColumns() {
@@ -285,7 +293,9 @@ export function OrderTable({
                           {order.orderNumber}
                         </Link>
                         {order.orRequest ? <OrChip orRequest={order.orRequest} /> : null}
-                        {order.arranged ? <ArrangedChip arrangedAt={order.arrangedAt} /> : null}
+                        {order.arranged || order.trackingNumber ? (
+                          <ArrangedChip arrangedAt={order.arrangedAt} trackingNumber={order.trackingNumber} />
+                        ) : null}
                       </div>
                       <div className="mt-0.5 text-xs text-muted-foreground">{formatDate(order.createdAt)}</div>
                     </TableCell>
@@ -327,7 +337,6 @@ export function OrderTable({
                               <div className="flex flex-col gap-2.5">
                                 {withNotes.map((noted) => {
                                   const full = describeOrderItemFull(noted)
-                                  const options = formatOptions(noted)
                                   return (
                                     <div key={noted.id}>
                                       <div>
@@ -335,7 +344,7 @@ export function OrderTable({
                                         {full.notes}
                                         {full.size && ` (${full.size})`}
                                       </div>
-                                      {options && <div className="opacity-70">{options}</div>}
+                                      <div className="opacity-70">{formatQtyAndOptions(noted)}</div>
                                     </div>
                                   )
                                 })}
@@ -406,6 +415,9 @@ export function OrderTable({
                       {order.customerName}
                       {order.channel ? <span className="text-muted-foreground"> · {order.channel}</span> : null}
                     </div>
+                    {order.trackingNumber ? (
+                      <TrackingNumber value={order.trackingNumber} className="mt-0.5 max-w-full text-xs" />
+                    ) : null}
                   </div>
                   <div className="shrink-0 text-right">
                     <div className="font-medium tabular-nums">{formatCurrency(order.total)}</div>
@@ -426,8 +438,8 @@ export function OrderTable({
                       {withNotes.length > 1 && ` · ${withNotes.length - 1} more with notes`}
                     </p>
                   ) : null}
-                  {firstNotes?.notes && withNotes[0] && formatOptions(withNotes[0]) ? (
-                    <p className="mt-0.5 line-clamp-1 text-xs">{formatOptions(withNotes[0])}</p>
+                  {firstNotes?.notes && withNotes[0] ? (
+                    <p className="mt-0.5 line-clamp-1 text-xs">{formatQtyAndOptions(withNotes[0])}</p>
                   ) : null}
                 </div>
 
@@ -647,7 +659,16 @@ function OrChip({ orRequest, expanded }: { orRequest: NonNullable<Order["orReque
 
 /** Shipment booked in SPX (set from the Arrange shipment dialog) — independent of order status.
  * Same neutral chip chrome as OrChip; `expanded` spells it out for touch screens. */
-function ArrangedChip({ arrangedAt, expanded }: { arrangedAt: string | null; expanded?: boolean }) {
+function ArrangedChip({
+  arrangedAt,
+  trackingNumber = null,
+  expanded,
+}: {
+  arrangedAt: string | null
+  /** When set, the (table) chip links to SPX tracking and its tooltip shows the number. */
+  trackingNumber?: string | null
+  expanded?: boolean
+}) {
   if (expanded) {
     return (
       <Badge variant="secondary" className="h-5 gap-1 px-1.5 text-xs">
@@ -658,13 +679,32 @@ function ArrangedChip({ arrangedAt, expanded }: { arrangedAt: string | null; exp
   }
   return (
     <Tooltip>
-      <TooltipTrigger render={<span onClick={stopRowClick} />} className="inline-flex cursor-default">
-        <Badge variant="secondary" className="h-4.5 px-1.5" aria-label="Shipment arranged">
-          <TruckIcon aria-hidden className="size-3 shrink-0 text-status-success" />
+      <TooltipTrigger
+        render={
+          trackingNumber ? (
+            <a
+              href={spxTrackingUrl(trackingNumber)}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={stopRowClick}
+              aria-label={`Track ${trackingNumber} in SPX`}
+            />
+          ) : (
+            <span onClick={stopRowClick} />
+          )
+        }
+        className={cn("inline-flex rounded-sm", trackingNumber ? "cursor-pointer" : "cursor-default")}
+      >
+        <Badge variant="secondary" className="h-4.5 px-1.5" aria-label={trackingNumber ? undefined : "Shipment arranged"}>
+          <TruckIcon
+            aria-hidden
+            className={cn("size-3 shrink-0", arrangedAt ? "text-status-success" : "text-muted-foreground")}
+          />
         </Badge>
       </TooltipTrigger>
-      <TooltipContent>
-        {arrangedAt ? `Shipment arranged · ${formatDateTime(arrangedAt)}` : "Shipment arranged"}
+      <TooltipContent className="flex flex-col items-start gap-0.5">
+        <span>{arrangedAt ? `Shipment arranged · ${formatDateTime(arrangedAt)}` : "Shipment not marked arranged"}</span>
+        {trackingNumber && <span className="font-mono">SPX {trackingNumber} — click to track</span>}
       </TooltipContent>
     </Tooltip>
   )

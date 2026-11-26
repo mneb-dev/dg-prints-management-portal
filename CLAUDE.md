@@ -55,3 +55,33 @@ domain types/constants to the slice, re-exporting them from the facade rather th
   (see `showsDimensionInputs`, which drives whether dimension inputs show for `sq.ft.`-unit pricing).
 - `src/lib/order-status.ts` defines the status flow per `ProductCategory` and which statuses are terminal/refundable.
 - `src/lib/sticker-quotation.ts` and `src/lib/length-units.ts` support sticker-specific quoting math in the order form.
+
+### Delivery address (SPX-style)
+
+- The order form's delivery section stores `shippingAddress.parts` (`detail`, `barangay`, `city`, `province`,
+  `zip`) next to the one-line `address` (composed by `composeAddress` in `src/lib/ph-address.ts`, mirrored by
+  the server). Orders/drafts without `parts` show their free text read-only and save it unchanged.
+  Exception: picking a repeat customer on a new order whose last address has no `parts` Autofills it
+  automatically (`convertLegacyAddress` in `order-form.tsx`, address fields only, "Filled in from their last
+  order" line + warning when uncertain). Editing an old order never converts on its own.
+- Location data: `public/ph-address/` (index.json + one file per province, towns carry SPX's postal code),
+  generated from SPX's own mass order template `public/spx/mass_order_creation_template_ph_V2.xlsx` by
+  `node scripts/build-ph-address.mjs` — don't hand-edit. Names are SPX's exact spellings (some older, e.g.
+  "Compostela Valley", "North Cotabato"); the server accepts them via `SPX_PROVINCE_ALIASES` (the script
+  checks). The SPX zone (North Luzon etc.) comes from the template and is only displayed. Picking a town or
+  Autofill fills the postal code unless one was typed.
+- `src/components/orders/address-location-picker.tsx` is the Province → City → Barangay picker;
+  `src/lib/ph-address-parse.ts` is Paste & Autofill (local matching; ambiguous levels are left empty and
+  flagged, never guessed).
+- "Copy all" uses `formatShippingForSpx` — one line for SPX's Paste & Autofill.
+- **Export to SPX** (Orders page, admin/superadmin with `manage_orders`): `spx-export-dialog.tsx` lists paid, unarranged orders with
+  a delivery address and status "To Pack" (found by label, falling back to `pack`), prefilled from Settings →
+  Shipping "SPX export defaults" (`settings.spxExportDefaults`: weight, L/W/H, item type) and editable per order; `src/lib/spx-workbook.ts` writes the rows into a copy of
+  the SPX template (only the Order Sheet's rows change — other sheets and drop-downs are kept). COD is always
+  "N", payer defaults to Sender Pay, parcel value = order total minus the shipping fee. After downloading, staff can mark the exported orders arranged. When SPX
+  publishes a new template, replace the file in `public/spx/` and re-run the build script.
+- **Tracking number**: "SPX tracking no." in the delivery section (`order.trackingNumber`; saving one marks the
+  order arranged, server side), shown via `components/orders/tracking-number.tsx` (links to SPX tracking) in
+  the orders list and order page. **Import SPX tracking** (Orders page, admin/superadmin only — server enforces it too) reads SPX's order report
+  (`src/lib/spx-tracking-import.ts`, columns found by header) and matches Customer Reference No. = order number
+  only; parcels booked directly in SPX have "-" there and are skipped. Dry run first, then saves the picked rows.

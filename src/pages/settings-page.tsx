@@ -18,6 +18,7 @@ import { ConvenienceFeeCard } from "@/components/settings/convenience-fee-card"
 import { ShopPaymentMethodsCard } from "@/components/settings/shop-payment-methods-card"
 import { MessengerLinkCard } from "@/components/settings/messenger-link-card"
 import { ShippingRatesCard } from "@/components/settings/shipping-rates-card"
+import { SpxExportDefaultsCard } from "@/components/settings/spx-export-defaults-card"
 import { IncentiveTierList } from "@/components/settings/incentive-tier-list"
 import { QuickSizesCard } from "@/components/settings/quick-sizes-card"
 import { Button } from "@/components/ui/button"
@@ -205,51 +206,54 @@ export function SettingsPage() {
           id="shipping"
           icon={TruckIcon}
           title="Shipping"
-          description="Default fee added to new orders."
+          description="Default fee added to new orders, and the parcel details SPX exports start with."
         >
-          <div className="rounded-xl border bg-card p-4 shadow-[var(--shadow-soft)]">
-            <Field>
-              <FieldLabel htmlFor="settings-shipping-fee">Shipping fee</FieldLabel>
-              <div className="flex flex-wrap items-center gap-2">
-                <CurrencyInput
-                  id="settings-shipping-fee"
-                  wrapperClassName="w-40"
-                  className="h-8 tabular-nums"
-                  value={shippingFeeDraft}
-                  disabled={settingsLoading}
-                  onChange={(event) => setShippingFeeDraft(event.target.value)}
-                  onKeyDown={(event) => event.key === "Enter" && handleSaveFee()}
-                />
-                <Button size="sm" onClick={handleSaveFee} disabled={!feeDirty || isSavingFee || settingsLoading}>
-                  {isSavingFee && <Spinner data-icon="inline-start" />}
-                  Save
-                </Button>
-                {feeDirty && !isSavingFee ? (
-                  <>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => setShippingFeeDraft(String(settings.shippingFee))}
+          <div className="flex flex-col gap-4">
+            <div className="rounded-xl border bg-card p-4 shadow-[var(--shadow-soft)]">
+              <Field>
+                <FieldLabel htmlFor="settings-shipping-fee">Shipping fee</FieldLabel>
+                <div className="flex flex-wrap items-center gap-2">
+                  <CurrencyInput
+                    id="settings-shipping-fee"
+                    wrapperClassName="w-40"
+                    className="h-8 tabular-nums"
+                    value={shippingFeeDraft}
+                    disabled={settingsLoading}
+                    onChange={(event) => setShippingFeeDraft(event.target.value)}
+                    onKeyDown={(event) => event.key === "Enter" && handleSaveFee()}
+                  />
+                  <Button size="sm" onClick={handleSaveFee} disabled={!feeDirty || isSavingFee || settingsLoading}>
+                    {isSavingFee && <Spinner data-icon="inline-start" />}
+                    Save
+                  </Button>
+                  {feeDirty && !isSavingFee ? (
+                    <>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setShippingFeeDraft(String(settings.shippingFee))}
+                      >
+                        Reset
+                      </Button>
+                      <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <span aria-hidden className="size-2 rounded-full bg-order-status-gold" />
+                        Unsaved change
+                      </span>
+                    </>
+                  ) : justSaved ? (
+                    <span
+                      role="status"
+                      className="flex animate-in items-center gap-1 text-xs font-medium text-order-status-teal duration-200 fade-in-0 motion-reduce:animate-none"
                     >
-                      Reset
-                    </Button>
-                    <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <span aria-hidden className="size-2 rounded-full bg-order-status-gold" />
-                      Unsaved change
+                      <CheckIcon aria-hidden className="size-3.5 stroke-3" />
+                      Saved
                     </span>
-                  </>
-                ) : justSaved ? (
-                  <span
-                    role="status"
-                    className="flex animate-in items-center gap-1 text-xs font-medium text-order-status-teal duration-200 fade-in-0 motion-reduce:animate-none"
-                  >
-                    <CheckIcon aria-hidden className="size-3.5 stroke-3" />
-                    Saved
-                  </span>
-                ) : null}
-              </div>
-              <FieldDescription>Prefills the order form's shipping fee. Staff can still change it per order.</FieldDescription>
-            </Field>
+                  ) : null}
+                </div>
+                <FieldDescription>Prefills the order form's shipping fee. Staff can still change it per order.</FieldDescription>
+              </Field>
+            </div>
+            <SpxExportDefaultsCard />
           </div>
         </SettingsSection>
 

@@ -1,18 +1,33 @@
-import { useRef } from "react"
-import { TruckIcon } from "lucide-react"
+import { useRef, useState } from "react"
+import { SparklesIcon, TriangleAlertIcon, TruckIcon } from "lucide-react"
 
 import { CharCount } from "@/components/char-count"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible"
 import { CurrencyInput } from "@/components/ui/currency-input"
-import { Field, FieldError, FieldLabel } from "@/components/ui/field"
+import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { Spinner } from "@/components/ui/spinner"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
+import { AddressLocationPicker } from "@/components/orders/address-location-picker"
+import { ADDRESS_DETAIL_MAX, composeAddress, lookupPostal, type ShippingAddressParts } from "@/lib/ph-address"
+import { autofillShipping, type AutofillResult } from "@/lib/ph-address-parse"
+import { cleanTrackingInput } from "@/lib/spx-tracking"
+import { TrackingNumber } from "@/components/orders/tracking-number"
 import { useScrollIntoViewOnOpen } from "@/lib/use-scroll-into-view-on-open"
 import { cn, formatCurrency } from "@/lib/utils"
 
-const ADDRESS_MAX = 250
+const AUTOFILL_MAX = 500
+
+export type ShippingFieldErrors = {
+  name?: string
+  phone?: string
+  detail?: string
+  location?: string
+  zip?: string
+}
 
 export function ShippingAddressFields({
   enabled,
@@ -25,10 +40,16 @@ export function ShippingAddressFields({
   phone,
   onPhoneChange,
   onPhoneBlur,
-  address,
-  onAddressChange,
+  parts,
+  onPartsChange,
+  legacyAddress,
+  onAutofill,
+  convertedFrom = null,
+  onLocationPicked,
   fee,
   onFeeChange,
+  trackingNumber,
+  onTrackingNumberChange,
   freeShippingEligible = false,
   stickerLabelSubtotal = 0,
   errors,
@@ -44,13 +65,30 @@ export function ShippingAddressFields({
   onPhoneChange: (value: string) => void
   /** Lets the form check the number's format as soon as the field is left, not only on save. */
   onPhoneBlur?: () => void
-  address: string
-  onAddressChange: (value: string) => void
+  parts: ShippingAddressParts
+  onPartsChange: (value: ShippingAddressParts) => void
+  /**
+   * The free-text address of an order saved before addresses were structured. Shown read-only until the
+   * user fills in the structured fields (or Autofills from it); saving untouched keeps it as-is.
+   */
+  legacyAddress: string
+  /** Applies a parsed paste: name/phone (when found) and the address parts. */
+  onAutofill: (result: AutofillResult) => void
+  /**
+   * Set when a repeat customer's old one-line address was Autofilled automatically on pick: the original
+   * text (shown for comparison) and whether the match needs checking.
+   */
+  convertedFrom?: { text: string; uncertain: boolean } | null
+  /** Any pick in the location picker — even re-picking the same place — counts as the user checking it. */
+  onLocationPicked?: () => void
   fee: string
   onFeeChange: (value: string) => void
+  /** SPX tracking number — shown when the parent handles it (saving one marks the order arranged). */
+  trackingNumber?: string
+  onTrackingNumberChange?: (value: string) => void
   freeShippingEligible?: boolean
   stickerLabelSubtotal?: number
-  errors?: { name?: string; phone?: string; address?: string }
+  errors?: ShippingFieldErrors
 }) {
   // The parent (order-form.tsx) already resolves `sameName` against whether the customer name is
   // actually filled in, so the display here and the submitted payload agree.
@@ -59,6 +97,39 @@ export function ShippingAddressFields({
   // Once the recipient fields slide open, bring them fully into view.
   const fieldsRef = useRef<HTMLDivElement>(null)
   useScrollIntoViewOnOpen(fieldsRef, enabled ? "open" : null)
+
+  // The postal code last filled in from SPX's data (vs one typed by hand, which a new pick must not replace).
+  const autoZip = useRef("")
+  const [pasted, setPasted] = useState("")
+  const [autofilling, setAutofilling] = useState(false)
+  const [autofillNote, setAutofillNote] = useState<"uncertain" | "nothing" | "failed" | null>(null)
+
+  async function runAutofill(text: string) {
+    if (!text.trim() || autofilling) return
+    setAutofilling(true)
+    try {
+      const result = await autofillShipping(text)
+      const found = !!(result.phone || result.parts.city || result.parts.province || result.parts.barangay)
+      if (!found) {
+        setAutofillNote("nothing")
+        return
+      }
+      onAutofill(result)
+      autoZip.current = result.parts.zip // Autofill's ZIP may be SPX's; a later pick may update it
+      setAutofillNote(result.uncertain ? "uncertain" : null)
+    } catch {
+      setAutofillNote("failed")
+    } finally {
+      setAutofilling(false)
+    }
+  }
+
+  function updateParts(patch: Partial<ShippingAddressParts>) {
+    onPartsChange({ ...parts, ...patch })
+  }
+
+  const usingLegacy = !!legacyAddress.trim() && !Object.values(parts).some((value) => value.trim())
+  const complete = !!(parts.detail.trim() && parts.barangay && parts.city && parts.province)
 
   return (
     <div className="flex flex-col">
@@ -84,6 +155,46 @@ export function ShippingAddressFields({
             className="scroll-mb-6 pt-4 transition-[opacity,translate] duration-300 ease-out group-data-[ending-style]/panel:-translate-y-1 group-data-[ending-style]/panel:opacity-0 group-data-[starting-style]/panel:-translate-y-1 group-data-[starting-style]/panel:opacity-0 motion-reduce:transition-none"
           >
             <div className="flex flex-col gap-4">
+              <Field>
+                <FieldLabel htmlFor="shipping-autofill">Paste & Autofill</FieldLabel>
+                <div className="relative">
+                  <Textarea
+                    id="shipping-autofill"
+                    value={pasted}
+                    onChange={(event) => {
+                      setPasted(event.target.value)
+                      if (autofillNote === "nothing" || autofillNote === "failed") setAutofillNote(null)
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+                        event.preventDefault()
+                        void runAutofill(pasted)
+                      }
+                    }}
+                    placeholder="Paste the customer's name, phone and address, e.g. Juan Dela Cruz 0917 123 4567 Blk 5 Lot 12 Mabini St., Brgy. Poblacion, Morong, Bataan"
+                    maxLength={AUTOFILL_MAX}
+                    className="min-h-16 pb-10"
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="absolute right-2 bottom-2"
+                    disabled={!pasted.trim() || autofilling}
+                    onClick={() => void runAutofill(pasted)}
+                  >
+                    {autofilling ? <Spinner data-icon="inline-start" /> : <SparklesIcon data-icon="inline-start" />}
+                    Autofill
+                  </Button>
+                </div>
+                {autofillNote === "nothing" && (
+                  <FieldDescription>Couldn't find a phone number or place in that text.</FieldDescription>
+                )}
+                {autofillNote === "failed" && (
+                  <FieldDescription>Couldn't load the address list. Check your connection and try again.</FieldDescription>
+                )}
+              </Field>
+
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <Field className={sameName ? "opacity-70" : undefined} data-invalid={!!errors?.name}>
                   <div className="flex items-center justify-between gap-2">
@@ -127,22 +238,107 @@ export function ShippingAddressFields({
                 </Field>
               </div>
 
-              <Field data-invalid={!!errors?.address}>
-                <div className="flex items-baseline justify-between gap-2">
-                  <FieldLabel htmlFor="shipping-address">Address</FieldLabel>
-                  <CharCount value={address} max={ADDRESS_MAX} />
+              {usingLegacy && (
+                <div className="flex flex-col gap-2 rounded-lg border border-dashed px-3 py-2.5 text-sm">
+                  <span className="text-xs font-medium text-muted-foreground">Saved address (older format)</span>
+                  <span className="whitespace-pre-line">{legacyAddress}</span>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-xs text-muted-foreground">
+                      Kept as-is when you save. Fill in the fields below to update it.
+                    </span>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={autofilling}
+                      onClick={() => void runAutofill(legacyAddress)}
+                    >
+                      <SparklesIcon data-icon="inline-start" />
+                      Autofill from this
+                    </Button>
+                  </div>
                 </div>
-                <Textarea
-                  id="shipping-address"
-                  value={address}
-                  onChange={(event) => onAddressChange(event.target.value)}
-                  placeholder="House/unit no., street, barangay, city, province"
-                  autoComplete="street-address"
-                  maxLength={ADDRESS_MAX}
-                  aria-invalid={!!errors?.address}
-                />
-                <FieldError>{errors?.address}</FieldError>
-              </Field>
+              )}
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <Field data-invalid={!!errors?.location}>
+                  <FieldLabel htmlFor="shipping-location">Province / City / Barangay</FieldLabel>
+                  <AddressLocationPicker
+                    id="shipping-location"
+                    value={parts}
+                    onChange={(location) => {
+                      // SPX's postal code follows the town — unless someone typed their own.
+                      const zipIsAuto = !parts.zip || parts.zip === autoZip.current
+                      const next = { ...parts, ...location, zip: zipIsAuto && !location.city ? "" : parts.zip }
+                      onPartsChange(next)
+                      setAutofillNote(null)
+                      onLocationPicked?.()
+                      if (zipIsAuto && location.city) {
+                        void lookupPostal(location.province, location.city).then((postal) => {
+                          autoZip.current = postal
+                          if (postal) onPartsChange({ ...next, zip: postal })
+                        })
+                      }
+                    }}
+                    invalid={!!errors?.location}
+                  />
+                  {(autofillNote === "uncertain" || convertedFrom?.uncertain) && !errors?.location && (
+                    <p className="flex items-start gap-1.5 text-xs text-status-warning">
+                      <TriangleAlertIcon aria-hidden className="mt-px size-3.5 shrink-0" />
+                      Autofill couldn't match every part exactly. Check the location and detail address.
+                    </p>
+                  )}
+                  <FieldError>{errors?.location}</FieldError>
+                </Field>
+
+                <Field data-invalid={!!errors?.detail}>
+                  <div className="flex items-baseline justify-between gap-2">
+                    <FieldLabel htmlFor="shipping-detail">Detail address</FieldLabel>
+                    <CharCount value={parts.detail} max={ADDRESS_DETAIL_MAX} />
+                  </div>
+                  <Input
+                    id="shipping-detail"
+                    value={parts.detail}
+                    onChange={(event) => updateParts({ detail: event.target.value })}
+                    placeholder="House/unit no., street, subdivision"
+                    autoComplete="street-address"
+                    maxLength={ADDRESS_DETAIL_MAX}
+                    aria-invalid={!!errors?.detail}
+                  />
+                  <FieldError>{errors?.detail}</FieldError>
+                </Field>
+              </div>
+
+              {convertedFrom && !usingLegacy && (
+                <p className="-mt-2 text-xs text-muted-foreground">
+                  <SparklesIcon aria-hidden className="mr-1 inline size-3 align-[-1px]" />
+                  Filled in from their last order: <span className="text-foreground">{convertedFrom.text}</span>
+                </p>
+              )}
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <Field data-invalid={!!errors?.zip}>
+                  <FieldLabel htmlFor="shipping-zip">
+                    Postal code <span className="font-normal text-muted-foreground">(optional)</span>
+                  </FieldLabel>
+                  <Input
+                    id="shipping-zip"
+                    value={parts.zip}
+                    onChange={(event) => updateParts({ zip: event.target.value.replace(/\D/g, "").slice(0, 4) })}
+                    inputMode="numeric"
+                    autoComplete="postal-code"
+                    placeholder="e.g. 2108"
+                    aria-invalid={!!errors?.zip}
+                  />
+                  <FieldError>{errors?.zip}</FieldError>
+                </Field>
+                {complete && (
+                  <div className="flex flex-col justify-end gap-1 pb-1.5 text-sm">
+                    <span className="text-xs text-muted-foreground">Full address</span>
+                    <span>{composeAddress(parts)}</span>
+                  </div>
+                )}
+              </div>
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <Field>
@@ -163,6 +359,29 @@ export function ShippingAddressFields({
                   </div>
                 )}
               </div>
+
+              {onTrackingNumberChange && (
+                <Field>
+                  <FieldLabel htmlFor="shipping-tracking">
+                    SPX tracking no. <span className="font-normal text-muted-foreground">(optional)</span>
+                  </FieldLabel>
+                  <Input
+                    id="shipping-tracking"
+                    value={trackingNumber ?? ""}
+                    onChange={(event) => onTrackingNumberChange(cleanTrackingInput(event.target.value))}
+                    autoComplete="off"
+                    spellCheck={false}
+                    placeholder="e.g. SPEPH06200552895B"
+                    className="font-mono sm:max-w-xs"
+                  />
+                  <FieldDescription>
+                    {trackingNumber ? (
+                      <TrackingNumber value={trackingNumber} copyable className="mr-1" />
+                    ) : null}
+                    Saving a tracking number marks the shipment arranged.
+                  </FieldDescription>
+                </Field>
+              )}
             </div>
           </div>
         </CollapsibleContent>
