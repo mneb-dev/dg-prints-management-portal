@@ -16,7 +16,7 @@ import { ArrangeOrderDialog } from "@/components/orders/arrange-order-dialog"
 import { CancelOrderDialog } from "@/components/orders/cancel-order-dialog"
 import { CheckOnlinePaymentDialog } from "@/components/orders/check-online-payment-dialog"
 import { SpxExportDialog } from "@/components/orders/spx-export-dialog"
-import { SpxTrackingImportDialog } from "@/components/orders/spx-tracking-import-dialog"
+import { SpxBookingsImportDialog } from "@/components/orders/spx-bookings-import-dialog"
 import { DeleteOrderDialog } from "@/components/orders/delete-order-dialog"
 import { OrderTable } from "@/components/orders/order-table"
 import { PAYMENT_STATUS_LABELS, PaymentStatusDot } from "@/components/orders/payment-status-badge"
@@ -101,7 +101,7 @@ export function OrdersPage() {
   const navigate = useNavigate()
   const { hasPermission, role, user } = useAuth()
   const canManage = hasPermission("manage_orders")
-  // Export to SPX / Import SPX tracking are bulk shipping tools for admins only.
+  // Export to SPX / Import SPX bookings are bulk shipping tools for admins only.
   const canUseSpxBulk = canManage && (role === "admin" || role === "superadmin")
   const { orders, total, params, setParams, refetch, isLoading, isFetching, isError, error } = useOrders()
   useClampPage(params.page, params.pageSize, total, isFetching, (page) => setParams({ page }))
@@ -365,7 +365,7 @@ export function OrdersPage() {
             {canUseSpxBulk ? (
               <Button variant="outline" onClick={() => setTrackingImportOpen(true)}>
                 <ScanBarcodeIcon data-icon="inline-start" />
-                Import SPX tracking
+                Import SPX bookings
               </Button>
             ) : undefined}
             {canManage ? (
@@ -771,7 +771,7 @@ export function OrdersPage() {
         />
       )}
       {canUseSpxBulk && trackingImportOpen && (
-        <SpxTrackingImportDialog onOpenChange={setTrackingImportOpen} onImported={refetch} />
+        <SpxBookingsImportDialog onOpenChange={setTrackingImportOpen} onImported={refetch} />
       )}
     </div>
   )

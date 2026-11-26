@@ -25,8 +25,6 @@ export type OrderDraftFields = {
   /** Absent in drafts saved before addresses were structured. */
   shippingParts?: ShippingAddressParts
   shippingFee: string
-  /** Absent in drafts saved before tracking numbers existed. */
-  trackingNumber?: string
   channel: OrderChannel | ""
   markPaid: boolean
   paymentStatus: "paid" | "partially_paid" | "refunded"

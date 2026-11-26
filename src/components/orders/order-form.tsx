@@ -230,7 +230,6 @@ function fieldsFromOrder(order: Order): OrderDraftFields {
     shippingAddress: shipping && !shipping.parts ? shipping.address : "",
     shippingParts: shipping?.parts ?? EMPTY_SHIPPING_PARTS,
     shippingFee: shipping ? String(shipping.fee ?? 0) : "0",
-    trackingNumber: order.trackingNumber ?? "",
     channel: order.channel,
     markPaid: paid,
     paymentStatus:
@@ -435,7 +434,6 @@ export function OrderForm({
   // Set when a repeat customer's old one-line address was Autofilled on pick (see convertLegacyAddress).
   const [convertedFrom, setConvertedFrom] = useState<{ text: string; uncertain: boolean } | null>(null)
   const [shippingFee, setShippingFee] = useState("0")
-  const [trackingNumber, setTrackingNumber] = useState("")
   const [channel, setChannel] = useState<OrderChannel | "">("")
   const [markPaid, setMarkPaid] = useState(false)
   const [paymentStatus, setPaymentStatus] = useState<"paid" | "partially_paid" | "refunded">("paid")
@@ -473,7 +471,6 @@ export function OrderForm({
       shippingAddress,
       shippingParts,
       shippingFee,
-      trackingNumber,
       channel,
       markPaid,
       paymentStatus,
@@ -718,7 +715,6 @@ export function OrderForm({
       setShippingAddressFrom(order.shippingAddress)
       setShippingFee(String(order.shippingAddress.fee ?? 0))
     }
-    setTrackingNumber(order.trackingNumber ?? "")
 
     setChannel(order.channel)
     if (order.payment.status !== "unpaid") {
@@ -792,7 +788,6 @@ export function OrderForm({
     setShippingAddress(f.shippingAddress)
     setShippingParts(f.shippingParts ?? EMPTY_SHIPPING_PARTS)
     setShippingFee(f.shippingFee)
-    setTrackingNumber(f.trackingNumber ?? "")
     setChannel(f.channel)
     setMarkPaid(f.markPaid)
     setPaymentStatus(f.paymentStatus)
@@ -801,7 +796,10 @@ export function OrderForm({
     setLoadedDraftId(draftToLoad.id)
     // The loaded draft becomes the new "nothing to save" baseline — only edits made after loading
     // it should count as dirty, since the draft itself already reflects this content.
-    setBaselineFields({ ...f, shippingParts: f.shippingParts ?? EMPTY_SHIPPING_PARTS, trackingNumber: f.trackingNumber ?? "" })
+    // Drafts saved while orders had a tracking number field may still carry that key; leave it out of the
+    // baseline so the form doesn't look edited right after loading.
+    const { trackingNumber: _legacyTracking, ...draftFields } = f as OrderDraftFields & { trackingNumber?: unknown }
+    setBaselineFields({ ...draftFields, shippingParts: f.shippingParts ?? EMPTY_SHIPPING_PARTS })
   }, [order, draftToLoad])
 
   // Registers this form with the shared nav-guard so sidebar clicks can intercept navigation while
@@ -903,12 +901,6 @@ export function OrderForm({
 
   // Structured as soon as any part is filled in (or there's no older free-text address to keep).
   const shippingStructured = hasAnyPart(shippingParts) || !shippingAddress.trim()
-
-  // With delivery turned off the field is hidden, so an existing number is kept rather than silently cleared.
-  function resolveTrackingNumber(): string | null {
-    if (!shippingEnabled) return order?.trackingNumber ?? null
-    return trackingNumber.trim() || null
-  }
 
   function resolveShippingAddress(): ShippingAddress | null {
     if (!shippingEnabled) return null
@@ -1138,7 +1130,6 @@ export function OrderForm({
           total,
           notes: notes.trim(),
           shippingAddress: resolveShippingAddress(),
-          trackingNumber: resolveTrackingNumber(),
           channel: paymentLocked ? order.channel : (channel as OrderChannel),
           payment: paymentLocked ? order.payment : resolvePayment(total),
           ...buildAdminMetadataChanges(),
@@ -1159,7 +1150,6 @@ export function OrderForm({
           total,
           notes: notes.trim(),
           shippingAddress: resolveShippingAddress(),
-          trackingNumber: resolveTrackingNumber(),
           channel: channel as OrderChannel,
           payment: resolvePayment(total),
         })
@@ -1517,8 +1507,6 @@ export function OrderForm({
               onLocationPicked={() => setConvertedFrom((prev) => (prev?.uncertain ? { ...prev, uncertain: false } : prev))}
               fee={shippingFee}
               onFeeChange={setShippingFee}
-              trackingNumber={trackingNumber}
-              onTrackingNumberChange={setTrackingNumber}
               freeShippingEligible={freeShippingEligible}
               stickerLabelSubtotal={stickerLabelSubtotal}
               errors={{

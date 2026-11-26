@@ -58,7 +58,7 @@ import { cn, formatCurrency, formatDate, formatDateTime, formatTimeAgo } from "@
 import { OrderStatusBadge } from "./order-status-badge"
 import { OrderStatusMenu } from "./order-status-menu"
 import { PaymentStatusBadge } from "./payment-status-badge"
-import { TrackingNumber } from "@/components/orders/tracking-number"
+import { copyToClipboard } from "@/lib/clipboard"
 import { spxTrackingUrl } from "@/lib/spx-tracking"
 import { PaymentStatusMenu } from "./payment-status-menu"
 
@@ -293,9 +293,7 @@ export function OrderTable({
                           {order.orderNumber}
                         </Link>
                         {order.orRequest ? <OrChip orRequest={order.orRequest} /> : null}
-                        {order.arranged || order.trackingNumber ? (
-                          <ArrangedChip arrangedAt={order.arrangedAt} trackingNumber={order.trackingNumber} />
-                        ) : null}
+                        {order.arranged ? <ArrangedChip arrangedAt={order.arrangedAt} orderNumber={order.orderNumber} /> : null}
                       </div>
                       <div className="mt-0.5 text-xs text-muted-foreground">{formatDate(order.createdAt)}</div>
                     </TableCell>
@@ -409,15 +407,14 @@ export function OrderTable({
                         {order.orderNumber}
                       </Link>
                       {order.orRequest ? <OrChip orRequest={order.orRequest} expanded /> : null}
-                      {order.arranged ? <ArrangedChip arrangedAt={order.arrangedAt} expanded /> : null}
+                      {order.arranged ? (
+                        <ArrangedChip arrangedAt={order.arrangedAt} orderNumber={order.orderNumber} expanded />
+                      ) : null}
                     </div>
                     <div className="mt-0.5 truncate">
                       {order.customerName}
                       {order.channel ? <span className="text-muted-foreground"> · {order.channel}</span> : null}
                     </div>
-                    {order.trackingNumber ? (
-                      <TrackingNumber value={order.trackingNumber} className="mt-0.5 max-w-full text-xs" />
-                    ) : null}
                   </div>
                   <div className="shrink-0 text-right">
                     <div className="font-medium tabular-nums">{formatCurrency(order.total)}</div>
@@ -657,21 +654,31 @@ function OrChip({ orRequest, expanded }: { orRequest: NonNullable<Order["orReque
   )
 }
 
-/** Shipment booked in SPX (set from the Arrange shipment dialog) — independent of order status.
- * Same neutral chip chrome as OrChip; `expanded` spells it out for touch screens. */
+/** Shipment booked in SPX (set from the Arrange shipment dialog) — independent of order status. Clicking
+ * copies the SPX tracking link (by order number, SPX's Customer Reference No.) to send to the customer. Same neutral chip chrome as OrChip;
+ * `expanded` spells it out for touch screens. */
 function ArrangedChip({
   arrangedAt,
-  trackingNumber = null,
+  orderNumber,
   expanded,
 }: {
   arrangedAt: string | null
-  /** When set, the (table) chip links to SPX tracking and its tooltip shows the number. */
-  trackingNumber?: string | null
+  orderNumber: string
   expanded?: boolean
 }) {
+  const link = (
+    <button
+      type="button"
+      onClick={(event) => {
+        stopRowClick(event)
+        void copyToClipboard(spxTrackingUrl(orderNumber))
+      }}
+      aria-label={`Shipment arranged — copy SPX tracking link for ${orderNumber}`}
+    />
+  )
   if (expanded) {
     return (
-      <Badge variant="secondary" className="h-5 gap-1 px-1.5 text-xs">
+      <Badge variant="secondary" render={link} className="h-5 gap-1 px-1.5 text-xs">
         <TruckIcon aria-hidden className="size-3 shrink-0 text-status-success" />
         Arranged
       </Badge>
@@ -679,32 +686,14 @@ function ArrangedChip({
   }
   return (
     <Tooltip>
-      <TooltipTrigger
-        render={
-          trackingNumber ? (
-            <a
-              href={spxTrackingUrl(trackingNumber)}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={stopRowClick}
-              aria-label={`Track ${trackingNumber} in SPX`}
-            />
-          ) : (
-            <span onClick={stopRowClick} />
-          )
-        }
-        className={cn("inline-flex rounded-sm", trackingNumber ? "cursor-pointer" : "cursor-default")}
-      >
-        <Badge variant="secondary" className="h-4.5 px-1.5" aria-label={trackingNumber ? undefined : "Shipment arranged"}>
-          <TruckIcon
-            aria-hidden
-            className={cn("size-3 shrink-0", arrangedAt ? "text-status-success" : "text-muted-foreground")}
-          />
+      <TooltipTrigger render={link} className="inline-flex cursor-pointer rounded-sm">
+        <Badge variant="secondary" className="h-4.5 px-1.5">
+          <TruckIcon aria-hidden className="size-3 shrink-0 text-status-success" />
         </Badge>
       </TooltipTrigger>
       <TooltipContent className="flex flex-col items-start gap-0.5">
-        <span>{arrangedAt ? `Shipment arranged · ${formatDateTime(arrangedAt)}` : "Shipment not marked arranged"}</span>
-        {trackingNumber && <span className="font-mono">SPX {trackingNumber} — click to track</span>}
+        <span>{arrangedAt ? `Shipment arranged · ${formatDateTime(arrangedAt)}` : "Shipment arranged"}</span>
+        <span>Click to copy the SPX tracking link</span>
       </TooltipContent>
     </Tooltip>
   )
