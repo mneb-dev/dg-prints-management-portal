@@ -76,6 +76,7 @@ import {
   useOrderStatusUpdate,
 } from "@/lib/orders"
 import type { Order, OrderStatus, Payment } from "@/lib/orders"
+import { TrackingNumber } from "@/components/orders/tracking-number"
 import { cn, formatCurrency, formatDateTime, formatRelativeDate } from "@/lib/utils"
 
 export function OrderDetailsPage() {
@@ -632,6 +633,14 @@ export function OrderDetailsPage() {
                     <div className="flex flex-col gap-1">
                       <dt className="text-xs text-muted-foreground">Shipping fee</dt>
                       <dd className="tabular-nums">{formatCurrency(order.shippingAddress.fee)}</dd>
+                    </div>
+                  )}
+                  {order.trackingNumber && (
+                    <div className="flex flex-col gap-1">
+                      <dt className="text-xs text-muted-foreground">SPX tracking no.</dt>
+                      <dd>
+                        <TrackingNumber value={order.trackingNumber} copyable />
+                      </dd>
                     </div>
                   )}
                 </dl>

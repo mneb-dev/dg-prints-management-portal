@@ -174,6 +174,8 @@ export type Order = {
   /** Shipment arranged (booked in SPX). Independent of status; set from the Arrange shipment dialog. */
   arranged: boolean
   arrangedAt: string | null
+  /** SPX tracking number; saving one also marks the order arranged (server side). */
+  trackingNumber: string | null
   /** Paid through the online shop's PayMongo checkout: the payment can then only be marked refunded. */
   paidOnline: boolean
 }
@@ -232,6 +234,7 @@ export function normalizeOrder(order: Order): Order {
     orRequest: order.orRequest ?? null,
     arranged: order.arranged ?? false,
     arrangedAt: order.arrangedAt ?? null,
+    trackingNumber: order.trackingNumber ?? null,
     paidOnline: order.paidOnline ?? false,
     items: order.items.map((item) => ({
       ...item,

@@ -74,9 +74,14 @@ domain types/constants to the slice, re-exporting them from the facade rather th
   `src/lib/ph-address-parse.ts` is Paste & Autofill (local matching; ambiguous levels are left empty and
   flagged, never guessed).
 - "Copy all" uses `formatShippingForSpx` — one line for SPX's Paste & Autofill.
-- **Export to SPX** (Orders page, `manage_orders`): `spx-export-dialog.tsx` lists paid, unarranged orders with
+- **Export to SPX** (Orders page, admin/superadmin with `manage_orders`): `spx-export-dialog.tsx` lists paid, unarranged orders with
   a delivery address and status "To Pack" (found by label, falling back to `pack`), prefilled from Settings →
   Shipping "SPX export defaults" (`settings.spxExportDefaults`: weight, L/W/H, item type) and editable per order; `src/lib/spx-workbook.ts` writes the rows into a copy of
   the SPX template (only the Order Sheet's rows change — other sheets and drop-downs are kept). COD is always
   "N", payer defaults to Sender Pay, parcel value = order total minus the shipping fee. After downloading, staff can mark the exported orders arranged. When SPX
   publishes a new template, replace the file in `public/spx/` and re-run the build script.
+- **Tracking number**: "SPX tracking no." in the delivery section (`order.trackingNumber`; saving one marks the
+  order arranged, server side), shown via `components/orders/tracking-number.tsx` (links to SPX tracking) in
+  the orders list and order page. **Import SPX tracking** (Orders page, admin/superadmin only — server enforces it too) reads SPX's order report
+  (`src/lib/spx-tracking-import.ts`, columns found by header) and matches Customer Reference No. = order number
+  only; parcels booked directly in SPX have "-" there and are skipped. Dry run first, then saves the picked rows.

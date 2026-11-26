@@ -4,6 +4,7 @@ import {
   ArrowUpDownIcon,
   FileSpreadsheetIcon,
   PlusIcon,
+  ScanBarcodeIcon,
   SearchCheckIcon,
   SlidersHorizontalIcon,
   UserXIcon,
@@ -15,6 +16,7 @@ import { ArrangeOrderDialog } from "@/components/orders/arrange-order-dialog"
 import { CancelOrderDialog } from "@/components/orders/cancel-order-dialog"
 import { CheckOnlinePaymentDialog } from "@/components/orders/check-online-payment-dialog"
 import { SpxExportDialog } from "@/components/orders/spx-export-dialog"
+import { SpxTrackingImportDialog } from "@/components/orders/spx-tracking-import-dialog"
 import { DeleteOrderDialog } from "@/components/orders/delete-order-dialog"
 import { OrderTable } from "@/components/orders/order-table"
 import { PAYMENT_STATUS_LABELS, PaymentStatusDot } from "@/components/orders/payment-status-badge"
@@ -99,6 +101,8 @@ export function OrdersPage() {
   const navigate = useNavigate()
   const { hasPermission, role, user } = useAuth()
   const canManage = hasPermission("manage_orders")
+  // Export to SPX / Import SPX tracking are bulk shipping tools for admins only.
+  const canUseSpxBulk = canManage && (role === "admin" || role === "superadmin")
   const { orders, total, params, setParams, refetch, isLoading, isFetching, isError, error } = useOrders()
   useClampPage(params.page, params.pageSize, total, isFetching, (page) => setParams({ page }))
   const { categories } = useCategories()
@@ -129,6 +133,7 @@ export function OrdersPage() {
   const debouncedSearch = useDebouncedValue(searchInput, 400)
   const [checkPaymentOpen, setCheckPaymentOpen] = useState(false)
   const [spxExportOpen, setSpxExportOpen] = useState(false)
+  const [trackingImportOpen, setTrackingImportOpen] = useState(false)
   const [cancellingOrder, setCancellingOrder] = useState<Order | null>(null)
   const [arrangingOrder, setArrangingOrder] = useState<Order | null>(null)
   const [refundingOrder, setRefundingOrder] = useState<Order | null>(null)
@@ -351,10 +356,16 @@ export function OrdersPage() {
                 Check payment
               </Button>
             ) : undefined}
-            {canManage ? (
+            {canUseSpxBulk ? (
               <Button variant="outline" onClick={() => setSpxExportOpen(true)}>
                 <FileSpreadsheetIcon data-icon="inline-start" />
                 Export to SPX
+              </Button>
+            ) : undefined}
+            {canUseSpxBulk ? (
+              <Button variant="outline" onClick={() => setTrackingImportOpen(true)}>
+                <ScanBarcodeIcon data-icon="inline-start" />
+                Import SPX tracking
               </Button>
             ) : undefined}
             {canManage ? (
@@ -750,7 +761,7 @@ export function OrdersPage() {
       {canManage && (
         <CheckOnlinePaymentDialog open={checkPaymentOpen} onOpenChange={setCheckPaymentOpen} onOrderCreated={refetch} />
       )}
-      {canManage && spxExportOpen && (
+      {canUseSpxBulk && spxExportOpen && (
         <SpxExportDialog
           onOpenChange={setSpxExportOpen}
           onArrange={async (orderIds) => {
@@ -758,6 +769,9 @@ export function OrdersPage() {
             refetch()
           }}
         />
+      )}
+      {canUseSpxBulk && trackingImportOpen && (
+        <SpxTrackingImportDialog onOpenChange={setTrackingImportOpen} onImported={refetch} />
       )}
     </div>
   )

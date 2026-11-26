@@ -14,6 +14,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { AddressLocationPicker } from "@/components/orders/address-location-picker"
 import { ADDRESS_DETAIL_MAX, composeAddress, lookupPostal, type ShippingAddressParts } from "@/lib/ph-address"
 import { autofillShipping, type AutofillResult } from "@/lib/ph-address-parse"
+import { cleanTrackingInput } from "@/lib/spx-tracking"
+import { TrackingNumber } from "@/components/orders/tracking-number"
 import { useScrollIntoViewOnOpen } from "@/lib/use-scroll-into-view-on-open"
 import { cn, formatCurrency } from "@/lib/utils"
 
@@ -46,6 +48,8 @@ export function ShippingAddressFields({
   onLocationPicked,
   fee,
   onFeeChange,
+  trackingNumber,
+  onTrackingNumberChange,
   freeShippingEligible = false,
   stickerLabelSubtotal = 0,
   errors,
@@ -79,6 +83,9 @@ export function ShippingAddressFields({
   onLocationPicked?: () => void
   fee: string
   onFeeChange: (value: string) => void
+  /** SPX tracking number — shown when the parent handles it (saving one marks the order arranged). */
+  trackingNumber?: string
+  onTrackingNumberChange?: (value: string) => void
   freeShippingEligible?: boolean
   stickerLabelSubtotal?: number
   errors?: ShippingFieldErrors
@@ -352,6 +359,29 @@ export function ShippingAddressFields({
                   </div>
                 )}
               </div>
+
+              {onTrackingNumberChange && (
+                <Field>
+                  <FieldLabel htmlFor="shipping-tracking">
+                    SPX tracking no. <span className="font-normal text-muted-foreground">(optional)</span>
+                  </FieldLabel>
+                  <Input
+                    id="shipping-tracking"
+                    value={trackingNumber ?? ""}
+                    onChange={(event) => onTrackingNumberChange(cleanTrackingInput(event.target.value))}
+                    autoComplete="off"
+                    spellCheck={false}
+                    placeholder="e.g. SPEPH06200552895B"
+                    className="font-mono sm:max-w-xs"
+                  />
+                  <FieldDescription>
+                    {trackingNumber ? (
+                      <TrackingNumber value={trackingNumber} copyable className="mr-1" />
+                    ) : null}
+                    Saving a tracking number marks the shipment arranged.
+                  </FieldDescription>
+                </Field>
+              )}
             </div>
           </div>
         </CollapsibleContent>
