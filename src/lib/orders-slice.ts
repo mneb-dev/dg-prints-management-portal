@@ -92,11 +92,24 @@ export type OrderItem = {
   } | null
 }
 
+/** Structured delivery address (order form's picker / Autofill). `ShippingAddress.address` is composed from it. */
+export type ShippingAddressParts = {
+  /** House/unit no., street, subdivision. */
+  detail: string
+  barangay: string
+  city: string
+  province: string
+  zip: string
+}
+
 export type ShippingAddress = {
   name: string
   phone: string
+  /** One-line address — what every screen shows and copies. */
   address: string
   fee: number
+  /** Absent on older orders and online shop orders (free-text address only). */
+  parts?: ShippingAddressParts
 }
 
 export type OrRequest = {

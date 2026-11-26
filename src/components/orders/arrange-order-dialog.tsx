@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { copyToClipboard } from "@/lib/clipboard"
 import { describeOrderItemFull, notedItems } from "@/lib/order-item-description"
 import type { Order } from "@/lib/orders"
+import { formatShippingForSpx } from "@/lib/ph-address"
 import { formatCurrency, formatDateTime } from "@/lib/utils"
 
 function CopyButton({ label, value }: { label: string; value: string }) {
@@ -52,7 +53,7 @@ export function ArrangeOrderDialog({
           Arrange shipment for <Name>{order?.orderNumber}</Name>?
         </>
       }
-      description="Copy these into SPX."
+      description="Copy these into SPX — “Copy all” pastes straight into SPX's Paste & Autofill."
       confirmLabel="Open SPX"
       cancelLabel="Later"
       confirmDisabled={!shipping}
@@ -104,9 +105,7 @@ export function ArrangeOrderDialog({
             variant="ghost"
             size="sm"
             className="self-end text-muted-foreground"
-            onClick={() =>
-              copyToClipboard(`${shipping.name}\n${shipping.phone}\n${shipping.address}`)
-            }
+            onClick={() => copyToClipboard(formatShippingForSpx(shipping))}
           >
             <CopyIcon data-icon="inline-start" />
             Copy all

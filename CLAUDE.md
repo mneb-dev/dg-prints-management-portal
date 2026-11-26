@@ -55,3 +55,19 @@ domain types/constants to the slice, re-exporting them from the facade rather th
   (see `showsDimensionInputs`, which drives whether dimension inputs show for `sq.ft.`-unit pricing).
 - `src/lib/order-status.ts` defines the status flow per `ProductCategory` and which statuses are terminal/refundable.
 - `src/lib/sticker-quotation.ts` and `src/lib/length-units.ts` support sticker-specific quoting math in the order form.
+
+### Delivery address (SPX-style)
+
+- The order form's delivery section stores `shippingAddress.parts` (`detail`, `barangay`, `city`, `province`,
+  `zip`) next to the one-line `address` (composed by `composeAddress` in `src/lib/ph-address.ts`, mirrored by
+  the server). Orders/drafts without `parts` show their free text read-only and save it unchanged.
+  Exception: picking a repeat customer on a new order whose last address has no `parts` Autofills it
+  automatically (`convertLegacyAddress` in `order-form.tsx`, address fields only, "Filled in from their last
+  order" line + warning when uncertain). Editing an old order never converts on its own.
+- Location data: `public/ph-address/` (index.json + one file per province), generated from PSGC by
+  `node scripts/build-ph-address.mjs` — don't hand-edit. Province names must match the server's
+  `phProvinces.ts` (the script checks). The SPX zone (North Luzon etc.) is derived per province and only displayed.
+- `src/components/orders/address-location-picker.tsx` is the Province → City → Barangay picker;
+  `src/lib/ph-address-parse.ts` is Paste & Autofill (local matching; ambiguous levels are left empty and
+  flagged, never guessed).
+- "Copy all" uses `formatShippingForSpx` — one line for SPX's Paste & Autofill.

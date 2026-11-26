@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react"
 import { useAuth } from "@/lib/auth"
 import type { LineItemDraft } from "@/lib/order-line-item"
 import type { OrderChannel, PaymentMethod } from "@/lib/orders"
+import type { ShippingAddressParts } from "@/lib/ph-address"
 import { generateId } from "@/lib/utils"
 
 export type OrderDraftFields = {
@@ -19,7 +20,10 @@ export type OrderDraftFields = {
   samePhone: boolean
   shippingName: string
   shippingPhone: string
+  /** Free-text address of an order saved before addresses were structured (read-only in the form). */
   shippingAddress: string
+  /** Absent in drafts saved before addresses were structured. */
+  shippingParts?: ShippingAddressParts
   shippingFee: string
   channel: OrderChannel | ""
   markPaid: boolean

@@ -74,6 +74,7 @@ export type {
   PaymentStatus,
   SelectedOption,
   ShippingAddress,
+  ShippingAddressParts,
   StatusAging,
 } from "@/lib/orders-slice"
 

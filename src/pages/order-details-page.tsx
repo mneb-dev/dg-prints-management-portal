@@ -56,6 +56,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { useAuth } from "@/lib/auth"
 import { useCategories } from "@/lib/categories"
 import { copyToClipboard, SPX_ADMIN_CREATE_ORDER_URL } from "@/lib/clipboard"
+import { formatShippingForSpx } from "@/lib/ph-address"
 import { useActiveOrderStatuses } from "@/lib/order-statuses"
 import {
   buildCopyableOrderText,
@@ -281,8 +282,7 @@ export function OrderDetailsPage() {
 
   function handleCopyShippingAddress() {
     if (!order?.shippingAddress) return
-    const { name, phone, address } = order.shippingAddress
-    copyToClipboard(`${name}\n${phone}\n${address}`)
+    copyToClipboard(formatShippingForSpx(order.shippingAddress))
   }
 
   function handleOpenSpx() {

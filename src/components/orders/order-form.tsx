@@ -90,6 +90,7 @@ import type {
   OrderItem,
   Payment,
   PaymentMethod,
+  ShippingAddress,
 } from "@/lib/orders"
 import { useProductCatalog } from "@/lib/products"
 import { useSettings } from "@/lib/settings"
@@ -120,6 +121,16 @@ import { PaymentFields } from "./payment-fields"
 import { PaymentStatusBadge } from "./payment-status-badge"
 import { SaveOrderDraftDialog } from "./save-order-draft-dialog"
 import { ShippingAddressFields } from "./shipping-address-fields"
+import {
+  ADDRESS_DETAIL_MAX,
+  ADDRESS_MAX,
+  composeAddress,
+  EMPTY_SHIPPING_PARTS,
+  formatShippingForSpx,
+  hasAnyPart,
+  type ShippingAddressParts,
+} from "@/lib/ph-address"
+import { autofillShipping, type AutofillResult } from "@/lib/ph-address-parse"
 
 // Converts between an ISO timestamp and the value a `datetime-local` input needs,
 // in the browser's local timezone (the input has no timezone concept of its own).
@@ -216,7 +227,8 @@ function fieldsFromOrder(order: Order): OrderDraftFields {
     samePhone: false,
     shippingName: shipping?.name ?? "",
     shippingPhone: shipping?.phone ?? "",
-    shippingAddress: shipping?.address ?? "",
+    shippingAddress: shipping && !shipping.parts ? shipping.address : "",
+    shippingParts: shipping?.parts ?? EMPTY_SHIPPING_PARTS,
     shippingFee: shipping ? String(shipping.fee ?? 0) : "0",
     channel: order.channel,
     markPaid: paid,
@@ -416,7 +428,11 @@ export function OrderForm({
   const [samePhone, setSamePhone] = useState(false)
   const [shippingName, setShippingName] = useState("")
   const [shippingPhone, setShippingPhone] = useState("")
+  // Free text from an order saved before addresses were structured; kept unless the parts are filled in.
   const [shippingAddress, setShippingAddress] = useState("")
+  const [shippingParts, setShippingParts] = useState<ShippingAddressParts>(EMPTY_SHIPPING_PARTS)
+  // Set when a repeat customer's old one-line address was Autofilled on pick (see convertLegacyAddress).
+  const [convertedFrom, setConvertedFrom] = useState<{ text: string; uncertain: boolean } | null>(null)
   const [shippingFee, setShippingFee] = useState("0")
   const [channel, setChannel] = useState<OrderChannel | "">("")
   const [markPaid, setMarkPaid] = useState(false)
@@ -453,6 +469,7 @@ export function OrderForm({
       shippingName,
       shippingPhone,
       shippingAddress,
+      shippingParts,
       shippingFee,
       channel,
       markPaid,
@@ -502,9 +519,57 @@ export function OrderForm({
       setShippingName(details.shippingAddress.name)
       setSamePhone(false)
       setShippingPhone(details.shippingAddress.phone)
-      setShippingAddress(details.shippingAddress.address)
+      setShippingAddressFrom(details.shippingAddress)
       setShippingFee(resolvedDefaultShippingFee)
+      if (!details.shippingAddress.parts) void convertLegacyAddress(details.shippingAddress.address)
+    } else {
+      setConvertedFrom(null)
+      conversionToken.current++
     }
+  }
+
+  /** Structured parts when the saved address has them; otherwise its free text, shown read-only. */
+  function setShippingAddressFrom(shipping: ShippingAddress) {
+    setShippingParts(shipping.parts ?? EMPTY_SHIPPING_PARTS)
+    setShippingAddress(shipping.parts ? "" : shipping.address)
+    setConvertedFrom(null)
+    conversionToken.current++ // drop any conversion still running for a previously picked customer
+  }
+
+  // A repeat customer whose last order predates structured addresses: Autofill their old one-line
+  // address straight away (address fields only — name/phone come from the order), so the new order is
+  // saved structured. Only for picking a customer on a new order; editing an old order never converts
+  // it on its own. The token drops a slow result once another customer has been picked.
+  const conversionToken = useRef(0)
+  async function convertLegacyAddress(text: string) {
+    const token = ++conversionToken.current
+    try {
+      const result = await autofillShipping(text)
+      if (token !== conversionToken.current) return
+      if (!result.parts.province && !result.parts.city && !result.parts.barangay) return // nothing found: keep the old text
+      setShippingParts(result.parts)
+      setConvertedFrom({ text, uncertain: result.uncertain })
+      shippingErrorKeys.forEach(clearError)
+    } catch {
+      // Address data didn't load — the old text stays, with its "Autofill from this" button.
+    }
+  }
+
+  const shippingErrorKeys = ["shippingName", "shippingPhone", "shippingDetail", "shippingLocation", "shippingZip"]
+
+  // Paste & Autofill: a recipient name equal to the customer's turns "Same as customer" on.
+  function applyAutofill(result: AutofillResult) {
+    if (result.name) {
+      const matchesCustomer =
+        !!customerName.trim() && result.name.trim().toLowerCase() === customerName.trim().toLowerCase()
+      setSameName(matchesCustomer)
+      if (!matchesCustomer) setShippingName(result.name)
+    }
+    if (result.phone) setShippingPhone(result.phone)
+    setShippingParts(result.parts)
+    setConvertedFrom(null)
+    conversionToken.current++ // a pending repeat-customer conversion mustn't overwrite this
+    shippingErrorKeys.forEach(clearError)
   }
 
   const activeProducts = products
@@ -647,7 +712,7 @@ export function OrderForm({
       setSamePhone(false)
       setShippingName(order.shippingAddress.name)
       setShippingPhone(order.shippingAddress.phone)
-      setShippingAddress(order.shippingAddress.address)
+      setShippingAddressFrom(order.shippingAddress)
       setShippingFee(String(order.shippingAddress.fee ?? 0))
     }
 
@@ -721,6 +786,7 @@ export function OrderForm({
     setShippingName(f.shippingName)
     setShippingPhone(f.shippingPhone)
     setShippingAddress(f.shippingAddress)
+    setShippingParts(f.shippingParts ?? EMPTY_SHIPPING_PARTS)
     setShippingFee(f.shippingFee)
     setChannel(f.channel)
     setMarkPaid(f.markPaid)
@@ -730,7 +796,7 @@ export function OrderForm({
     setLoadedDraftId(draftToLoad.id)
     // The loaded draft becomes the new "nothing to save" baseline — only edits made after loading
     // it should count as dirty, since the draft itself already reflects this content.
-    setBaselineFields(f)
+    setBaselineFields({ ...f, shippingParts: f.shippingParts ?? EMPTY_SHIPPING_PARTS })
   }, [order, draftToLoad])
 
   // Registers this form with the shared nav-guard so sidebar clicks can intercept navigation while
@@ -830,14 +896,25 @@ export function OrderForm({
     return changes
   }
 
-  function resolveShippingAddress() {
+  // Structured as soon as any part is filled in (or there's no older free-text address to keep).
+  const shippingStructured = hasAnyPart(shippingParts) || !shippingAddress.trim()
+
+  function resolveShippingAddress(): ShippingAddress | null {
     if (!shippingEnabled) return null
-    return {
+    const contact = {
       name: (effectiveSameName ? customerName : shippingName).trim(),
       phone: shippingPhone.trim(),
-      address: shippingAddress.trim(),
       fee: shippingFeeNum,
     }
+    if (!shippingStructured) return { ...contact, address: shippingAddress.trim() }
+    const parts: ShippingAddressParts = {
+      detail: shippingParts.detail.trim(),
+      barangay: shippingParts.barangay,
+      city: shippingParts.city,
+      province: shippingParts.province,
+      zip: shippingParts.zip.trim(),
+    }
+    return { ...contact, address: composeAddress(parts), parts }
   }
 
   function handleOpenSpx() {
@@ -847,7 +924,7 @@ export function OrderForm({
   function handleCopyShippingAddress() {
     const shipping = resolveShippingAddress()
     if (!shipping) return
-    copyToClipboard(`${shipping.name}\n${shipping.phone}\n${shipping.address}`)
+    copyToClipboard(formatShippingForSpx(shipping))
   }
 
   function resolvePayment(total: number): Payment {
@@ -937,10 +1014,21 @@ export function OrderForm({
         nextErrors.shippingPhone = PHONE_FORMAT_MESSAGE
       }
 
-      if (!shippingAddress.trim()) {
-        nextErrors.shippingAddress = requiredMessage("Address")
-      } else if (shippingAddress.trim().length > 250) {
-        nextErrors.shippingAddress = maxLengthMessage("Address", 250)
+      if (shippingStructured) {
+        const { detail, province, city, barangay, zip } = shippingParts
+        if (!province || !city || !barangay) {
+          nextErrors.shippingLocation = "Choose the province, city and barangay."
+        }
+        if (!detail.trim()) {
+          nextErrors.shippingDetail = requiredMessage("Detail address")
+        } else if (detail.trim().length > ADDRESS_DETAIL_MAX) {
+          nextErrors.shippingDetail = maxLengthMessage("Detail address", ADDRESS_DETAIL_MAX)
+        } else if (composeAddress(shippingParts).length > ADDRESS_MAX) {
+          nextErrors.shippingDetail = `The full address must be at most ${ADDRESS_MAX} characters — shorten the detail address.`
+        }
+        if (zip.trim() && !/^\d{4}$/.test(zip.trim())) {
+          nextErrors.shippingZip = "Postal code must be 4 digits."
+        }
       }
     }
 
@@ -1103,7 +1191,9 @@ export function OrderForm({
     shippingEnabled &&
     !!(effectiveSameName ? customerName : shippingName).trim() &&
     !!shippingPhone.trim() &&
-    !!shippingAddress.trim()
+    (shippingStructured
+      ? !!(shippingParts.detail.trim() && shippingParts.province && shippingParts.city && shippingParts.barangay)
+      : true)
   const productsComplete = resolvedItems.every(
     (resolved) => resolved.isMissingProduct || (!!resolved.product && resolved.lineTotal > 0)
   )
@@ -1382,9 +1472,7 @@ export function OrderForm({
                 if (value && shippingFee === "0") {
                   setShippingFee(resolvedDefaultShippingFee)
                 }
-                clearError("shippingName")
-                clearError("shippingPhone")
-                clearError("shippingAddress")
+                shippingErrorKeys.forEach(clearError)
               }}
               customerName={customerName}
               sameName={effectiveSameName}
@@ -1400,11 +1488,20 @@ export function OrderForm({
                 clearError("shippingPhone")
               }}
               onPhoneBlur={() => validatePhoneOnBlur("shippingPhone", shippingPhone)}
-              address={shippingAddress}
-              onAddressChange={(value) => {
-                setShippingAddress(value)
-                clearError("shippingAddress")
+              parts={shippingParts}
+              onPartsChange={(next) => {
+                if (next.detail !== shippingParts.detail) clearError("shippingDetail")
+                if (next.zip !== shippingParts.zip) clearError("shippingZip")
+                if (next.province !== shippingParts.province || next.city !== shippingParts.city || next.barangay !== shippingParts.barangay) {
+                  clearError("shippingLocation")
+                }
+                setShippingParts(next)
               }}
+              legacyAddress={shippingAddress}
+              onAutofill={applyAutofill}
+              convertedFrom={convertedFrom}
+              // Picking the location by hand settles any doubt from the automatic conversion.
+              onLocationPicked={() => setConvertedFrom((prev) => (prev?.uncertain ? { ...prev, uncertain: false } : prev))}
               fee={shippingFee}
               onFeeChange={setShippingFee}
               freeShippingEligible={freeShippingEligible}
@@ -1412,7 +1509,9 @@ export function OrderForm({
               errors={{
                 name: errors.shippingName,
                 phone: errors.shippingPhone,
-                address: errors.shippingAddress,
+                detail: errors.shippingDetail,
+                location: errors.shippingLocation,
+                zip: errors.shippingZip,
               }}
             />
           </CardContent>
