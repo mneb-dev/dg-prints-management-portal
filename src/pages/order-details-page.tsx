@@ -76,7 +76,7 @@ import {
   useOrderStatusUpdate,
 } from "@/lib/orders"
 import type { Order, OrderStatus, Payment } from "@/lib/orders"
-import { TrackingNumber } from "@/components/orders/tracking-number"
+import { SpxTrackLink } from "@/components/orders/spx-track-link"
 import { cn, formatCurrency, formatDateTime, formatRelativeDate } from "@/lib/utils"
 
 export function OrderDetailsPage() {
@@ -635,11 +635,11 @@ export function OrderDetailsPage() {
                       <dd className="tabular-nums">{formatCurrency(order.shippingAddress.fee)}</dd>
                     </div>
                   )}
-                  {order.trackingNumber && (
+                  {order.arranged && (
                     <div className="flex flex-col gap-1">
-                      <dt className="text-xs text-muted-foreground">SPX tracking no.</dt>
+                      <dt className="text-xs text-muted-foreground">SPX tracking</dt>
                       <dd>
-                        <TrackingNumber value={order.trackingNumber} copyable />
+                        <SpxTrackLink orderNumber={order.orderNumber} />
                       </dd>
                     </div>
                   )}

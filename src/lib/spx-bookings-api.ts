@@ -1,33 +1,20 @@
 import { apiClient } from "@/lib/api-client"
 
-// POST /orders/tracking-numbers — see the server route. dryRun reports without saving.
+// POST /orders/spx-bookings — marks the orders in SPX's order report arranged (see the server route).
+// dryRun reports without saving.
 
-export type TrackingImportStatus =
-  | "will_set"
-  | "updated"
-  | "will_replace"
-  | "replaced"
-  | "unchanged"
-  | "not_found"
-  | "invalid"
-  | "duplicate"
+export type SpxBookingStatus = "will_arrange" | "arranged" | "already_arranged" | "not_found" | "invalid" | "duplicate"
 
-export type TrackingImportResult = {
+export type SpxBookingResult = {
   orderNumber: string
-  trackingNumber: string | null
-  status: TrackingImportStatus
+  status: SpxBookingStatus
   orderId?: string
   customerName?: string
-  previousTrackingNumber?: string | null
-  error?: string
 }
 
-export async function importTrackingNumbers(
-  rows: { orderNumber: string; trackingNumber: string }[],
-  dryRun: boolean
-): Promise<TrackingImportResult[]> {
-  const { data } = await apiClient.post<{ results: TrackingImportResult[] }>("/orders/tracking-numbers", {
-    rows,
+export async function importSpxBookings(orderNumbers: string[], dryRun: boolean): Promise<SpxBookingResult[]> {
+  const { data } = await apiClient.post<{ results: SpxBookingResult[] }>("/orders/spx-bookings", {
+    orderNumbers,
     dryRun,
   })
   return data.results
