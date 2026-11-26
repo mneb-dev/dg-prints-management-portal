@@ -1,12 +1,20 @@
 import { useEffect, useState } from "react"
 import { format, parseISO } from "date-fns"
-import { ArrowUpDownIcon, PlusIcon, SearchCheckIcon, SlidersHorizontalIcon, UserXIcon } from "lucide-react"
+import {
+  ArrowUpDownIcon,
+  FileSpreadsheetIcon,
+  PlusIcon,
+  SearchCheckIcon,
+  SlidersHorizontalIcon,
+  UserXIcon,
+} from "lucide-react"
 import { useNavigate } from "react-router-dom"
 import { toast } from "sonner"
 
 import { ArrangeOrderDialog } from "@/components/orders/arrange-order-dialog"
 import { CancelOrderDialog } from "@/components/orders/cancel-order-dialog"
 import { CheckOnlinePaymentDialog } from "@/components/orders/check-online-payment-dialog"
+import { SpxExportDialog } from "@/components/orders/spx-export-dialog"
 import { DeleteOrderDialog } from "@/components/orders/delete-order-dialog"
 import { OrderTable } from "@/components/orders/order-table"
 import { PAYMENT_STATUS_LABELS, PaymentStatusDot } from "@/components/orders/payment-status-badge"
@@ -120,6 +128,7 @@ export function OrdersPage() {
   const [searchInput, setSearchInput] = useState(params.search)
   const debouncedSearch = useDebouncedValue(searchInput, 400)
   const [checkPaymentOpen, setCheckPaymentOpen] = useState(false)
+  const [spxExportOpen, setSpxExportOpen] = useState(false)
   const [cancellingOrder, setCancellingOrder] = useState<Order | null>(null)
   const [arrangingOrder, setArrangingOrder] = useState<Order | null>(null)
   const [refundingOrder, setRefundingOrder] = useState<Order | null>(null)
@@ -340,6 +349,12 @@ export function OrdersPage() {
               <Button variant="outline" onClick={() => setCheckPaymentOpen(true)}>
                 <SearchCheckIcon data-icon="inline-start" />
                 Check payment
+              </Button>
+            ) : undefined}
+            {canManage ? (
+              <Button variant="outline" onClick={() => setSpxExportOpen(true)}>
+                <FileSpreadsheetIcon data-icon="inline-start" />
+                Export to SPX
               </Button>
             ) : undefined}
             {canManage ? (
@@ -734,6 +749,15 @@ export function OrdersPage() {
 
       {canManage && (
         <CheckOnlinePaymentDialog open={checkPaymentOpen} onOpenChange={setCheckPaymentOpen} onOrderCreated={refetch} />
+      )}
+      {canManage && spxExportOpen && (
+        <SpxExportDialog
+          onOpenChange={setSpxExportOpen}
+          onArrange={async (orderIds) => {
+            await Promise.all(orderIds.map((id) => setOrderArranged(id, true)))
+            refetch()
+          }}
+        />
       )}
     </div>
   )

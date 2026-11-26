@@ -4,14 +4,15 @@ import type { ShippingAddress, ShippingAddressParts } from "@/lib/orders"
 
 export type { ShippingAddressParts }
 
-// Province → City/Municipality → Barangay data, generated from PSGC by scripts/build-ph-address.mjs into
-// public/ph-address/. index.json lists every province with its city names (enough for search + Autofill);
-// each <slug>.json holds one province's barangays and is fetched only when needed.
+// Province → Town/City → Barangay data, generated from SPX Express's mass order template by
+// scripts/build-ph-address.mjs into public/ph-address/ — names are SPX's exact spellings. index.json lists
+// every province with its zone and town names (enough for search + Autofill); each <slug>.json holds one
+// province's towns (with postal code) and barangays and is fetched only when needed.
 
 /** SPX Express's top-level area, derived from the province (shown, never picked or stored). */
 export type PhZone = "Metro Manila" | "North Luzon" | "South Luzon" | "Visayas" | "Mindanao"
 export type PhProvinceSummary = { name: string; slug: string; zone: PhZone; cities: string[] }
-export type PhCity = { name: string; barangays: string[] }
+export type PhCity = { name: string; postal: string; barangays: string[] }
 export type PhProvince = { name: string; cities: PhCity[] }
 
 export const EMPTY_SHIPPING_PARTS: ShippingAddressParts = { detail: "", barangay: "", city: "", province: "", zip: "" }
@@ -49,6 +50,26 @@ export async function loadPhProvince(provinceName: string): Promise<PhProvince |
     provincePromises.set(summary.slug, promise)
   }
   return promise
+}
+
+/** SPX's postal code for a town (one per town in SPX's data), or "" if unknown. */
+export async function lookupPostal(provinceName: string, cityName: string): Promise<string> {
+  if (!provinceName || !cityName) return ""
+  try {
+    const province = await loadPhProvince(provinceName)
+    return province?.cities.find((city) => city.name === cityName)?.postal ?? ""
+  } catch {
+    return ""
+  }
+}
+
+/** The SPX zone for a province ("North Luzon"…), or "" if unknown. */
+export async function lookupZone(provinceName: string): Promise<PhZone | ""> {
+  try {
+    return (await loadPhProvinces()).find((p) => p.name === provinceName)?.zone ?? ""
+  } catch {
+    return ""
+  }
 }
 
 /** The province list, or null while it loads (or if it failed — `error` says so). */
@@ -115,7 +136,7 @@ export function hasAnyPart(parts: ShippingAddressParts): boolean {
 /** "North Luzon / Bataan / Morong / Poblacion" — the same order SPX shows. Metro Manila isn't repeated. */
 export function formatLocation(
   parts: Pick<ShippingAddressParts, "province" | "city" | "barangay">,
-  zone?: PhZone
+  zone?: string
 ): string {
   const levels = [zone && zone !== parts.province ? zone : "", parts.province, parts.city, parts.barangay]
   return levels.filter(Boolean).join(" / ")

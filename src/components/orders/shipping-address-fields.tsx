@@ -12,7 +12,7 @@ import { Spinner } from "@/components/ui/spinner"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { AddressLocationPicker } from "@/components/orders/address-location-picker"
-import { ADDRESS_DETAIL_MAX, composeAddress, type ShippingAddressParts } from "@/lib/ph-address"
+import { ADDRESS_DETAIL_MAX, composeAddress, lookupPostal, type ShippingAddressParts } from "@/lib/ph-address"
 import { autofillShipping, type AutofillResult } from "@/lib/ph-address-parse"
 import { useScrollIntoViewOnOpen } from "@/lib/use-scroll-into-view-on-open"
 import { cn, formatCurrency } from "@/lib/utils"
@@ -91,6 +91,8 @@ export function ShippingAddressFields({
   const fieldsRef = useRef<HTMLDivElement>(null)
   useScrollIntoViewOnOpen(fieldsRef, enabled ? "open" : null)
 
+  // The postal code last filled in from SPX's data (vs one typed by hand, which a new pick must not replace).
+  const autoZip = useRef("")
   const [pasted, setPasted] = useState("")
   const [autofilling, setAutofilling] = useState(false)
   const [autofillNote, setAutofillNote] = useState<"uncertain" | "nothing" | "failed" | null>(null)
@@ -106,6 +108,7 @@ export function ShippingAddressFields({
         return
       }
       onAutofill(result)
+      autoZip.current = result.parts.zip // Autofill's ZIP may be SPX's; a later pick may update it
       setAutofillNote(result.uncertain ? "uncertain" : null)
     } catch {
       setAutofillNote("failed")
@@ -257,9 +260,18 @@ export function ShippingAddressFields({
                     id="shipping-location"
                     value={parts}
                     onChange={(location) => {
-                      updateParts(location)
+                      // SPX's postal code follows the town — unless someone typed their own.
+                      const zipIsAuto = !parts.zip || parts.zip === autoZip.current
+                      const next = { ...parts, ...location, zip: zipIsAuto && !location.city ? "" : parts.zip }
+                      onPartsChange(next)
                       setAutofillNote(null)
                       onLocationPicked?.()
+                      if (zipIsAuto && location.city) {
+                        void lookupPostal(location.province, location.city).then((postal) => {
+                          autoZip.current = postal
+                          if (postal) onPartsChange({ ...next, zip: postal })
+                        })
+                      }
                     }}
                     invalid={!!errors?.location}
                   />

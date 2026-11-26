@@ -6,6 +6,19 @@ import { getErrorMessage } from "@/lib/api-error"
 /** Online shop shipping fee per island group, picked from the buyer's province at checkout. */
 export type ShippingRates = { luzon: number; visayas: number; mindanao: number }
 
+import type { SpxItemType } from "@/lib/spx-item-types"
+
+export type { SpxItemType }
+
+/** Prefilled parcel details for "Export to SPX" (editable per order in the export dialog). */
+export type SpxExportDefaults = {
+  weightKg: number
+  lengthCm: number
+  widthCm: number
+  heightCm: number
+  itemType: SpxItemType
+}
+
 export type AppSettings = {
   /** Default shipping fee on the order form. */
   shippingFee: number
@@ -18,12 +31,16 @@ export type AppSettings = {
   /** Online payment options the shop's checkout offers (PayMongo types, display order; first = default).
    *  Separate from the payment methods staff pick on orders. */
   shopPaymentMethods: string[]
+  spxExportDefaults: SpxExportDefaults
   updatedAt: string
 }
 
 /** Partial: only the fields sent are updated. */
 export type AppSettingsInput = Partial<
-  Pick<AppSettings, "shippingFee" | "shippingRates" | "messengerUrl" | "convenienceFeePercent" | "shopPaymentMethods">
+  Pick<
+    AppSettings,
+    "shippingFee" | "shippingRates" | "messengerUrl" | "convenienceFeePercent" | "shopPaymentMethods" | "spxExportDefaults"
+  >
 >
 
 export const fetchSettingsThunk = createAsyncThunk<AppSettings, void, { rejectValue: string }>(

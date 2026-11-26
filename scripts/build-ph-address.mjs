@@ -1,76 +1,109 @@
-// Builds the Province → City/Municipality → Barangay data used by the order form's address picker and
-// Paste & Autofill, from the public PSGC (Philippine Standard Geographic Code) dataset.
+// Builds the Region → Province → Town/City → Barangay (+ postal code) data used by the order form's address
+// picker and Paste & Autofill, from SPX Express's own mass order template — so every name is spelled exactly
+// as SPX expects (copied addresses and the "Export to SPX" file then match SPX's lists).
 //
-//   node scripts/build-ph-address.mjs            # downloads from https://psgc.gitlab.io/api
-//   node scripts/build-ph-address.mjs <dir>      # or reads provinces.json, cities-municipalities.json,
-//                                                # sub-municipalities.json, barangays.json from <dir>
+//   node scripts/build-ph-address.mjs                 # reads public/spx/mass_order_creation_template_ph_V2.xlsx
+//   node scripts/build-ph-address.mjs <template.xlsx> # or another copy of the template
 //
-// Writes public/ph-address/index.json (every province with its SPX zone and city names) and one
-// public/ph-address/<slug>.json per province (its cities with their barangays). Re-run when PSA updates PSGC.
+// The template's province_list / town_list / brgy_list / postal_list sheets line up row for row: row i of
+// each is one barangay with its region (SPX zone), province, town and postal code.
 //
-// Names follow what SPX Express shows (so addresses copied into SPX match cleanly): "City of Balanga" →
-// "Balanga City", NCR → "Metro Manila", Manila split into its districts ("Sampaloc, Manila").
-// Province names must match dg-prints-management-server/src/utils/phProvinces.ts (checked when that sibling
-// repo is present), since the server validates the province and derives the shipping region from it.
+// Writes public/ph-address/index.json (every province with its zone and town names) and one
+// public/ph-address/<slug>.json per province (its towns with postal code and barangays). When SPX publishes a
+// new template, replace public/spx/ with it (the export fills that same file) and re-run this.
+//
+// Province names must be accepted by dg-prints-management-server (phProvinces.ts lists, any case, plus its
+// SPX_PROVINCE_ALIASES) — checked when that sibling repo is present.
 import fs from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
+import { strFromU8, unzipSync } from "fflate"
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
+const templatePath = process.argv[2] ?? path.join(root, "public", "spx", "mass_order_creation_template_ph_V2.xlsx")
 const outDir = path.join(root, "public", "ph-address")
-const sourceDir = process.argv[2]
-const API = "https://psgc.gitlab.io/api"
 
-async function load(name) {
-  if (sourceDir) return JSON.parse(fs.readFileSync(path.join(sourceDir, `${name}.json`), "utf8"))
-  const res = await fetch(`${API}/${name}.json`)
-  if (!res.ok) throw new Error(`GET ${API}/${name}.json → ${res.status}`)
-  return res.json()
+const files = unzipSync(fs.readFileSync(templatePath))
+const read = (name) => {
+  if (!files[name]) throw new Error(`${name} not found in ${templatePath}`)
+  return strFromU8(files[name])
 }
+const unescapeXml = (s) =>
+  s.replace(/&(lt|gt|quot|apos|amp|#\d+|#x[0-9a-f]+);/gi, (m, e) =>
+    e === "lt" ? "<" : e === "gt" ? ">" : e === "quot" ? '"' : e === "apos" ? "'" : e === "amp" ? "&"
+      : String.fromCodePoint(e[1] === "x" || e[1] === "X" ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10))
+  )
 
-const [provinces, cities, subMunicipalities, barangays] = await Promise.all(
-  ["provinces", "cities-municipalities", "sub-municipalities", "barangays"].map(load)
+const sharedStrings = [...read("xl/sharedStrings.xml").matchAll(/<si>([\s\S]*?)<\/si>/g)].map((m) =>
+  unescapeXml(m[1].replace(/<[^>]+>/g, ""))
 )
 
-// The dataset predates the 2022 split of Maguindanao (RA 11550). These went to Maguindanao del Norte;
-// the rest of the old province is Maguindanao del Sur.
-const MAGUINDANAO_DEL_NORTE = new Set([
-  "Barira", "Buldon", "Datu Blah T. Sinsuat", "Datu Odin Sinsuat", "Kabuntalan", "Matanog",
-  "Northern Kabuntalan", "Parang", "Sultan Kudarat", "Sultan Mastura", "Talitay", "Upi",
-])
-// Independent cities the dataset leaves without a province, placed in their geographic one.
-const PROVINCE_OF_INDEPENDENT_CITY = { "City of Isabela": "Basilan", "City of Cotabato": "Maguindanao del Norte" }
-const METRO_MANILA = "Metro Manila"
-const NCR_REGION = "130000000"
+// Sheet name → its XML part, via the workbook's relationships.
+const rels = Object.fromEntries(
+  [...read("xl/_rels/workbook.xml.rels").matchAll(/<Relationship [^>]*Id="([^"]+)"[^>]*Target="([^"]+)"/g)].map((m) => [m[1], m[2]])
+)
+const sheetPart = Object.fromEntries(
+  [...read("xl/workbook.xml").matchAll(/<sheet [^>]*name="([^"]+)"[^>]*r:id="([^"]+)"/g)].map((m) => [
+    unescapeXml(m[1]),
+    `xl/${rels[m[2]].replace(/^\/?xl\//, "")}`,
+  ])
+)
 
-// SPX's top level ("zone"), shown before the province: Metro Manila, North Luzon, South Luzon, Visayas,
-// Mindanao. North Luzon = Regions I, II, III and CAR (matches SPX's own list); South Luzon = IV-A,
-// MIMAROPA and V.
-const NORTH_LUZON_REGIONS = new Set(["010000000", "020000000", "030000000", "140000000"])
-function zoneOf(province) {
-  if (province.islandGroupCode === "visayas") return "Visayas"
-  if (province.islandGroupCode === "mindanao") return "Mindanao"
-  return NORTH_LUZON_REGIONS.has(province.regionCode) ? "North Luzon" : "South Luzon"
+/** Rows of a sheet as arrays of cell text (header row dropped). */
+function sheetRows(name) {
+  const xml = read(sheetPart[name] ?? `missing sheet ${name}`)
+  return [...xml.matchAll(/<row [^>]*>([\s\S]*?)<\/row>/g)].slice(1).map((row) =>
+    [...row[1].matchAll(/<c ([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)].map(([, attrs, body = ""]) => {
+      const type = /\bt="(\w+)"/.exec(attrs)?.[1]
+      if (type === "inlineStr") return unescapeXml(body.replace(/<[^>]+>/g, "")).trim()
+      const value = /<v>([\s\S]*?)<\/v>/.exec(body)?.[1]
+      if (value === undefined) return ""
+      return (type === "s" ? sharedStrings[Number(value)] : unescapeXml(value)).trim()
+    })
+  )
 }
 
-const ROMAN = /^(i|ii|iii|iv|v|vi|vii|viii|ix|x)$/i
-/** Collapses spaces and fixes the dataset's odd casing: "Tondo I/ii" → "Tondo I/II", "Gen. s.k." → "Gen. S.K.". */
-function tidy(name) {
-  return name
-    .trim()
-    .replace(/\s+/g, " ")
-    .split(/(\s|\/)/)
-    .map((word) => (ROMAN.test(word) ? word.toUpperCase() : word))
-    .join("")
-    .replace(/\b([a-z])\./g, (m) => m.toUpperCase())
+const provinceRows = sheetRows("province_list") // [region, province]
+const townRows = sheetRows("town_list") // [province, town, helper]
+const barangayRows = sheetRows("brgy_list") // [town, barangay]
+const postalRows = sheetRows("postal_list") // [town, postal]
+if (new Set([provinceRows.length, townRows.length, barangayRows.length, postalRows.length]).size !== 1) {
+  throw new Error("The template's location sheets no longer have the same number of rows")
 }
-const provinceName = (name) => tidy(name).replace(/ (Del|De) /g, (m) => m.toLowerCase())
-const cityName = (name) => {
-  const clean = tidy(name)
-  const match = /^City of (.+)$/.exec(clean)
-  return match ? `${match[1]} City` : clean
+
+// province → { zone, towns: town → { postal, barangays } }
+const tree = new Map()
+for (let i = 0; i < provinceRows.length; i++) {
+  const [zone, province] = provinceRows[i]
+  const [townProvince, town] = townRows[i]
+  const [barangayTown, barangay] = barangayRows[i]
+  const [postalTown, postal] = postalRows[i]
+  if (!province || !town || !barangay) continue
+  if (townProvince !== province || barangayTown !== town || postalTown !== town) {
+    throw new Error(`Location sheets out of step at row ${i + 2}: ${province} / ${town} / ${barangay}`)
+  }
+  if (!tree.has(province)) tree.set(province, { zone, towns: new Map() })
+  const towns = tree.get(province).towns
+  if (!towns.has(town)) towns.set(town, { postal: postal ?? "", barangays: new Set() })
+  towns.get(town).barangays.add(barangay)
 }
-const barangayName = (name) => tidy(name).replace(/\s*\(Pob\.\)$/i, "")
+
+// Every province must be one the server accepts for orders.
+const serverProvinces = path.resolve(root, "..", "dg-prints-management-server", "src", "utils", "phProvinces.ts")
+if (fs.existsSync(serverProvinces)) {
+  const source = fs.readFileSync(serverProvinces, "utf8")
+  const lists = [...source.matchAll(/const (?:LUZON|VISAYAS|MINDANAO) = \[([\s\S]*?)\];/g)].map((m) => m[1])
+  const known = new Set(lists.flatMap((list) => [...list.matchAll(/'([^']+)'/g)].map((m) => m[1].toLowerCase())))
+  const aliasBlock = /SPX_PROVINCE_ALIASES[^=]*=\s*\{([\s\S]*?)\};/.exec(source)?.[1] ?? ""
+  for (const m of aliasBlock.matchAll(/^\s*'?([^':\n]+?)'?\s*:/gm)) known.add(m[1].trim().toLowerCase())
+  const unknown = [...tree.keys()].filter((name) => !known.has(name.toLowerCase()))
+  if (unknown.length) {
+    throw new Error(`Provinces the server doesn't accept (add them to SPX_PROVINCE_ALIASES): ${unknown.join(", ")}`)
+  }
+} else {
+  console.warn(`! ${serverProvinces} not found — skipped the province-name check`)
+}
+
 const slugify = (name) =>
   name
     .normalize("NFD")
@@ -80,75 +113,21 @@ const slugify = (name) =>
     .replace(/^-|-$/g, "")
 const byName = (a, b) => a.localeCompare(b, "en", { numeric: true, sensitivity: "base" })
 
-// province name → city name → Set(barangay)
-const tree = new Map()
-function addCity(province, city) {
-  if (!tree.has(province)) tree.set(province, new Map())
-  const provinceCities = tree.get(province)
-  if (!provinceCities.has(city)) provinceCities.set(city, new Set())
-  return provinceCities.get(city)
-}
-
-const provinceByCode = new Map(provinces.map((p) => [p.code, provinceName(p.name)]))
-const zoneByProvince = new Map(provinces.map((p) => [provinceName(p.name), zoneOf(p)]))
-zoneByProvince.set(METRO_MANILA, "Metro Manila")
-zoneByProvince.set("Maguindanao del Norte", "Mindanao")
-zoneByProvince.set("Maguindanao del Sur", "Mindanao")
-const cityByCode = new Map()
-for (const city of cities) {
-  let province
-  if (city.provinceCode) province = provinceByCode.get(city.provinceCode)
-  else if (city.regionCode === NCR_REGION) province = METRO_MANILA
-  else province = PROVINCE_OF_INDEPENDENT_CITY[city.name]
-  if (!province) throw new Error(`No province for city ${city.name} (${city.code})`)
-  if (province === "Maguindanao") {
-    province = MAGUINDANAO_DEL_NORTE.has(city.name) ? "Maguindanao del Norte" : "Maguindanao del Sur"
-  }
-  cityByCode.set(city.code, { province, name: cityName(city.name) })
-}
-// Manila's barangays hang off its districts, which SPX lists in place of "Manila".
-const districtByCode = new Map(
-  subMunicipalities.map((s) => [s.code, { province: METRO_MANILA, name: `${tidy(s.name).replace(/ I\/II$/, "")}, Manila` }])
-)
-
-for (const barangay of barangays) {
-  const parent =
-    (barangay.subMunicipalityCode && districtByCode.get(barangay.subMunicipalityCode)) ||
-    cityByCode.get(barangay.cityCode || barangay.municipalityCode)
-  if (!parent) throw new Error(`No city for barangay ${barangay.name} (${barangay.code})`)
-  addCity(parent.province, parent.name).add(barangayName(barangay.name))
-}
-
-// Province names must equal the server's list (it validates them and maps them to a shipping region).
-const serverProvinces = path.resolve(root, "..", "dg-prints-management-server", "src", "utils", "phProvinces.ts")
-if (fs.existsSync(serverProvinces)) {
-  const source = fs.readFileSync(serverProvinces, "utf8")
-  const lists = [...source.matchAll(/const (?:LUZON|VISAYAS|MINDANAO) = \[([\s\S]*?)\];/g)].map((m) => m[1])
-  const expected = new Set(lists.flatMap((list) => [...list.matchAll(/'([^']+)'/g)].map((m) => m[1])))
-  const actual = new Set(tree.keys())
-  const missing = [...expected].filter((name) => !actual.has(name))
-  const extra = [...actual].filter((name) => !expected.has(name))
-  if (missing.length || extra.length) {
-    throw new Error(`Province names differ from phProvinces.ts — missing: ${missing.join(", ")}; extra: ${extra.join(", ")}`)
-  }
-} else {
-  console.warn(`! ${serverProvinces} not found — skipped the province-name check`)
-}
-
 fs.rmSync(outDir, { recursive: true, force: true })
 fs.mkdirSync(outDir, { recursive: true })
 const index = []
 let barangayCount = 0
 for (const province of [...tree.keys()].sort(byName)) {
+  const { zone, towns } = tree.get(province)
   const slug = slugify(province)
-  const provinceCities = [...tree.get(province)]
-    .map(([name, set]) => ({ name, barangays: [...set].sort(byName) }))
+  const cities = [...towns]
+    .map(([name, { postal, barangays }]) => ({ name, postal, barangays: [...barangays].sort(byName) }))
     .sort((a, b) => byName(a.name, b.name))
-  barangayCount += provinceCities.reduce((sum, city) => sum + city.barangays.length, 0)
-  const zone = zoneByProvince.get(province)
-  if (!zone) throw new Error(`No zone for province ${province}`)
-  index.push({ name: province, slug, zone, cities: provinceCities.map((city) => city.name) })
-  fs.writeFileSync(path.join(outDir, `${slug}.json`), JSON.stringify({ name: province, cities: provinceCities }))
+  barangayCount += cities.reduce((sum, city) => sum + city.barangays.length, 0)
+  index.push({ name: province, slug, zone, cities: cities.map((city) => city.name) })
+  fs.writeFileSync(path.join(outDir, `${slug}.json`), JSON.stringify({ name: province, cities }))
 }
 fs.writeFileSync(path.join(outDir, "index.json"), JSON.stringify({ provinces: index }))
-console.log(`Wrote ${index.length} provinces, ${index.reduce((s, p) => s + p.cities.length, 0)} cities, ${barangayCount} barangays to ${path.relative(root, outDir)}`)
+console.log(
+  `Wrote ${index.length} provinces, ${index.reduce((s, p) => s + p.cities.length, 0)} towns, ${barangayCount} barangays to ${path.relative(root, outDir)}`
+)

@@ -206,7 +206,7 @@ export type OrderAdminEditableFields = Pick<
 
 export type OrderUpdateInput = Partial<OrderInput> & Partial<OrderAdminEditableFields>
 
-function normalizeOrder(order: Order): Order {
+export function normalizeOrder(order: Order): Order {
   return {
     ...order,
     status: LEGACY_STATUS_MAP[order.status] ?? order.status,

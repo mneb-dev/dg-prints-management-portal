@@ -64,10 +64,19 @@ domain types/constants to the slice, re-exporting them from the facade rather th
   Exception: picking a repeat customer on a new order whose last address has no `parts` Autofills it
   automatically (`convertLegacyAddress` in `order-form.tsx`, address fields only, "Filled in from their last
   order" line + warning when uncertain). Editing an old order never converts on its own.
-- Location data: `public/ph-address/` (index.json + one file per province), generated from PSGC by
-  `node scripts/build-ph-address.mjs` — don't hand-edit. Province names must match the server's
-  `phProvinces.ts` (the script checks). The SPX zone (North Luzon etc.) is derived per province and only displayed.
+- Location data: `public/ph-address/` (index.json + one file per province, towns carry SPX's postal code),
+  generated from SPX's own mass order template `public/spx/mass_order_creation_template_ph_V2.xlsx` by
+  `node scripts/build-ph-address.mjs` — don't hand-edit. Names are SPX's exact spellings (some older, e.g.
+  "Compostela Valley", "North Cotabato"); the server accepts them via `SPX_PROVINCE_ALIASES` (the script
+  checks). The SPX zone (North Luzon etc.) comes from the template and is only displayed. Picking a town or
+  Autofill fills the postal code unless one was typed.
 - `src/components/orders/address-location-picker.tsx` is the Province → City → Barangay picker;
   `src/lib/ph-address-parse.ts` is Paste & Autofill (local matching; ambiguous levels are left empty and
   flagged, never guessed).
 - "Copy all" uses `formatShippingForSpx` — one line for SPX's Paste & Autofill.
+- **Export to SPX** (Orders page, `manage_orders`): `spx-export-dialog.tsx` lists paid, unarranged orders with
+  a delivery address and status "To Pack" (found by label, falling back to `pack`), prefilled from Settings →
+  Shipping "SPX export defaults" (`settings.spxExportDefaults`: weight, L/W/H, item type) and editable per order; `src/lib/spx-workbook.ts` writes the rows into a copy of
+  the SPX template (only the Order Sheet's rows change — other sheets and drop-downs are kept). COD is always
+  "N", payer defaults to Sender Pay, parcel value = order total minus the shipping fee. After downloading, staff can mark the exported orders arranged. When SPX
+  publishes a new template, replace the file in `public/spx/` and re-run the build script.

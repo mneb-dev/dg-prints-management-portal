@@ -4,7 +4,13 @@ import { useAppDispatch, useAppSelector } from "@/lib/hooks"
 import { fetchSettingsThunk, updateSettingsThunk } from "@/lib/settings-slice"
 import type { AppSettings, AppSettingsInput } from "@/lib/settings-slice"
 
-export type { AppSettings, AppSettingsInput, ShippingRates } from "@/lib/settings-slice"
+export type {
+  AppSettings,
+  AppSettingsInput,
+  ShippingRates,
+  SpxExportDefaults,
+  SpxItemType,
+} from "@/lib/settings-slice"
 
 const FALLBACK_SETTINGS: AppSettings = {
   shippingFee: 0,
@@ -12,6 +18,7 @@ const FALLBACK_SETTINGS: AppSettings = {
   messengerUrl: "",
   convenienceFeePercent: 0,
   shopPaymentMethods: ["gcash"],
+  spxExportDefaults: { weightKg: 0.5, lengthCm: 20, widthCm: 15, heightCm: 5, itemType: "General merchandise" },
   updatedAt: "",
 }
 

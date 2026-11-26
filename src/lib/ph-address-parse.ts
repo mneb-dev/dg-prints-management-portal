@@ -10,9 +10,10 @@ import {
 
 // "Paste & Autofill" for the order form's delivery section, modelled on SPX Express's: one pasted line
 // ("Juan Dela Cruz 09171234567 Blk 5 Mabini St., Brgy. Poblacion, Morong, Bataan 2108") is split into
-// recipient name, phone, detail address, Province / City / Barangay and ZIP. Matching is local, against the
-// PSGC data in public/ph-address. Unlike SPX, a level that can't be matched with confidence is left empty
-// (and `uncertain` set) rather than guessed — SPX turned "diliman qc" into Makati.
+// recipient name, phone, detail address, Province / City / Barangay and ZIP. Matching is local, against SPX's
+// own location data in public/ph-address. Unlike SPX, a level that can't be matched with confidence is left
+// empty (and `uncertain` set) rather than guessed — SPX turned "diliman qc" into Makati. A missing ZIP is
+// filled from SPX's postal code for the town.
 
 export type AutofillResult = {
   name: string
@@ -54,12 +55,31 @@ type Token = { start: number; end: number }
 type Span = { start: number; end: number } // word indices, end exclusive
 type PlaceMatch = Span & { value: string; province: string; keyLength: number }
 
-/** Every place-name variant that may appear in text: "Balanga City" → also "City of Balanga", "Balanga". */
+// SPX's province names that people write differently: today's official names and everyday shorthands.
+// Province matches inside a longer match are dropped below, so "Samar" doesn't fire inside "Eastern Samar".
+const PROVINCE_TEXT_ALIASES: Record<string, string[]> = {
+  "Metro Manila": ["Manila", "NCR"],
+  "North Cotabato": ["Cotabato"],
+  "Compostela Valley": ["Davao de Oro"],
+  "Western Samar": ["Samar"],
+  Maguindanao: ["Maguindanao del Norte", "Maguindanao del Sur"],
+}
+
+function provinceVariants(province: string): string[][] {
+  return [province, ...(PROVINCE_TEXT_ALIASES[province] ?? [])].map(words)
+}
+
+/**
+ * Every place-name variant that may appear in text: "Balanga City" → also "City of Balanga", "Balanga";
+ * "Tondo I / Ii" → also "Tondo"; "Licuan (Baay)" → also "Licuan".
+ */
 function cityVariants(city: string, provinceKeys: Set<string>): string[][] {
   const full = words(city)
   const variants = [full]
-  const manilaDistrict = /^(.+), Manila$/.exec(city)
-  if (manilaDistrict) variants.push(words(manilaDistrict[1]))
+  const withoutParens = city.replace(/\s*\([^)]*\)\s*/g, " ").trim()
+  if (withoutParens !== city) variants.push(words(withoutParens))
+  const withoutNumerals = city.replace(/(\s+[IVX]+)+(\s*\/\s*[IVX]+)*$/i, "").trim()
+  if (withoutNumerals !== city && withoutNumerals) variants.push(words(withoutNumerals))
   const cityName = /^(.+) City$/.exec(city)
   if (cityName) {
     variants.push(words(`City of ${cityName[1]}`))
@@ -179,9 +199,10 @@ export async function parseShippingText(text: string, data: AddressData): Promis
   const provinceMatches: PlaceMatch[] = []
   const cityMatches: PlaceMatch[] = []
   for (const province of data.provinces) {
-    const key = words(province.name)
-    for (const span of findSpans(haystack, key)) {
-      provinceMatches.push({ ...span, value: province.name, province: province.name, keyLength: key.length })
+    for (const key of provinceVariants(province.name)) {
+      for (const span of findSpans(haystack, key)) {
+        provinceMatches.push({ ...span, value: province.name, province: province.name, keyLength: key.length })
+      }
     }
     for (const city of province.cities) {
       for (const variant of cityVariants(city, provinceKeys)) {
@@ -191,8 +212,12 @@ export async function parseShippingText(text: string, data: AddressData): Promis
       }
     }
   }
-  // "Quezon" inside "Quezon City" is the city, not the province.
-  const provinces = provinceMatches.filter((p) => !cityMatches.some((c) => c.keyLength > p.keyLength && contains(c, p)))
+  // "Quezon" inside "Quezon City" is the city, not the province; "Samar" inside "Eastern Samar" is Eastern Samar.
+  const provinces = provinceMatches.filter(
+    (p) =>
+      !cityMatches.some((c) => c.keyLength > p.keyLength && contains(c, p)) &&
+      !provinceMatches.some((q) => q.keyLength > p.keyLength && contains(q, p))
+  )
 
   // Best city: one whose province is also named (after it, ideally), then the rightmost, then the longest name.
   const scored = cityMatches
@@ -264,8 +289,12 @@ export async function parseShippingText(text: string, data: AddressData): Promis
   if (barangayResult.ambiguous) ambiguous = true
   // "Morong, Tawi-Tawi": the city was matched elsewhere (Bataan), so the text's own province disagrees.
   // Only provinces named after the city count — an earlier one is usually a street ("Rizal St").
+  // The same words can name two provinces ("Cotabato": SPX's Cotabato and North Cotabato) — that's no
+  // conflict when one of them is the city's.
   const chosenCity = city
-  if (chosenCity && provinces.some((p) => p.start >= chosenCity.end && p.province !== chosenCity.province)) {
+  const agrees = (p: PlaceMatch) =>
+    provinces.some((q) => q.start === p.start && q.end === p.end && q.province === chosenCity?.province)
+  if (chosenCity && provinces.some((p) => p.start >= chosenCity.end && p.province !== chosenCity.province && !agrees(p))) {
     ambiguous = true
   }
 
@@ -292,6 +321,12 @@ export async function parseShippingText(text: string, data: AddressData): Promis
   const detailEndToken = Math.min(firstPlaceToken, zipToken >= 0 ? zipToken : tokens.length)
   const detailEnd = detailEndToken < tokens.length ? tokens[detailEndToken].start : addressText.length
   const detail = tidyDetail(addressText.slice(0, detailEnd))
+
+  // No ZIP in the text: use SPX's postal code for the town.
+  const chosen = city
+  if (!zip && chosen) {
+    zip = (await data.loadProvince(chosen.province))?.cities.find((c) => c.name === chosen.value)?.postal ?? ""
+  }
 
   result.parts = {
     detail,
