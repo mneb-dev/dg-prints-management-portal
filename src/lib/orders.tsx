@@ -69,6 +69,7 @@ export type {
   OrderUpdateInput,
   OrRequest,
   OrRequestInput,
+  PartialPaymentsSummary,
   Payment,
   PaymentMethod,
   PaymentStatus,

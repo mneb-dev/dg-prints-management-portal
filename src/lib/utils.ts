@@ -77,3 +77,9 @@ export function formatTimeAgo(iso: string | null): string {
   const elapsedMs = Math.max(0, Date.now() - new Date(iso).getTime())
   return `${formatDuration(elapsedMs)} ago`
 }
+
+/** Whole days since `iso` (0 for today, a missing date or clock skew). */
+export function daysSince(iso: string | null): number {
+  if (!iso) return 0
+  return Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / (24 * 60 * 60 * 1000)))
+}
