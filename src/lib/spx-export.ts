@@ -45,7 +45,17 @@ export async function rowFromOrder(order: Order, defaults: SpxExportDefaults): P
   const shipping = order.shippingAddress!
   const parts = shipping.parts
   const zone = parts ? ((await loadPhProvinces()).find((p) => p.name === parts.province)?.zone ?? "") : ""
-  const itemNames = [...new Set(order.items.map((item) => item.productName).filter(Boolean))]
+  // "Product: notes" per item (just the product when it has no notes), so staff can tell parcels apart in SPX.
+  const itemNames = [
+    ...new Set(
+      order.items
+        .filter((item) => item.productName?.trim())
+        .map((item) => {
+          const notes = (item.notes ?? "").replace(/\s+/g, " ").trim()
+          return notes ? `${item.productName.trim()}: ${notes}` : item.productName.trim()
+        }),
+    ),
+  ]
   return {
     orderId: order.id,
     orderNumber: order.orderNumber,
@@ -62,7 +72,7 @@ export async function rowFromOrder(order: Order, defaults: SpxExportDefaults): P
     widthCm: String(defaults.widthCm),
     heightCm: String(defaults.heightCm),
     itemType: defaults.itemType,
-    itemName: itemNames.join(", ").slice(0, SPX_LIMITS.text),
+    itemName: itemNames.join(" | ").slice(0, SPX_LIMITS.text),
     itemQuantity: order.items.reduce((sum, item) => sum + (item.quantity || 0), 0) || 1,
     payer: "Sender Pay",
     // What's in the parcel: the order total without the shipping fee we charged.

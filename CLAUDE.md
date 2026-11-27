@@ -78,7 +78,7 @@ domain types/constants to the slice, re-exporting them from the facade rather th
   a delivery address and status "To Pack" (found by label, falling back to `pack`), prefilled from Settings →
   Shipping "SPX export defaults" (`settings.spxExportDefaults`: weight, L/W/H, item type) and editable per order; `src/lib/spx-workbook.ts` writes the rows into a copy of
   the SPX template (only the Order Sheet's rows change — other sheets and drop-downs are kept). COD is always
-  "N", payer defaults to Sender Pay, parcel value = order total minus the shipping fee. After downloading, staff can mark the exported orders arranged. When SPX
+  "N", payer defaults to Sender Pay, item name = "Product: notes" per item (product only when no notes), joined with " | ", parcel value = order total minus the shipping fee. After downloading, staff can mark the exported orders arranged. When SPX
   publishes a new template, replace the file in `public/spx/` and re-run the build script.
 - **SPX tracking**: SPX finds a parcel by its Customer Reference No. = our order number, so arranged orders have SPX tracking links to
   `spx.ph/track?DGP-…` (older orders: `ORD-…`) (`spxTrackingUrl`; the orders-list truck chip copies it, `spx-track-link.tsx` on the order page opens or copies it).
