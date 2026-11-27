@@ -19,6 +19,7 @@ import { SpxExportDialog } from "@/components/orders/spx-export-dialog"
 import { SpxBookingsImportDialog } from "@/components/orders/spx-bookings-import-dialog"
 import { DeleteOrderDialog } from "@/components/orders/delete-order-dialog"
 import { OrderTable } from "@/components/orders/order-table"
+import { PartialPaymentsBanner } from "@/components/orders/partial-payments-banner"
 import { PAYMENT_STATUS_LABELS, PaymentStatusDot } from "@/components/orders/payment-status-badge"
 import { RecordPaymentDialog } from "@/components/orders/record-payment-dialog"
 import { RefundOrderDialog } from "@/components/orders/refund-order-dialog"
@@ -376,6 +377,21 @@ export function OrdersPage() {
             ) : undefined}
           </>
         }
+      />
+
+      <PartialPaymentsBanner
+        isFiltered={params.paymentStatus === "partially_paid"}
+        onShow={() => {
+          setSearchInput("")
+          setParams({
+            ...DEFAULT_ORDERS_PARAMS,
+            pageSize: params.pageSize,
+            paymentStatus: "partially_paid",
+            sortBy: "created_at",
+            sortDir: "asc",
+          })
+        }}
+        onShowAll={clearFilters}
       />
 
       <FilterToolbar className="gap-2">

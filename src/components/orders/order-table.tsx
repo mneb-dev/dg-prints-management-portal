@@ -1,4 +1,5 @@
 import {
+  BellRingIcon,
   MoreHorizontalIcon,
   Loader2Icon,
   PackageCheckIcon,
@@ -53,7 +54,7 @@ import {
 import { canEditOrderMetadata, getAmountDue, isReleaseLockedForRole } from "@/lib/orders"
 import type { Order } from "@/lib/orders"
 import type { Role } from "@/lib/users"
-import { cn, formatCurrency, formatDate, formatDateTime, formatTimeAgo } from "@/lib/utils"
+import { cn, daysSince, formatCurrency, formatDate, formatDateTime, formatTimeAgo } from "@/lib/utils"
 
 import { OrderStatusBadge } from "./order-status-badge"
 import { OrderStatusMenu } from "./order-status-menu"
@@ -280,7 +281,8 @@ export function OrderTable({
                       className={cn(
                         "px-4",
                         STICKY_CELL_CLASS,
-                        "transition-colors duration-150 group-hover/row:bg-[color-mix(in_oklab,var(--color-accent)_40%,var(--color-card))]"
+                        "transition-colors duration-150 group-hover/row:bg-[color-mix(in_oklab,var(--color-accent)_40%,var(--color-card))]",
+                        needsFollowUp(order) && "shadow-[inset_3px_0_0_var(--order-status-gold)]"
                       )}
                     >
                       <div className="flex items-center gap-2">
@@ -294,6 +296,7 @@ export function OrderTable({
                         </Link>
                         {order.orRequest ? <OrChip orRequest={order.orRequest} /> : null}
                         {order.arranged ? <ArrangedChip arrangedAt={order.arrangedAt} orderNumber={order.orderNumber} /> : null}
+                        {needsFollowUp(order) ? <FollowUpChip order={order} /> : null}
                       </div>
                       <div className="mt-0.5 text-xs text-muted-foreground">{formatDate(order.createdAt)}</div>
                     </TableCell>
@@ -355,7 +358,7 @@ export function OrderTable({
                     <TableCell className="px-4 text-right">
                       <div className="font-medium tabular-nums">{formatCurrency(order.total)}</div>
                       {due > 0 ? (
-                        <div className="mt-0.5 text-xs text-status-warning tabular-nums">{formatCurrency(due)} due</div>
+                        <AmountDue order={order} due={due} />
                       ) : null}
                     </TableCell>
                     <TableCell className="px-4" onClick={stopRowClick}>
@@ -410,6 +413,7 @@ export function OrderTable({
                       {order.arranged ? (
                         <ArrangedChip arrangedAt={order.arrangedAt} orderNumber={order.orderNumber} expanded />
                       ) : null}
+                      {needsFollowUp(order) ? <FollowUpChip order={order} expanded /> : null}
                     </div>
                     <div className="mt-0.5 truncate">
                       {order.customerName}
@@ -419,7 +423,7 @@ export function OrderTable({
                   <div className="shrink-0 text-right">
                     <div className="font-medium tabular-nums">{formatCurrency(order.total)}</div>
                     {due > 0 ? (
-                      <div className="mt-0.5 text-xs text-status-warning tabular-nums">{formatCurrency(due)} due</div>
+                      <AmountDue order={order} due={due} />
                     ) : null}
                   </div>
                 </div>
@@ -721,6 +725,57 @@ function RowActionButton({
         </Button>
       </TooltipTrigger>
       <TooltipContent>{tooltip}</TooltipContent>
+    </Tooltip>
+  )
+}
+
+/** Partially paid with a balance left — the orders staff must chase (see PartialPaymentsBanner). */
+function needsFollowUp(order: Order): boolean {
+  return order.payment.status === "partially_paid" && getAmountDue(order) > 0
+}
+
+/** Under the total: partially paid orders get a gold "₱X balance" chip that's hard to miss; unpaid
+ * orders keep the quieter "₱X due" line. */
+function AmountDue({ order, due }: { order: Order; due: number }) {
+  if (order.payment.status === "partially_paid") {
+    return (
+      <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-order-status-gold/15 px-1.5 py-0.5 text-xs font-medium text-foreground tabular-nums ring-1 ring-order-status-gold/40">
+        <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-order-status-gold" />
+        {formatCurrency(due)} balance
+      </span>
+    )
+  }
+  return <div className="mt-0.5 text-xs text-status-warning tabular-nums">{formatCurrency(due)} due</div>
+}
+
+/** Days a partially paid order has gone without its balance collected (from creation — there's no
+ * payment timestamp). Shown from 3 days on so fresh deposits don't add noise. */
+const FOLLOW_UP_AFTER_DAYS = 3
+
+function FollowUpChip({ order, expanded }: { order: Order; expanded?: boolean }) {
+  const days = daysSince(order.createdAt)
+  if (days < FOLLOW_UP_AFTER_DAYS) return null
+  const chip = (
+    <Badge
+      variant="secondary"
+      className={cn(
+        "gap-1 bg-order-status-gold/15 px-1.5 text-foreground ring-1 ring-order-status-gold/40",
+        expanded ? "h-5 text-xs" : "h-4.5 text-[0.65rem]"
+      )}
+    >
+      <BellRingIcon aria-hidden className="size-3 shrink-0 text-order-status-gold" />
+      <span className="leading-none">Follow up · {days}d</span>
+    </Badge>
+  )
+  if (expanded) return chip
+  return (
+    <Tooltip>
+      <TooltipTrigger render={<span onClick={stopRowClick} />} className="inline-flex cursor-default">
+        {chip}
+      </TooltipTrigger>
+      <TooltipContent>
+        Partially paid {days} days ago — remind the customer about the remaining balance
+      </TooltipContent>
     </Tooltip>
   )
 }

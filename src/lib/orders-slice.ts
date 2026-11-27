@@ -443,7 +443,18 @@ export type StatusAging = {
   over7d: number
 }
 
+/** Partially paid orders (deposit taken, balance still owed) — the Orders page follow-up banner.
+ * Age is from created_at (there's no payment timestamp). */
+export type PartialPaymentsSummary = {
+  count: number
+  balance: number
+  oldestAt: string | null
+  over7d: number
+}
+
 export type OrderStats = {
+  /** Optional so an older server still works; the banner then falls back to the count alone. */
+  partialPayments?: PartialPaymentsSummary
   byStatus: Record<string, number>
   /** Optional so an older server without aging support still works; the pipeline card simply
    * hides its aging hints when this is absent. */
